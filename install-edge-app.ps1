@@ -12,7 +12,7 @@
 
 param(
     [string]$Url     = 'http://localhost:8080/',
-    [string]$AppName = 'AtomArcade Home Base'
+    [string]$AppName = 'AtoMind Home Base'
 )
 
 $ErrorActionPreference = 'Stop'
@@ -36,7 +36,7 @@ $sc.TargetPath       = $edgePath
 $sc.Arguments        = "--app=$Url"
 $sc.WorkingDirectory = Split-Path $edgePath -Parent
 $sc.IconLocation     = "$edgePath,0"
-$sc.Description      = 'AtomArcade Home Base — opens in app window'
+$sc.Description      = 'AtoMind Home Base — opens in app window'
 $sc.Save()
 
 Write-Host "Created desktop shortcut: $shortcutPath"

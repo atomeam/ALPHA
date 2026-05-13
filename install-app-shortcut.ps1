@@ -1,4 +1,4 @@
-# Creates Desktop + Start Menu shortcuts for AtomArcade Home Base.
+# Creates Desktop + Start Menu shortcuts for AtoMind Home Base.
 # The shortcut launches homebase-launcher.ps1 hidden via pwsh, so clicking the icon
 # starts the bridge (if needed) and opens Home Base in an Edge app window.
 # Idempotent: running again just overwrites the shortcut.
@@ -35,18 +35,18 @@ $start   = Join-Path ([Environment]::GetFolderPath('StartMenu')) 'Programs'
 
 foreach ($dir in @($desktop, $start)) {
   if (-not (Test-Path $dir)) { continue }
-  $lnk = Join-Path $dir 'AtomArcade Home Base.lnk'
+  $lnk = Join-Path $dir 'AtoMind Home Base.lnk'
   $s   = $wshell.CreateShortcut($lnk)
   $s.TargetPath       = $pwshPath
   $s.Arguments        = "-NoLogo -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File `"$launcher`""
   $s.WorkingDirectory = $repo
   if ($edgeIcon) { $s.IconLocation = "$edgeIcon,0" }
   $s.WindowStyle      = 7   # minimized — but pwsh is hidden anyway
-  $s.Description      = 'AtomArcade Home Base — Automation Center cockpit'
+  $s.Description      = 'AtoMind Home Base — Automation Center cockpit'
   $s.Save()
   Write-Host "Created shortcut: $lnk"
 }
 
 Write-Host ''
-Write-Host 'Done. Click the AtomArcade Home Base icon on your Desktop or in the Start menu.'
+Write-Host 'Done. Click the AtoMind Home Base icon on your Desktop or in the Start menu.'
 Write-Host 'It will start the bridge if needed, then open Home Base in its own window.'
