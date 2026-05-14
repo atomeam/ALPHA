@@ -15,7 +15,12 @@ const BUTTON_TAP = { scale: 0.95 };
 const COUNT_INITIAL = { scale: 1.5, color: '#86efac' };
 const COUNT_ANIMATE = { scale: 1, color: '#ffffff' };
 const COUNT_TRANSITION = { duration: 0.25, ease: 'easeOut' };
+const IDLE_REST = { opacity: 1 };
+const IDLE_PULSE = { opacity: [1, 0.85, 1] };
+const IDLE_REST_TRANSITION = { duration: 0.4, ease: 'easeOut' };
+const IDLE_PULSE_TRANSITION = { duration: 2, repeat: Infinity, ease: 'easeInOut' };
 const STORAGE_KEY = 'homebase:clicks';
+const IDLE_DELAY_MS = 10000;
 
 export default function App() {
   const [clicks, setClicks] = useState(() => {
@@ -24,13 +29,28 @@ export default function App() {
     const n = saved ? Number(saved) : 0;
     return Number.isFinite(n) ? n : 0;
   });
+  const [isIdle, setIsIdle] = useState(false);
   const buttonRef = useRef<HTMLButtonElement | null>(null);
+  const idleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
       window.localStorage.setItem(STORAGE_KEY, String(clicks));
     }
   }, [clicks]);
+
+  const armIdleTimer = () => {
+    if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
+    setIsIdle(false);
+    idleTimerRef.current = setTimeout(() => setIsIdle(true), IDLE_DELAY_MS);
+  };
+
+  useEffect(() => {
+    armIdleTimer();
+    return () => {
+      if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
+    };
+  }, []);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -47,7 +67,15 @@ export default function App() {
     return () => window.removeEventListener('keydown', onKey);
   }, []);
 
-  const handleReset = () => setClicks(0);
+  const handleClick = () => {
+    setClicks(prev => prev + 1);
+    armIdleTimer();
+  };
+
+  const handleReset = () => {
+    setClicks(0);
+    armIdleTimer();
+  };
 
   return (
     <div className="min-h-screen bg-[#050505] text-white flex flex-col font-sans overflow-hidden border border-zinc-800 relative selection:bg-zinc-700">
@@ -82,7 +110,9 @@ export default function App() {
             ref={buttonRef}
             whileHover={BUTTON_HOVER}
             whileTap={BUTTON_TAP}
-            onClick={() => setClicks(prev => prev + 1)}
+            animate={isIdle ? IDLE_PULSE : IDLE_REST}
+            transition={isIdle ? IDLE_PULSE_TRANSITION : IDLE_REST_TRANSITION}
+            onClick={handleClick}
             className="relative w-64 h-24 bg-zinc-900 border border-zinc-700 rounded-xl flex items-center justify-center shadow-2xl overflow-hidden cursor-pointer group-active:scale-95 transition-transform"
           >
             {/* Inner bevel */}
