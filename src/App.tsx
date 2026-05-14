@@ -6,17 +6,25 @@
 import { useEffect, useState } from 'react';
 import { motion } from 'motion/react';
 
+const RADIAL_GRID_STYLE = {
+  backgroundImage: 'radial-gradient(#fff 1px, transparent 1px)',
+  backgroundSize: '32px 32px',
+};
+const BUTTON_HOVER = { scale: 1.02 };
+const BUTTON_TAP = { scale: 0.95 };
+const STORAGE_KEY = 'homebase:clicks';
+
 export default function App() {
   const [clicks, setClicks] = useState(() => {
     if (typeof window === 'undefined') return 0;
-    const saved = window.localStorage.getItem('homebase:clicks');
+    const saved = window.localStorage.getItem(STORAGE_KEY);
     const n = saved ? Number(saved) : 0;
     return Number.isFinite(n) ? n : 0;
   });
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
-      window.localStorage.setItem('homebase:clicks', String(clicks));
+      window.localStorage.setItem(STORAGE_KEY, String(clicks));
     }
   }, [clicks]);
 
@@ -26,7 +34,7 @@ export default function App() {
       <div className="absolute inset-0 pointer-events-none overflow-hidden select-none">
         <div className="absolute top-[-10%] left-[-10%] w-[500px] h-[500px] bg-blue-900/10 rounded-full blur-[120px]"></div>
         <div className="absolute bottom-[-10%] right-[-10%] w-[500px] h-[500px] bg-zinc-800/10 rounded-full blur-[120px]"></div>
-        <div className="absolute inset-0 opacity-[0.03]" style= backgroundImage: 'radial-gradient(#fff 1px, transparent 1px)', backgroundSize: '32px 32px' ></div>
+        <div className="absolute inset-0 opacity-[0.03]" style={RADIAL_GRID_STYLE}></div>
       </div>
 
       {/* Main Content Area */}
@@ -50,8 +58,8 @@ export default function App() {
           
           <motion.button
             id="homebase-button"
-            whileHover= scale: 1.02 
-            whileTap= scale: 0.95 
+            whileHover={BUTTON_HOVER}
+            whileTap={BUTTON_TAP}
             onClick={() => setClicks(prev => prev + 1)}
             className="relative w-64 h-24 bg-zinc-900 border border-zinc-700 rounded-xl flex items-center justify-center shadow-2xl overflow-hidden cursor-pointer group-active:scale-95 transition-transform"
           >
