@@ -33,8 +33,8 @@ _SYSTEM_PROMPT = (
     "Do not pretend to execute commands you have not actually run."
 )
 
-logger.info(f"HomeBase starting -- endpoint={HB_AI_ENDPOINT} model={HB_AI_MODEL}")
-logger.info(f"VIKTOR scripts root: {SCRIPTS_ROOT}")
+logger.info(f"🏠 HomeBase starting — endpoint={HB_AI_ENDPOINT} model={HB_AI_MODEL}")
+logger.info(f"📁 VIKTOR scripts root: {SCRIPTS_ROOT}")
 
 
 # ---------------------------------------------------------------------------
@@ -46,9 +46,9 @@ def _ollama_status() -> dict:
     try:
         resp = requests.get(tags_url, timeout=2)
         reachable = resp.status_code == 200
-        logger.info(f"Ollama /api/tags -> HTTP {resp.status_code}")
+        logger.info(f"🔍 Ollama /api/tags → HTTP {resp.status_code}")
     except Exception as exc:
-        logger.warning(f"Ollama unreachable: {exc}")
+        logger.warning(f"⚠️ Ollama unreachable: {exc}")
 
     return {
         "ok":               reachable,
@@ -73,27 +73,35 @@ def _chat(message: str) -> dict:
         ],
     }
 
-    logger.info(f"Sending to Ollama: model={HB_AI_MODEL} message_len={len(message)}")
+    logger.info(f"💬 Sending to Ollama: model={HB_AI_MODEL} message_len={len(message)}")
     t0 = time.time()
     try:
         resp = requests.post(HB_AI_ENDPOINT, json=payload, timeout=HB_AI_TIMEOUT)
         elapsed = round(time.time() - t0, 2)
-        logger.info(f"Ollama HTTP {resp.status_code} in {elapsed}s")
-        data = resp.json()
+        logger.info(f"💬 Ollama HTTP {resp.status_code} in {elapsed}s")
 
+        # Surface non-200s as a clear error before attempting json parse.
+        if resp.status_code != 200:
+            snippet = resp.text[:200].replace("\n", " ").strip()
+            return {
+                "ok":    False,
+                "error": f"Ollama returned HTTP {resp.status_code}: {snippet}",
+            }
+
+        data = resp.json()
         reply = (
             data.get("choices", [{}])[0]
                 .get("message", {})
                 .get("content", "")
-            or data.get("response", "")
+            or data.get("response", "")   # native Ollama shape fallback
             or json.dumps(data)
         )
         return {"ok": True, "reply": reply, "meta": {"model": HB_AI_MODEL, "elapsed_sec": elapsed}}
     except requests.exceptions.Timeout:
-        logger.error("Ollama request timed out")
+        logger.error("❌ Ollama request timed out")
         return {"ok": False, "error": f"Ollama did not respond within {HB_AI_TIMEOUT}s"}
     except Exception as exc:
-        logger.error(f"Chat error: {exc}")
+        logger.error(f"❌ Chat error: {exc}")
         return {"ok": False, "error": str(exc)}
 
 
@@ -131,10 +139,10 @@ def _ensure_test_script() -> bool:
         os.makedirs(SCRIPTS_ROOT, exist_ok=True)
         with open(TEST_SCRIPT, "w", encoding="utf-8") as fh:
             fh.write(_TEST_SCRIPT_CONTENT)
-        logger.info(f"Auto-created {TEST_SCRIPT}")
+        logger.info(f"📝 Auto-created {TEST_SCRIPT}")
         return True
     except OSError as exc:
-        logger.warning(f"Cannot create test script (read-only fs?): {exc}")
+        logger.warning(f"⚠️ Cannot create test script (read-only fs?): {exc}")
         return False
 
 
@@ -159,11 +167,11 @@ def _viktor_test() -> dict:
             capture_output=True,
             text=True,
             timeout=60,
-            cwd=os.getcwd(),
+            cwd=_APP_DIR,  # run from the app's own directory, not the launcher's
         )
         elapsed = round(time.time() - t0, 2)
         ok = result.returncode == 0
-        logger.info(f"test.py exit={result.returncode} elapsed={elapsed}s")
+        logger.info(f"🚀 test.py exit={result.returncode} elapsed={elapsed}s")
 
         reply_text = result.stdout.strip()
         try:
@@ -188,7 +196,7 @@ def _viktor_test() -> dict:
 
 
 # ---------------------------------------------------------------------------
-# CSS (plain string -- no f-string escaping needed)
+# CSS (plain string — no f-string escaping needed)
 # ---------------------------------------------------------------------------
 _CSS_TEMPLATE = """
         * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -251,11 +259,11 @@ class Parametrization(vkt.Parametrization):
     page.chat_message = vkt.TextAreaField(
         "Chat Message",
         default="hi",
-        description="Type a message -- app.py sends it directly to your local Ollama.",
+        description="Type a message — app.py sends it directly to your local Ollama.",
     )
 
     page.run_viktor_test = vkt.SetParamsButton(
-        "Run VIKTOR Test",
+        "🚀 Run VIKTOR Test",
         method="run_viktor_test",
         description="Run viktor/scripts/test.py and display the JSON result.",
     )
@@ -276,7 +284,7 @@ class Controller(vkt.Controller):
 
     def run_viktor_test(self, params, **kwargs):
         result = _viktor_test()
-        logger.info(f"VIKTOR test complete: ok={result.get('ok')}")
+        logger.info(f"🚀 VIKTOR test complete: ok={result.get('ok')}")
         return vkt.SetParamsResult(
             {"chat_message": json.dumps(result, indent=2)}
         )
@@ -287,7 +295,7 @@ class Controller(vkt.Controller):
         status = _ollama_status()
         reachable     = status["ollama_reachable"]
         status_color  = "#2ecc71" if reachable else "#e74c3c"
-        status_label  = "Ollama reachable" if reachable else "Ollama unreachable"
+        status_label  = "✅ Ollama reachable" if reachable else "❌ Ollama unreachable"
         status_detail = f"{HB_AI_MODEL} @ {_OLLAMA_BASE}"
 
         # 2. Chat
@@ -311,8 +319,8 @@ class Controller(vkt.Controller):
                     elapsed    = meta.get("elapsed_sec", "?")
                     chat_response_html = (
                         '<div class="card">'
-                        '<h3>Chat Response '
-                        f'<span class="meta">{HB_AI_MODEL} - {elapsed}s</span>'
+                        '<h3>💬 Chat Response '
+                        f'<span class="meta">{HB_AI_MODEL} · {elapsed}s</span>'
                         '</h3>'
                         f'<p class="response-text">{reply_text}</p>'
                         '</div>'
@@ -321,14 +329,14 @@ class Controller(vkt.Controller):
                     err = chat_result.get("error", "unknown error")
                     chat_response_html = (
                         '<div class="card warning">'
-                        '<h3>Chat Error</h3>'
+                        '<h3>💬 Chat Error</h3>'
                         f'<p>{err}</p>'
                         '</div>'
                     )
             else:
                 chat_response_html = (
                     '<div class="card warning">'
-                    '<h3>Chat</h3>'
+                    '<h3>💬 Chat</h3>'
                     f'<p>Ollama is not reachable at <code>{_OLLAMA_BASE}</code>. '
                     'Make sure Ollama is running (<code>ollama serve</code>) and the model '
                     f'is pulled (<code>ollama pull {HB_AI_MODEL}</code>).</p>'
@@ -338,7 +346,7 @@ class Controller(vkt.Controller):
         # 3. VIKTOR test result card
         viktor_result_html = ""
         if is_json_blob and parsed_json is not None:
-            ok_icon  = "OK" if parsed_json.get("ok") else "FAIL"
+            ok_icon  = "✅" if parsed_json.get("ok") else "❌"
             reply_val = parsed_json.get("reply", {})
             tool_name = (
                 reply_val.get("tool") if isinstance(reply_val, dict)
@@ -353,7 +361,7 @@ class Controller(vkt.Controller):
 
             viktor_result_html = (
                 '<div class="card success">'
-                '<h3>VIKTOR Test Result</h3>'
+                '<h3>🚀 VIKTOR Test Result</h3>'
                 '<table>'
                 f'<tr><th>ok</th><td>{ok_icon} {parsed_json.get("ok")}</td></tr>'
                 f'<tr><th>tool</th><td>{tool_name}</td></tr>'
@@ -371,19 +379,19 @@ class Controller(vkt.Controller):
         else:
             idle_card = (
                 '<div class="card">'
-                '<h3>Ready</h3>'
+                '<h3>👋 Ready</h3>'
                 '<p class="response-text">Type a message in the left panel and click <strong>Update</strong> to chat with Ollama.<br>'
-                'Click <strong>Run VIKTOR Test</strong> to execute <code>viktor/scripts/test.py</code>.</p>'
-                '<p class="hint" style="margin-top:12px">Running locally via <code>viktor start</code>? '
-                f'Ollama must be running: <code>ollama serve</code> then <code>ollama pull {HB_AI_MODEL}</code>.</p>'
+                'Click <strong>🚀 Run VIKTOR Test</strong> to execute the hello script.</p>'
+                f'<p class="hint" style="margin-top:12px">Test script: <code>{TEST_SCRIPT}</code></p>'
+                f'<p class="hint">Ollama must be running: <code>ollama serve</code> then <code>ollama pull {HB_AI_MODEL}</code>.</p>'
                 '</div>'
             )
 
         # 5. Render HTML by concatenation (avoids f-string brace escaping)
         css = _CSS_TEMPLATE.replace("__STATUS_COLOR__", status_color)
         body_html = (
-            '<h1>Atomind HomeBase</h1>'
-            f'<p class="subtitle">Local AI Cockpit - <code>viktor start</code> - {_OLLAMA_BASE}</p>'
+            '<h1>🏠 Atomind HomeBase</h1>'
+            f'<p class="subtitle">Local AI Cockpit · <code>viktor start</code> · {_OLLAMA_BASE}</p>'
             '<div class="pills">'
             '<div class="pill">'
             '<div class="dot"></div>'
