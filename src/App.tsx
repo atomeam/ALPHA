@@ -21,12 +21,24 @@ export default function App() {
     const n = saved ? Number(saved) : 0;
     return Number.isFinite(n) ? n : 0;
   });
+  const [flash, setFlash] = useState(false);
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
       window.localStorage.setItem(STORAGE_KEY, String(clicks));
     }
   }, [clicks]);
+
+  useEffect(() => {
+    if (!flash) return;
+    const t = setTimeout(() => setFlash(false), 400);
+    return () => clearTimeout(t);
+  }, [flash]);
+
+  const handleReset = () => {
+    setClicks(0);
+    setFlash(true);
+  };
 
   return (
     <div className="min-h-screen bg-[#050505] text-white flex flex-col font-sans overflow-hidden border border-zinc-800 relative selection:bg-zinc-700">
@@ -98,11 +110,21 @@ export default function App() {
           </span>
         </div>
 
-        {/* Right Label: Clicks Counter */}
-        <div id="right-label" className="flex items-center gap-4">
+        {/* Right Label: Clicks Counter (double-click to reset) */}
+        <div
+          id="right-label"
+          className="flex items-center gap-4 cursor-pointer select-none"
+          onDoubleClick={handleReset}
+          title="Double-click to reset"
+        >
           <div className="h-4 w-[1px] bg-zinc-800 hidden sm:block"></div>
           <div className="font-mono text-[11px] tracking-wider text-zinc-400 uppercase whitespace-nowrap">
-            clicks: <span className="text-white font-bold inline-block min-w-[2ch]">{clicks}</span>
+            clicks:{' '}
+            <span
+              className={`font-bold inline-block min-w-[2ch] transition-colors duration-300 ${flash ? 'text-green-400' : 'text-white'}`}
+            >
+              {clicks}
+            </span>
           </div>
         </div>
       </footer>
