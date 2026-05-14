@@ -12,6 +12,9 @@ const RADIAL_GRID_STYLE = {
 };
 const BUTTON_HOVER = { scale: 1.02 };
 const BUTTON_TAP = { scale: 0.95 };
+const COUNT_INITIAL = { scale: 1.5, color: '#86efac' };
+const COUNT_ANIMATE = { scale: 1, color: '#ffffff' };
+const COUNT_TRANSITION = { duration: 0.25, ease: 'easeOut' };
 const STORAGE_KEY = 'homebase:clicks';
 
 export default function App() {
@@ -21,7 +24,6 @@ export default function App() {
     const n = saved ? Number(saved) : 0;
     return Number.isFinite(n) ? n : 0;
   });
-  const [flash, setFlash] = useState(false);
   const buttonRef = useRef<HTMLButtonElement | null>(null);
 
   useEffect(() => {
@@ -29,12 +31,6 @@ export default function App() {
       window.localStorage.setItem(STORAGE_KEY, String(clicks));
     }
   }, [clicks]);
-
-  useEffect(() => {
-    if (!flash) return;
-    const t = setTimeout(() => setFlash(false), 400);
-    return () => clearTimeout(t);
-  }, [flash]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -51,10 +47,7 @@ export default function App() {
     return () => window.removeEventListener('keydown', onKey);
   }, []);
 
-  const handleReset = () => {
-    setClicks(0);
-    setFlash(true);
-  };
+  const handleReset = () => setClicks(0);
 
   return (
     <div className="min-h-screen bg-[#050505] text-white flex flex-col font-sans overflow-hidden border border-zinc-800 relative selection:bg-zinc-700">
@@ -137,11 +130,15 @@ export default function App() {
           <div className="h-4 w-[1px] bg-zinc-800 hidden sm:block"></div>
           <div className="font-mono text-[11px] tracking-wider text-zinc-400 uppercase whitespace-nowrap">
             clicks:{' '}
-            <span
-              className={`font-bold inline-block min-w-[2ch] transition-colors duration-300 ${flash ? 'text-green-400' : 'text-white'}`}
+            <motion.span
+              key={clicks}
+              initial={COUNT_INITIAL}
+              animate={COUNT_ANIMATE}
+              transition={COUNT_TRANSITION}
+              className="font-bold inline-block min-w-[2ch]"
             >
               {clicks}
-            </span>
+            </motion.span>
           </div>
         </div>
       </footer>
