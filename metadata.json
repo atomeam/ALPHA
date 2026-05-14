@@ -1,0 +1,6 @@
+{
+  "name": "HomeBase Button App",
+  "description": "A simple one-button app with a status footer tracking clicks.",
+  "requestFramePermissions": [],
+  "majorCapabilities": []
+}
