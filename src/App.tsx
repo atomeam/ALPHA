@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { motion } from 'motion/react';
 
 const RADIAL_GRID_STYLE = {
@@ -22,6 +22,7 @@ export default function App() {
     return Number.isFinite(n) ? n : 0;
   });
   const [flash, setFlash] = useState(false);
+  const buttonRef = useRef<HTMLButtonElement | null>(null);
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -34,6 +35,21 @@ export default function App() {
     const t = setTimeout(() => setFlash(false), 400);
     return () => clearTimeout(t);
   }, [flash]);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.code !== 'Space' && e.key !== ' ') return;
+      const target = e.target as HTMLElement | null;
+      const tag = target?.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || target?.isContentEditable) {
+        return;
+      }
+      e.preventDefault();
+      buttonRef.current?.click();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
 
   const handleReset = () => {
     setClicks(0);
@@ -70,6 +86,7 @@ export default function App() {
           
           <motion.button
             id="homebase-button"
+            ref={buttonRef}
             whileHover={BUTTON_HOVER}
             whileTap={BUTTON_TAP}
             onClick={() => setClicks(prev => prev + 1)}
