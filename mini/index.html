@@ -181,7 +181,7 @@
       </button>
     </div>
     <div class="descriptor">Bridge Connection: Active</div>
-    <button class="propose-link" id="proposeBtn" type="button" title="Propose a code change as a Pull Request (tries Groq 8B first, falls back to Gemini)">✨ propose change</button>
+    <button class="propose-link" id="proposeBtn" type="button" title="Propose a code change as a Pull Request (Groq 8B primary, Gemini fallback)">✨ propose change</button>
   </main>
   <footer>
     <div class="left">
@@ -194,7 +194,7 @@
       <span class="label-text" id="clicksLabel" title="Double-click to reset local count">clicks: <span id="counter">0</span></span>
     </div>
   </footer>
-  <div class="build-stamp">build dual-llm-v2</div>
+  <div class="build-stamp">build slim-prompt-v3</div>
 
   <div class="modal-bg" id="modalBg" hidden>
     <div class="modal">
@@ -207,7 +207,7 @@
         <input type="password" id="gh-input" placeholder="github_pat_..." autocomplete="off" />
         <span class="hint" id="gh-hint">Fine-grained PAT · atomeam/HomeBase- · Contents + Pull requests: Read &amp; write</span>
       </label>
-      <div class="section-note">For ✨ propose change. Add either or both. Groq is tried first; Gemini is fallback (handles bigger files).</div>
+      <div class="section-note">For ✨ propose change. Either provider works. Groq is tried first; Gemini is fallback.</div>
       <label>
         <div class="label-row">
           <span>Gemini API Key (free)</span>
@@ -239,7 +239,6 @@
     var INDEX_PATH = 'mini/index.html';
     var BRANCH     = 'main';
 
-    // 8B has 5x the TPM allowance of 70B on free tier — avoids 413 on a ~30KB file.
     var GROQ_MODEL = 'llama-3.1-8b-instant';
     var GEMINI_MODEL = 'gemini-2.0-flash';
 
@@ -249,7 +248,6 @@
     var KEY_GROQ    = 'homebase:groq:key';
     var KEY_PENDING = 'homebase:pending';
 
-    // Migrate older single-LLM key storage to KEY_GROQ
     var oldLlm = localStorage.getItem('homebase:llm:key');
     if (oldLlm && !localStorage.getItem(KEY_GROQ)) {
       localStorage.setItem(KEY_GROQ, oldLlm);
@@ -302,9 +300,7 @@
       banner.className = 'banner';
       if (bannerTimer) { clearTimeout(bannerTimer); bannerTimer = null; }
     }
-    banner.addEventListener('click', function(e){
-      if (e.target.tagName !== 'A') hideBanner();
-    });
+    banner.addEventListener('click', function(e){ if (e.target.tagName !== 'A') hideBanner(); });
     function escapeHtml(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 
     function setStatus(kind, msg) {
@@ -347,8 +343,7 @@
     }
 
     async function ghPutFile(content, sha, commitMessage, branchName) {
-      var url = 'https://api.github.com/repos/' + REPO_OWNER + '/' + REPO_NAME +
-                '/contents/' + LOG_PATH;
+      var url = 'https://api.github.com/repos/' + REPO_OWNER + '/' + REPO_NAME + '/contents/' + LOG_PATH;
       var body = {
         message: commitMessage || ('log: ' + new Date().toISOString()),
         content: b64encode(content),
@@ -357,11 +352,7 @@
       if (sha) body.sha = sha;
       var r = await fetch(url, {
         method: 'PUT',
-        headers: {
-          'Authorization': 'token ' + token,
-          'Accept': 'application/vnd.github+json',
-          'Content-Type': 'application/json'
-        },
+        headers: { 'Authorization': 'token ' + token, 'Accept': 'application/vnd.github+json', 'Content-Type': 'application/json' },
         body: JSON.stringify(body)
       });
       if (!r.ok) {
@@ -534,9 +525,7 @@
     }
     async function testGroqKey() {
       try {
-        var r = await fetch('https://api.groq.com/openai/v1/models', {
-          headers: { 'Authorization': 'Bearer ' + groqKey }
-        });
+        var r = await fetch('https://api.groq.com/openai/v1/models', { headers: { 'Authorization': 'Bearer ' + groqKey } });
         if (r.ok) { groqHint.textContent = 'OK · Groq ready (' + GROQ_MODEL + ')'; return true; }
         var j = {}; try { j = await r.json(); } catch(e){}
         groqHint.textContent = 'BAD: ' + ((j.error && j.error.message) || ('status ' + r.status));
@@ -544,15 +533,31 @@
       } catch (e) { groqHint.textContent = 'TEST FAILED: ' + e.message; return false; }
     }
 
+    // Strip CSS to slim prompt for LLMs with tight token budgets (Groq free tier).
+    // Returns { working, originalStyle, placeholder } so patches apply against `working`
+    // and we splice the original style block back before pushing.
+    var STYLE_PLACEHOLDER = '<style>/* CSS_HIDDEN_FROM_PROMPT_DO_NOT_PATCH */</style>';
+    function splitStyle(html) {
+      var m = html.match(/<style>[\s\S]*?<\/style>/);
+      if (!m) return { working: html, originalStyle: null };
+      var working = html.slice(0, m.index) + STYLE_PLACEHOLDER + html.slice(m.index + m[0].length);
+      return { working: working, originalStyle: m[0] };
+    }
+    function restoreStyle(patched, split) {
+      if (!split.originalStyle) return patched;
+      var i = patched.indexOf(STYLE_PLACEHOLDER);
+      if (i === -1) throw new Error('Style placeholder lost during patching');
+      return patched.slice(0, i) + split.originalStyle + patched.slice(i + STYLE_PLACEHOLDER.length);
+    }
+
     function applyPatches(html, patches) {
       if (!Array.isArray(patches) || !patches.length) throw new Error('No patches returned');
       var out = html;
       for (var i = 0; i < patches.length; i++) {
         var p = patches[i];
-        if (!p || typeof p.find !== 'string' || typeof p.replace !== 'string') {
-          throw new Error('Patch ' + (i+1) + ' missing find/replace');
-        }
+        if (!p || typeof p.find !== 'string' || typeof p.replace !== 'string') throw new Error('Patch ' + (i+1) + ' missing find/replace');
         if (!p.find.length) throw new Error('Patch ' + (i+1) + ' has empty find');
+        if (p.find.indexOf('CSS_HIDDEN_FROM_PROMPT_DO_NOT_PATCH') !== -1) throw new Error('Patch ' + (i+1) + ' tries to edit hidden CSS placeholder');
         var idx = out.indexOf(p.find);
         if (idx === -1) throw new Error('Patch ' + (i+1) + ' find not in source: ' + p.find.slice(0, 60));
         var idx2 = out.indexOf(p.find, idx + 1);
@@ -562,38 +567,32 @@
       return out;
     }
 
-    function buildPrompt(notesArr, indexHtml) {
+    function buildPrompt(notesArr, slimHtml) {
       var notesText = notesArr.length
         ? notesArr.map(function(n, i){ return (i+1) + '. ' + n; }).join('\n')
-        : '(no user notes yet — propose any small UX improvement)';
+        : '(no user notes yet — propose any small JS/HTML improvement)';
       return [
-        'You improve a single-file HTML app called HomeBase. The user has been logging button clicks with optional notes about their intent.',
+        'You improve a single-file HTML app called HomeBase. User logs button clicks with optional notes about intent.',
         '',
-        'TASK: Propose ONE small, focused change to the HTML/CSS/JS based on the user notes. Make a real, useful change. Small + working > big + broken.',
+        'TASK: Propose ONE small focused change to HTML/JS based on the notes. Real + working > big + broken.',
         '',
-        'OUTPUT FORMAT (return JSON object, no markdown, no prose outside JSON):',
-        '{',
-        '  "summary": "one short sentence describing the change",',
-        '  "patches": [',
-        '    { "find": "<exact unique substring from current file>", "replace": "<new substring>" }',
-        '  ]',
-        '}',
+        'OUTPUT: JSON only, no markdown, no prose:',
+        '{ "summary": "one short sentence", "patches": [ { "find": "<unique substring>", "replace": "<new substring>" } ] }',
         '',
         'RULES:',
-        '- Each patch.find MUST appear EXACTLY ONCE in the current file. Verify uniqueness.',
-        '- Each patch.find should be the smallest unique snippet that anchors your change.',
-        '- Preserve ALL existing functionality: GitHub logging, intent input, propose button, modal settings, both API keys, click counter, idle pulse, spacebar.',
-        '- DO NOT remove the propose flow itself.',
-        '- 1–3 patches max. Smaller is better.',
+        '- Each patch.find must appear EXACTLY ONCE in the file shown. Smallest unique anchor.',
+        '- DO NOT edit the <style> block — CSS is hidden from you and replaced with a placeholder. Never patch lines containing CSS_HIDDEN_FROM_PROMPT.',
+        '- Preserve: GitHub logging, intent input, propose flow, modal settings, both API keys, click counter, idle pulse, spacebar.',
+        '- 1–3 patches max.',
         '- No external dependencies, no new files.',
         '- Escape JSON strings properly.',
         '',
-        'RECENT USER NOTES (chronological, most recent last):',
+        'RECENT USER NOTES (most recent last):',
         notesText,
         '',
-        'CURRENT FILE (mini/index.html):',
+        'CURRENT FILE (mini/index.html, CSS replaced with placeholder):',
         '```html',
-        indexHtml,
+        slimHtml,
         '```'
       ].join('\n');
     }
@@ -601,10 +600,7 @@
     async function callGroq(prompt) {
       var r = await fetch('https://api.groq.com/openai/v1/chat/completions', {
         method: 'POST',
-        headers: {
-          'Authorization': 'Bearer ' + groqKey,
-          'Content-Type': 'application/json'
-        },
+        headers: { 'Authorization': 'Bearer ' + groqKey, 'Content-Type': 'application/json' },
         body: JSON.stringify({
           model: GROQ_MODEL,
           messages: [
@@ -635,11 +631,7 @@
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           contents: [{ parts: [{ text: prompt }] }],
-          generationConfig: {
-            responseMimeType: 'application/json',
-            temperature: 0.5,
-            maxOutputTokens: 8192
-          }
+          generationConfig: { responseMimeType: 'application/json', temperature: 0.5, maxOutputTokens: 8192 }
         })
       });
       if (!r.ok) {
@@ -657,31 +649,27 @@
     async function callLlm(prompt) {
       var lastErr = null;
       if (groqKey) {
-        try {
-          return { proposal: await callGroq(prompt), provider: 'Groq 8B' };
-        } catch (e) {
+        try { return { proposal: await callGroq(prompt), provider: 'Groq 8B' }; }
+        catch (e) {
           console.warn('[homebase] Groq failed:', e.message);
           lastErr = e;
           if (!geminiKey) throw e;
         }
       }
       if (geminiKey) {
-        try {
-          return { proposal: await callGemini(prompt), provider: 'Gemini' };
-        } catch (e) {
+        try { return { proposal: await callGemini(prompt), provider: 'Gemini' }; }
+        catch (e) {
           console.warn('[homebase] Gemini failed:', e.message);
           if (lastErr) throw new Error('Groq: ' + lastErr.message + ' / Gemini: ' + e.message);
           throw e;
         }
       }
-      throw new Error('No LLM key set. Click ⚙ and add a Gemini or Groq key.');
+      throw new Error('No LLM key. Add Gemini or Groq in ⚙.');
     }
 
     async function proposeChange() {
       if (!token) { showBanner('warn', 'Set GitHub token first (⚙).', 4000); return; }
-      if (!geminiKey && !groqKey) {
-        showBanner('warn', 'Need a Gemini OR Groq key (⚙). Both are free.', 5000); return;
-      }
+      if (!geminiKey && !groqKey) { showBanner('warn', 'Need a Gemini OR Groq key (⚙). Both free.', 5000); return; }
       proposeBtn.disabled = true;
       try {
         showBanner('warn', 'Reading log + current code…');
@@ -689,26 +677,23 @@
         var lines = logFile.content.trim().split('\n').filter(Boolean);
         var notes = [];
         for (var i = Math.max(0, lines.length - 50); i < lines.length; i++) {
-          try {
-            var e = JSON.parse(lines[i]);
-            if (e && e.note) notes.push(e.note);
-          } catch (er) {}
+          try { var e = JSON.parse(lines[i]); if (e && e.note) notes.push(e.note); } catch (er) {}
         }
         var indexFile = await ghGetFile(INDEX_PATH);
         if (!indexFile.content) throw new Error('Could not load mini/index.html');
 
+        var split = splitStyle(indexFile.content);
         var preferred = groqKey ? 'Groq' : 'Gemini';
-        showBanner('warn', 'Asking ' + preferred + ' for a proposal…');
-        var prompt = buildPrompt(notes, indexFile.content);
+        showBanner('warn', 'Asking ' + preferred + ' (slim prompt, ~' + Math.round(split.working.length/1024) + 'KB)…');
+        var prompt = buildPrompt(notes, split.working);
         var result = await callLlm(prompt);
         var proposal = result.proposal;
-        if (!proposal.summary || !Array.isArray(proposal.patches)) {
-          throw new Error('Proposal missing summary or patches');
-        }
+        if (!proposal.summary || !Array.isArray(proposal.patches)) throw new Error('Proposal missing summary or patches');
 
         showBanner('warn', '[' + result.provider + '] Applying · ' + escapeHtml(proposal.summary));
-        var newHtml = applyPatches(indexFile.content, proposal.patches);
-        if (newHtml === indexFile.content) throw new Error('Patches resulted in no change');
+        var patchedSlim = applyPatches(split.working, proposal.patches);
+        if (patchedSlim === split.working) throw new Error('Patches resulted in no change');
+        var newHtml = restoreStyle(patchedSlim, split);
         if (newHtml.length < 1000) throw new Error('Result suspiciously short');
 
         var stamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
@@ -753,16 +738,14 @@
         var prBody = 'Generated by HomeBase using **' + result.provider + '**.\n\n' +
                      '**Summary:** ' + proposal.summary + '\n\n' +
                      '**Patches:** ' + proposal.patches.length + '\n\n' +
-                     'Review the diff. Merge to deploy to the live app.\n\n' +
+                     'Review the diff. Merge to deploy.\n\n' +
                      '_Notes seen by the model:_\n' + (notes.length ? notes.map(function(n){ return '- ' + n; }).join('\n') : '(none yet)');
         var prR = await fetch('https://api.github.com/repos/' + REPO_OWNER + '/' + REPO_NAME + '/pulls', {
           method: 'POST',
           headers: { 'Authorization': 'token ' + token, 'Accept': 'application/vnd.github+json', 'Content-Type': 'application/json' },
           body: JSON.stringify({
             title: 'propose: ' + shortenForCommit(proposal.summary),
-            head: branchName,
-            base: BRANCH,
-            body: prBody
+            head: branchName, base: BRANCH, body: prBody
           })
         });
         if (!prR.ok) {
