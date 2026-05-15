@@ -181,7 +181,7 @@
       </button>
     </div>
     <div class="descriptor">Bridge Connection: Active</div>
-    <button class="propose-link" id="proposeBtn" type="button" title="Propose a code change as a Pull Request (Gemini -> OpenRouter -> Groq)">✨ propose change</button>
+    <button class="propose-link" id="proposeBtn" type="button" title="Propose a code change as a Pull Request (Mistral -> Gemini -> OpenRouter -> Groq)">✨ propose change</button>
   </main>
   <footer>
     <div class="left">
@@ -194,7 +194,7 @@
       <span class="label-text" id="clicksLabel" title="Double-click to reset local count">clicks: <span id="counter">0</span></span>
     </div>
   </footer>
-  <div class="build-stamp">build tri-llm-v7</div>
+  <div class="build-stamp">build quad-llm-v8</div>
 
   <div class="modal-bg" id="modalBg" hidden>
     <div class="modal">
@@ -207,7 +207,15 @@
         <input type="password" id="gh-input" placeholder="github_pat_..." autocomplete="off" />
         <span class="hint" id="gh-hint">Fine-grained PAT · atomeam/HomeBase- · Contents + Pull requests: Read &amp; write</span>
       </label>
-      <div class="section-note">For ✨ propose change. Add any one or more. Tried in this order: Gemini → OpenRouter → Groq.</div>
+      <div class="section-note">For ✨ propose change. Add any one or more. Tried in this order: Mistral → Gemini → OpenRouter → Groq.</div>
+      <label>
+        <div class="label-row">
+          <span>Mistral API Key (free)</span>
+          <a href="https://console.mistral.ai/api-keys" target="_blank" rel="noopener">create key</a>
+        </div>
+        <input type="password" id="mst-input" placeholder="mistral key" autocomplete="off" />
+        <span class="hint" id="mst-hint">console.mistral.ai · phone verify, no card · 131K context · 1B tokens/month</span>
+      </label>
       <label>
         <div class="label-row">
           <span>Gemini API Key (free)</span>
@@ -222,7 +230,7 @@
           <a href="https://openrouter.ai/keys" target="_blank" rel="noopener">create key</a>
         </div>
         <input type="password" id="or-input" placeholder="sk-or-v1-..." autocomplete="off" />
-        <span class="hint" id="or-hint">openrouter.ai · no credit card · free models w/ auto-fallback</span>
+        <span class="hint" id="or-hint">openrouter.ai · no card · 50 req/day cap on free models</span>
       </label>
       <label>
         <div class="label-row">
@@ -230,7 +238,7 @@
           <a href="https://console.groq.com/keys" target="_blank" rel="noopener">create key</a>
         </div>
         <input type="password" id="groq-input" placeholder="gsk_..." autocomplete="off" />
-        <span class="hint" id="groq-hint">console.groq.com · no credit card · Llama 3.1 8B Instant</span>
+        <span class="hint" id="groq-hint">console.groq.com · no card · Llama 3.1 8B (low TPM, last resort)</span>
       </label>
       <div class="modal-actions">
         <button id="modal-clear" type="button" class="danger">Clear all</button>
@@ -247,6 +255,7 @@
     var INDEX_PATH = 'mini/index.html';
     var BRANCH     = 'main';
 
+    var MISTRAL_MODEL = 'mistral-large-latest';
     var GROQ_MODEL = 'llama-3.1-8b-instant';
     var GEMINI_MODEL = 'gemini-2.0-flash';
     var OPENROUTER_MODEL = 'google/gemini-2.0-flash-exp:free';
@@ -258,6 +267,7 @@
 
     var KEY_CLICKS     = 'homebase:clicks';
     var KEY_TOKEN      = 'homebase:gh:token';
+    var KEY_MISTRAL    = 'homebase:mistral:key';
     var KEY_GEMINI     = 'homebase:gemini:key';
     var KEY_OPENROUTER = 'homebase:openrouter:key';
     var KEY_GROQ       = 'homebase:groq:key';
@@ -286,6 +296,8 @@
     var modalBg     = document.getElementById('modalBg');
     var ghInput     = document.getElementById('gh-input');
     var ghHint      = document.getElementById('gh-hint');
+    var mstInput    = document.getElementById('mst-input');
+    var mstHint     = document.getElementById('mst-hint');
     var gemInput    = document.getElementById('gem-input');
     var gemHint     = document.getElementById('gem-hint');
     var orInput     = document.getElementById('or-input');
@@ -294,6 +306,7 @@
     var groqHint    = document.getElementById('groq-hint');
 
     var token         = localStorage.getItem(KEY_TOKEN) || null;
+    var mistralKey    = localStorage.getItem(KEY_MISTRAL) || null;
     var geminiKey     = localStorage.getItem(KEY_GEMINI) || null;
     var openrouterKey = localStorage.getItem(KEY_OPENROUTER) || null;
     var groqKey       = localStorage.getItem(KEY_GROQ) || null;
@@ -478,17 +491,20 @@
 
     function openModal() {
       ghInput.value = token || '';
+      mstInput.value = mistralKey || '';
       gemInput.value = geminiKey || '';
       orInput.value = openrouterKey || '';
       groqInput.value = groqKey || '';
       ghHint.className = 'hint';
+      mstHint.className = 'hint';
       gemHint.className = 'hint';
       orHint.className = 'hint';
       groqHint.className = 'hint';
       ghHint.textContent = 'Fine-grained PAT · atomeam/HomeBase- · Contents + Pull requests: Read & write';
+      mstHint.textContent = 'console.mistral.ai · phone verify, no card · 131K context · 1B tokens/month';
       gemHint.textContent = 'Google AI Studio · no credit card · 1M context · 1500 req/day';
-      orHint.textContent = 'openrouter.ai · no credit card · free models w/ auto-fallback';
-      groqHint.textContent = 'console.groq.com · no credit card · Llama 3.1 8B Instant';
+      orHint.textContent = 'openrouter.ai · no card · 50 req/day cap on free models';
+      groqHint.textContent = 'console.groq.com · no card · Llama 3.1 8B (low TPM, last resort)';
       modalBg.hidden = false;
       setTimeout(function(){ ghInput.focus(); }, 50);
     }
@@ -498,11 +514,12 @@
     document.getElementById('modal-close').addEventListener('click', closeModal);
     document.getElementById('modal-clear').addEventListener('click', function(){
       localStorage.removeItem(KEY_TOKEN);
+      localStorage.removeItem(KEY_MISTRAL);
       localStorage.removeItem(KEY_GEMINI);
       localStorage.removeItem(KEY_OPENROUTER);
       localStorage.removeItem(KEY_GROQ);
-      token = null; geminiKey = null; openrouterKey = null; groqKey = null;
-      ghInput.value = ''; gemInput.value = ''; orInput.value = ''; groqInput.value = '';
+      token = null; mistralKey = null; geminiKey = null; openrouterKey = null; groqKey = null;
+      ghInput.value = ''; mstInput.value = ''; gemInput.value = ''; orInput.value = ''; groqInput.value = '';
       cache = null;
       setStatus('idle');
       showBanner('warn', 'All keys cleared.', 2500);
@@ -510,12 +527,17 @@
     });
     document.getElementById('modal-save').addEventListener('click', async function(){
       var newGh = ghInput.value.trim();
+      var newMst = mstInput.value.trim();
       var newGem = gemInput.value.trim();
       var newOr = orInput.value.trim();
       var newGroq = groqInput.value.trim();
       if (newGh) {
         token = newGh; localStorage.setItem(KEY_TOKEN, token); cache = null;
         var ok = await testGhToken(); ghHint.className = 'hint ' + (ok ? 'ok' : 'bad');
+      }
+      if (newMst) {
+        mistralKey = newMst; localStorage.setItem(KEY_MISTRAL, mistralKey);
+        var okM = await testMistralKey(); mstHint.className = 'hint ' + (okM ? 'ok' : 'bad');
       }
       if (newGem) {
         geminiKey = newGem; localStorage.setItem(KEY_GEMINI, geminiKey);
@@ -544,6 +566,15 @@
         return false;
       } catch (e) { ghHint.textContent = 'TEST FAILED: ' + e.message; return false; }
     }
+    async function testMistralKey() {
+      try {
+        var r = await fetch('https://api.mistral.ai/v1/models', { headers: { 'Authorization': 'Bearer ' + mistralKey } });
+        if (r.ok) { mstHint.textContent = 'OK · Mistral ready (' + MISTRAL_MODEL + ')'; return true; }
+        var j = {}; try { j = await r.json(); } catch(e){}
+        mstHint.textContent = 'BAD: ' + ((j.message) || (j.error && j.error.message) || ('status ' + r.status));
+        return false;
+      } catch (e) { mstHint.textContent = 'TEST FAILED: ' + e.message; return false; }
+    }
     async function testGeminiKey() {
       try {
         var r = await fetch('https://generativelanguage.googleapis.com/v1beta/models?key=' + encodeURIComponent(geminiKey));
@@ -556,7 +587,7 @@
     async function testOpenrouterKey() {
       try {
         var r = await fetch('https://openrouter.ai/api/v1/auth/key', { headers: { 'Authorization': 'Bearer ' + openrouterKey } });
-        if (r.ok) { orHint.textContent = 'OK · OpenRouter ready (Gemini Flash → Llama → DeepSeek)'; return true; }
+        if (r.ok) { orHint.textContent = 'OK · OpenRouter ready (50/day free cap)'; return true; }
         var j = {}; try { j = await r.json(); } catch(e){}
         orHint.textContent = 'BAD: ' + ((j.error && j.error.message) || ('status ' + r.status));
         return false;
@@ -631,6 +662,32 @@
         slimHtml,
         '```'
       ].join('\n');
+    }
+
+    async function callMistral(prompt) {
+      var r = await fetch('https://api.mistral.ai/v1/chat/completions', {
+        method: 'POST',
+        headers: { 'Authorization': 'Bearer ' + mistralKey, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model: MISTRAL_MODEL,
+          messages: [
+            { role: 'system', content: 'You output strict JSON only. No markdown fences. No prose outside the JSON object.' },
+            { role: 'user', content: prompt }
+          ],
+          response_format: { type: 'json_object' },
+          temperature: 0.5,
+          max_tokens: 4096
+        })
+      });
+      if (!r.ok) {
+        var msg = ''; try { var je = await r.json(); msg = (je.message) || (je.error && je.error.message) || ''; } catch(e){}
+        var err = new Error('Mistral ' + r.status + ': ' + msg); err.status = r.status; throw err;
+      }
+      var j = await r.json();
+      var text = j.choices && j.choices[0] && j.choices[0].message && j.choices[0].message.content;
+      if (!text) throw new Error('Empty Mistral response');
+      try { return JSON.parse(text); }
+      catch (e) { throw new Error('Mistral returned invalid JSON: ' + text.slice(0, 200)); }
     }
 
     async function callGemini(prompt) {
@@ -716,6 +773,7 @@
     async function callLlm(prompt) {
       var errors = [];
       var providers = [
+        { name: 'Mistral',    key: mistralKey,    fn: callMistral },
         { name: 'Gemini',     key: geminiKey,     fn: callGemini },
         { name: 'OpenRouter', key: openrouterKey, fn: callOpenrouter },
         { name: 'Groq',       key: groqKey,       fn: callGroq }
@@ -737,13 +795,13 @@
           errors.push(p.name + ': ' + e.message);
         }
       }
-      if (!errors.length) throw new Error('No LLM key. Add Gemini, OpenRouter, or Groq in ⚙.');
+      if (!errors.length) throw new Error('No LLM key. Add Mistral, Gemini, OpenRouter, or Groq in ⚙.');
       throw new Error('All providers failed — ' + errors.join(' / '));
     }
 
     async function proposeChange() {
       if (!token) { showBanner('warn', 'Set GitHub token first (⚙).', 4000); return; }
-      if (!geminiKey && !openrouterKey && !groqKey) { showBanner('warn', 'Need a Gemini, OpenRouter, or Groq key (⚙).', 5000); return; }
+      if (!mistralKey && !geminiKey && !openrouterKey && !groqKey) { showBanner('warn', 'Need a Mistral, Gemini, OpenRouter, or Groq key (⚙).', 5000); return; }
       proposeBtn.disabled = true;
       try {
         showBanner('warn', 'Reading log + current code…');
@@ -757,7 +815,7 @@
         if (!indexFile.content) throw new Error('Could not load mini/index.html');
 
         var split = splitStyle(indexFile.content);
-        var available = [geminiKey && 'Gemini', openrouterKey && 'OpenRouter', groqKey && 'Groq'].filter(Boolean).join('→');
+        var available = [mistralKey && 'Mistral', geminiKey && 'Gemini', openrouterKey && 'OpenRouter', groqKey && 'Groq'].filter(Boolean).join('→');
         showBanner('warn', 'Asking ' + available + ' (slim prompt, ~' + Math.round(split.working.length/1024) + 'KB)…');
         var prompt = buildPrompt(notes, split.working);
         var result = await callLlm(prompt);
