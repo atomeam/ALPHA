@@ -9,7 +9,9 @@
 <link rel="manifest" href="manifest.webmanifest" />
 <meta name="theme-color" content="#0a0a0a" />
 <style>
-  :root { color-scheme: dark; }
+  :root { color-scheme: dark;
+    --ok: #22c55e; --pending: #eab308; --error: #ef4444; --idle: #52525b;
+  }
   * { box-sizing: border-box; margin: 0; padding: 0; }
   html, body { height: 100%; }
   body {
@@ -58,18 +60,28 @@
     display: flex; align-items: center; justify-content: space-between;
     padding: 0 2.5rem; position: relative; z-index: 20; }
   .left { display: flex; align-items: center; gap: 0.75rem; }
-  .dot { width: 6px; height: 6px; border-radius: 50%; background: #22c55e;
-    box-shadow: 0 0 8px rgba(34,197,94,0.6); animation: pulse 2s infinite; }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--idle);
+    box-shadow: 0 0 8px rgba(82,82,91,0.4); transition: background 0.3s, box-shadow 0.3s; cursor: help; }
+  .dot.ok      { background: var(--ok);      box-shadow: 0 0 10px rgba(34,197,94,0.6);  animation: pulse 2s infinite; }
+  .dot.pending { background: var(--pending); box-shadow: 0 0 10px rgba(234,179,8,0.6);  animation: pulse 0.8s infinite; }
+  .dot.error   { background: var(--error);   box-shadow: 0 0 10px rgba(239,68,68,0.7); }
   @keyframes pulse { 50% { opacity: 0.5; } }
   .label-text { font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
     font-size: 11px; font-weight: 600; color: #a1a1aa; letter-spacing: 0.1em;
     text-transform: uppercase; white-space: nowrap; }
   .label-text .dim { color: #71717a; font-weight: 400; }
-  .right { display: flex; align-items: center; gap: 1rem; cursor: pointer; }
+  .right { display: flex; align-items: center; gap: 1rem; }
   .divider { height: 1rem; width: 1px; background: #27272a; }
   #counter { font-weight: 700; display: inline-block; min-width: 2ch;
     transition: transform 0.25s, color 0.25s; }
   #counter.bump { transform: scale(1.5); color: #86efac; }
+  #clicksLabel { cursor: pointer; }
+  .gear { background: transparent; border: none; color: #52525b; font-size: 14px;
+    cursor: pointer; padding: 4px 6px; line-height: 1; transition: color 0.2s; }
+  .gear:hover { color: #a1a1aa; }
+  .status-msg { font-family: ui-monospace, monospace; font-size: 9px; color: #71717a;
+    letter-spacing: 0.1em; text-transform: uppercase; max-width: 14rem;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 </style>
 </head>
 <body>
@@ -92,45 +104,217 @@
   </main>
   <footer>
     <div class="left">
-      <div class="dot"></div>
-      <span class="label-text">Homebase</span>
+      <div class="dot" id="dot" title="No token. Click gear to set up."></div>
+      <span class="label-text">Homebase <span class="dim" id="statusMsg">offline</span></span>
     </div>
-    <div class="right" id="right" title="Double-click to reset">
+    <div class="right">
+      <button class="gear" id="gear" title="Settings" type="button">⚙</button>
       <div class="divider"></div>
-      <span class="label-text">clicks: <span id="counter">0</span></span>
+      <span class="label-text" id="clicksLabel" title="Double-click to reset local count">clicks: <span id="counter">0</span></span>
     </div>
   </footer>
   <script>
-    var KEY = 'homebase:clicks';
+    var REPO_OWNER = 'atomeam';
+    var REPO_NAME  = 'HomeBase-';
+    var LOG_PATH   = 'mini/log.jsonl';
+    var BRANCH     = 'main';
+
+    var KEY_CLICKS = 'homebase:clicks';
+    var KEY_TOKEN  = 'homebase:gh:token';
+    var KEY_PENDING = 'homebase:pending';
+
     var btn = document.getElementById('homebase-button');
     var counter = document.getElementById('counter');
-    var right = document.getElementById('right');
-    var clicks = Number(localStorage.getItem(KEY) || 0);
+    var clicksLabel = document.getElementById('clicksLabel');
+    var dot = document.getElementById('dot');
+    var statusMsg = document.getElementById('statusMsg');
+    var gear = document.getElementById('gear');
+
+    var token = localStorage.getItem(KEY_TOKEN) || null;
+    var clicks = Number(localStorage.getItem(KEY_CLICKS) || 0);
     if (!isFinite(clicks)) clicks = 0;
     counter.textContent = clicks;
+
+    var queue = [];
+    try { queue = JSON.parse(localStorage.getItem(KEY_PENDING) || '[]'); } catch (e) { queue = []; }
+    if (!Array.isArray(queue)) queue = [];
+    var draining = false;
+    var cache = null; // { sha, content }
+
+    function saveQueue() { localStorage.setItem(KEY_PENDING, JSON.stringify(queue)); }
+
+    function setStatus(kind, msg) {
+      dot.classList.remove('ok','pending','error');
+      if (kind && kind !== 'idle') dot.classList.add(kind);
+      var labels = {
+        idle: token ? 'ready' : 'offline',
+        ok: 'logged',
+        pending: 'writing… q:' + queue.length,
+        error: msg || 'error'
+      };
+      statusMsg.textContent = labels[kind] || labels.idle;
+      dot.title = kind === 'error' ? (msg || 'Error') :
+                  kind === 'pending' ? (queue.length + ' pending') :
+                  kind === 'ok' ? 'Last write OK' :
+                  token ? 'Token set. Ready.' : 'No token. Click gear to set up.';
+    }
+
+    function b64encode(s) {
+      return btoa(unescape(encodeURIComponent(s)));
+    }
+    function b64decode(s) {
+      try { return decodeURIComponent(escape(atob(s.replace(/\s/g,'')))); } catch (e) { return ''; }
+    }
+
+    async function ghGetFile() {
+      var url = 'https://api.github.com/repos/' + REPO_OWNER + '/' + REPO_NAME +
+                '/contents/' + LOG_PATH + '?ref=' + BRANCH + '&t=' + Date.now();
+      var r = await fetch(url, {
+        headers: { 'Authorization': 'token ' + token, 'Accept': 'application/vnd.github+json' },
+        cache: 'no-store'
+      });
+      if (r.status === 404) return { sha: null, content: '' };
+      if (!r.ok) throw new Error('GET ' + r.status);
+      var j = await r.json();
+      return { sha: j.sha, content: b64decode(j.content || '') };
+    }
+
+    async function ghPutFile(content, sha) {
+      var url = 'https://api.github.com/repos/' + REPO_OWNER + '/' + REPO_NAME +
+                '/contents/' + LOG_PATH;
+      var body = {
+        message: 'log: ' + new Date().toISOString(),
+        content: b64encode(content),
+        branch: BRANCH
+      };
+      if (sha) body.sha = sha;
+      var r = await fetch(url, {
+        method: 'PUT',
+        headers: {
+          'Authorization': 'token ' + token,
+          'Accept': 'application/vnd.github+json',
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(body)
+      });
+      if (!r.ok) {
+        var txt = '';
+        try { txt = (await r.json()).message || ''; } catch(e){}
+        var err = new Error('PUT ' + r.status + (txt ? ': ' + txt : ''));
+        err.status = r.status;
+        throw err;
+      }
+      var j = await r.json();
+      return j.content && j.content.sha;
+    }
+
+    async function writeOne(entry) {
+      if (!cache) cache = await ghGetFile();
+      var line = JSON.stringify(entry);
+      var sep = (cache.content && !cache.content.endsWith('\n')) ? '\n' : '';
+      var newContent = cache.content + sep + line + '\n';
+      try {
+        var newSha = await ghPutFile(newContent, cache.sha);
+        cache = { sha: newSha, content: newContent };
+      } catch (e) {
+        if (e.status === 409 || e.status === 422) {
+          // sha conflict — refetch and retry once
+          cache = await ghGetFile();
+          var sep2 = (cache.content && !cache.content.endsWith('\n')) ? '\n' : '';
+          var newContent2 = cache.content + sep2 + line + '\n';
+          var newSha2 = await ghPutFile(newContent2, cache.sha);
+          cache = { sha: newSha2, content: newContent2 };
+        } else {
+          throw e;
+        }
+      }
+    }
+
+    async function drain() {
+      if (draining) return;
+      if (!token) { setStatus('idle'); return; }
+      if (!queue.length) { setStatus('ok'); return; }
+      draining = true;
+      setStatus('pending');
+      while (queue.length) {
+        var entry = queue[0];
+        try {
+          await writeOne(entry);
+          queue.shift();
+          saveQueue();
+          setStatus('pending');
+        } catch (e) {
+          setStatus('error', e.message);
+          draining = false;
+          // retry in 5s
+          setTimeout(drain, 5000);
+          return;
+        }
+      }
+      setStatus('ok');
+      draining = false;
+    }
+
+    function logClick(note) {
+      var entry = { ts: new Date().toISOString(), clicks: clicks };
+      if (note) entry.note = note;
+      queue.push(entry);
+      saveQueue();
+      drain();
+    }
+
+    function bump(){
+      counter.classList.remove('bump'); void counter.offsetWidth;
+      counter.classList.add('bump');
+      setTimeout(function(){ counter.classList.remove('bump'); }, 250);
+    }
 
     var idleTimer = null;
     function armIdle(){ btn.classList.remove('idle'); if (idleTimer) clearTimeout(idleTimer);
       idleTimer = setTimeout(function(){ btn.classList.add('idle'); }, 10000); }
-    function bump(){ counter.classList.remove('bump'); void counter.offsetWidth;
-      counter.classList.add('bump');
-      setTimeout(function(){ counter.classList.remove('bump'); }, 250); }
 
     btn.addEventListener('click', function(){
-      clicks++; localStorage.setItem(KEY, String(clicks));
+      clicks++; localStorage.setItem(KEY_CLICKS, String(clicks));
       counter.textContent = clicks; bump(); armIdle();
+      logClick();
     });
-    right.addEventListener('dblclick', function(){
-      clicks = 0; localStorage.setItem(KEY, '0');
-      counter.textContent = 0; bump(); armIdle();
+    clicksLabel.addEventListener('dblclick', function(){
+      clicks = 0; localStorage.setItem(KEY_CLICKS, '0');
+      counter.textContent = 0; bump();
     });
     document.addEventListener('keydown', function(e){
       if (e.code !== 'Space' && e.key !== ' ') return;
       var t = e.target; var tag = t && t.tagName;
-      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || (t && t.isContentEditable)) return;
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || tag === 'BUTTON' || (t && t.isContentEditable)) return;
       e.preventDefault(); btn.click();
     });
+
+    gear.addEventListener('click', function(){
+      var existing = token ? '(token set: ' + token.slice(0,4) + '…' + token.slice(-4) + ')' : '(none set)';
+      var msg = 'GitHub Personal Access Token ' + existing + '\n\n' +
+                'Needs fine-grained PAT scoped to atomeam/HomeBase- with Contents: Read & write.\n' +
+                'Create at: https://github.com/settings/personal-access-tokens/new\n\n' +
+                'Paste token (or leave blank to clear, type "clear" to wipe):';
+      var input = prompt(msg, '');
+      if (input === null) return;
+      var v = input.trim();
+      if (!v || v.toLowerCase() === 'clear') {
+        localStorage.removeItem(KEY_TOKEN);
+        token = null;
+        cache = null;
+        setStatus('idle');
+        return;
+      }
+      token = v;
+      localStorage.setItem(KEY_TOKEN, token);
+      cache = null;
+      setStatus('idle');
+      drain();
+    });
+
+    setStatus(token ? (queue.length ? 'pending' : 'ok') : 'idle');
     armIdle();
+    if (token && queue.length) drain();
   </script>
 </body>
 </html>
