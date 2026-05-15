@@ -11,6 +11,7 @@
 <style>
   :root { color-scheme: dark;
     --ok: #22c55e; --pending: #eab308; --error: #ef4444; --idle: #52525b;
+    --accent: #60a5fa;
   }
   * { box-sizing: border-box; margin: 0; padding: 0; }
   html, body { height: 100%; }
@@ -33,7 +34,6 @@
     font-weight: 500; margin-bottom: 0.75rem; }
   .header .line { height: 1px; width: 192px; margin: 0 auto;
     background: linear-gradient(to right, transparent, #3f3f46, transparent); }
-
   .intent-wrap { margin-bottom: 1.5rem; width: 22rem; max-width: 90vw; user-select: text; }
   .intent-wrap input {
     appearance: none; width: 100%;
@@ -49,7 +49,6 @@
   .intent-wrap .hint { display: block; margin-top: 0.4rem; text-align: center;
     font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
     font-size: 9px; letter-spacing: 0.3em; text-transform: uppercase; color: #3f3f46; }
-
   .btn-wrap { position: relative; }
   .btn-glow { position: absolute; inset: 0; background: rgba(255,255,255,0.05);
     border-radius: 1rem; filter: blur(16px); transition: background 0.5s; }
@@ -73,6 +72,12 @@
   @keyframes idlePulse { 0%,100%{opacity:1;} 50%{opacity:0.85;} }
   .descriptor { margin-top: 2rem; text-align: center; font-style: italic;
     font-family: Georgia, serif; font-size: 11px; color: #52525b; letter-spacing: 0.15em; }
+  .propose-link { margin-top: 1.25rem; background: transparent; border: none; cursor: pointer;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11px;
+    letter-spacing: 0.25em; text-transform: uppercase; color: #52525b;
+    padding: 4px 10px; border-radius: 4px; transition: color 0.2s, background 0.2s; }
+  .propose-link:hover { color: var(--accent); background: rgba(96,165,250,0.08); }
+  .propose-link:disabled { opacity: 0.4; cursor: not-allowed; }
 
   .banner { position: fixed; top: 0; left: 0; right: 0; z-index: 50;
     padding: 14px 24px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
@@ -85,6 +90,42 @@
   .banner.success { background: #14532d; color: #bbf7d0; border-bottom: 2px solid #22c55e; }
   .banner b { font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; margin-right: 8px; }
   .banner .dismiss { float: right; opacity: 0.6; font-weight: 700; }
+  .banner a { color: inherit; text-decoration: underline; }
+
+  .modal-bg { position: fixed; inset: 0; background: rgba(0,0,0,0.7); z-index: 100;
+    display: flex; align-items: center; justify-content: center; padding: 1rem; }
+  .modal-bg[hidden] { display: none; }
+  .modal { background: #0a0a0a; border: 1px solid #27272a; border-radius: 0.75rem;
+    padding: 1.75rem; max-width: 32rem; width: 100%;
+    box-shadow: 0 25px 50px -12px rgba(0,0,0,0.8); user-select: text; }
+  .modal h2 { font-size: 13px; letter-spacing: 0.3em; text-transform: uppercase; color: #71717a;
+    font-weight: 600; margin-bottom: 1.25rem; font-family: ui-monospace, monospace; }
+  .modal label { display: block; margin-bottom: 1.25rem; }
+  .modal .label-row { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 0.4rem; }
+  .modal .label-row span { font-size: 11px; color: #a1a1aa; letter-spacing: 0.1em; text-transform: uppercase; font-family: ui-monospace, monospace; }
+  .modal .label-row a { font-size: 10px; color: var(--accent); text-decoration: none; letter-spacing: 0.1em; text-transform: uppercase; font-family: ui-monospace, monospace; }
+  .modal .label-row a:hover { text-decoration: underline; }
+  .modal input { width: 100%; background: #050505; color: #f4f4f5; border: 1px solid #27272a;
+    border-radius: 0.375rem; padding: 0.5rem 0.75rem;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px;
+    outline: none; transition: border-color 0.2s; }
+  .modal input:focus { border-color: var(--accent); }
+  .modal .hint { display: block; margin-top: 0.35rem; font-size: 10px; color: #52525b;
+    letter-spacing: 0.05em; font-family: ui-monospace, monospace; }
+  .modal .hint.ok { color: var(--ok); }
+  .modal .hint.bad { color: var(--error); }
+  .modal-actions { display: flex; justify-content: flex-end; gap: 0.5rem; margin-top: 1.5rem; }
+  .modal-actions button {
+    background: transparent; border: 1px solid #27272a; color: #a1a1aa;
+    border-radius: 999px; padding: 0.4rem 1rem;
+    font-family: ui-monospace, monospace; font-size: 11px; letter-spacing: 0.1em;
+    text-transform: uppercase; cursor: pointer; transition: all 0.15s;
+  }
+  .modal-actions button:hover { color: #f4f4f5; border-color: #3f3f46; }
+  .modal-actions button.primary { color: var(--accent); border-color: var(--accent); }
+  .modal-actions button.primary:hover { background: rgba(96,165,250,0.12); }
+  .modal-actions button.danger { color: #a1a1aa; }
+  .modal-actions button.danger:hover { color: var(--error); border-color: var(--error); }
 
   footer { height: 3rem; background: #0a0a0a; border-top: 1px solid #27272a;
     display: flex; align-items: center; justify-content: space-between;
@@ -134,6 +175,7 @@
       </button>
     </div>
     <div class="descriptor">Bridge Connection: Active</div>
+    <button class="propose-link" id="proposeBtn" type="button" title="Ask Gemini to read your notes and propose a code change as a Pull Request">✨ propose change</button>
   </main>
   <footer>
     <div class="left">
@@ -146,14 +188,44 @@
       <span class="label-text" id="clicksLabel" title="Double-click to reset local count">clicks: <span id="counter">0</span></span>
     </div>
   </footer>
+
+  <div class="modal-bg" id="modalBg" hidden>
+    <div class="modal">
+      <h2>Settings</h2>
+      <label>
+        <div class="label-row">
+          <span>GitHub Personal Access Token</span>
+          <a href="https://github.com/settings/personal-access-tokens/new" target="_blank" rel="noopener">create token</a>
+        </div>
+        <input type="password" id="gh-input" placeholder="github_pat_..." autocomplete="off" />
+        <span class="hint" id="gh-hint">Fine-grained PAT · atomeam/HomeBase- · Contents: Read &amp; write</span>
+      </label>
+      <label>
+        <div class="label-row">
+          <span>Gemini API Key (free)</span>
+          <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener">create key</a>
+        </div>
+        <input type="password" id="gemini-input" placeholder="AIza..." autocomplete="off" />
+        <span class="hint" id="gemini-hint">Free at aistudio.google.com · no credit card · 1500 req/day</span>
+      </label>
+      <div class="modal-actions">
+        <button id="modal-clear" type="button" class="danger">Clear all</button>
+        <button id="modal-close" type="button">Close</button>
+        <button id="modal-save" type="button" class="primary">Save &amp; test</button>
+      </div>
+    </div>
+  </div>
+
   <script>
     var REPO_OWNER = 'atomeam';
     var REPO_NAME  = 'HomeBase-';
     var LOG_PATH   = 'mini/log.jsonl';
+    var INDEX_PATH = 'mini/index.html';
     var BRANCH     = 'main';
 
     var KEY_CLICKS  = 'homebase:clicks';
     var KEY_TOKEN   = 'homebase:gh:token';
+    var KEY_GEMINI  = 'homebase:gemini:key';
     var KEY_PENDING = 'homebase:pending';
 
     var btn         = document.getElementById('homebase-button');
@@ -166,8 +238,15 @@
     var bannerKind  = document.getElementById('bannerKind');
     var bannerText  = document.getElementById('bannerText');
     var intent      = document.getElementById('intent');
+    var proposeBtn  = document.getElementById('proposeBtn');
+    var modalBg     = document.getElementById('modalBg');
+    var ghInput     = document.getElementById('gh-input');
+    var ghHint      = document.getElementById('gh-hint');
+    var gemInput    = document.getElementById('gemini-input');
+    var gemHint     = document.getElementById('gemini-hint');
 
     var token = localStorage.getItem(KEY_TOKEN) || null;
+    var geminiKey = localStorage.getItem(KEY_GEMINI) || null;
     var clicks = Number(localStorage.getItem(KEY_CLICKS) || 0);
     if (!isFinite(clicks)) clicks = 0;
     counter.textContent = clicks;
@@ -176,15 +255,15 @@
     try { queue = JSON.parse(localStorage.getItem(KEY_PENDING) || '[]'); } catch (e) { queue = []; }
     if (!Array.isArray(queue)) queue = [];
     var draining = false;
-    var cache = null; // { sha, content }
+    var cache = null;
     var bannerTimer = null;
 
     function saveQueue() { localStorage.setItem(KEY_PENDING, JSON.stringify(queue)); }
 
-    function showBanner(kind, text, autoHideMs) {
+    function showBanner(kind, html, autoHideMs) {
       banner.className = 'banner show ' + kind;
       bannerKind.textContent = kind;
-      bannerText.textContent = text;
+      bannerText.innerHTML = html;
       if (bannerTimer) clearTimeout(bannerTimer);
       if (autoHideMs) bannerTimer = setTimeout(hideBanner, autoHideMs);
     }
@@ -192,7 +271,10 @@
       banner.className = 'banner';
       if (bannerTimer) { clearTimeout(bannerTimer); bannerTimer = null; }
     }
-    banner.addEventListener('click', hideBanner);
+    banner.addEventListener('click', function(e){
+      if (e.target.tagName !== 'A') hideBanner();
+    });
+    function escapeHtml(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 
     function setStatus(kind, msg) {
       dot.classList.remove('ok','pending','error');
@@ -215,37 +297,33 @@
       try { return decodeURIComponent(escape(atob(s.replace(/\s/g,'')))); } catch (e) { return ''; }
     }
 
-    async function ghGetFile() {
+    async function ghGetFile(path) {
+      path = path || LOG_PATH;
       var url = 'https://api.github.com/repos/' + REPO_OWNER + '/' + REPO_NAME +
-                '/contents/' + LOG_PATH + '?ref=' + BRANCH + '&t=' + Date.now();
-      console.log('[homebase] GET', url);
+                '/contents/' + path + '?ref=' + BRANCH + '&t=' + Date.now();
       var r = await fetch(url, {
         headers: { 'Authorization': 'token ' + token, 'Accept': 'application/vnd.github+json' },
         cache: 'no-store'
       });
-      console.log('[homebase] GET status', r.status);
       if (r.status === 404) return { sha: null, content: '' };
       if (!r.ok) {
-        var txt = '';
-        try { txt = (await r.json()).message || ''; } catch(e){}
+        var txt = ''; try { txt = (await r.json()).message || ''; } catch(e){}
         var err = new Error('GET ' + r.status + (txt ? ': ' + txt : ''));
-        err.status = r.status;
-        throw err;
+        err.status = r.status; throw err;
       }
       var j = await r.json();
       return { sha: j.sha, content: b64decode(j.content || '') };
     }
 
-    async function ghPutFile(content, sha, commitMessage) {
+    async function ghPutFile(content, sha, commitMessage, branchName) {
       var url = 'https://api.github.com/repos/' + REPO_OWNER + '/' + REPO_NAME +
                 '/contents/' + LOG_PATH;
       var body = {
         message: commitMessage || ('log: ' + new Date().toISOString()),
         content: b64encode(content),
-        branch: BRANCH
+        branch: branchName || BRANCH
       };
       if (sha) body.sha = sha;
-      console.log('[homebase] PUT', url, 'sha:', sha);
       var r = await fetch(url, {
         method: 'PUT',
         headers: {
@@ -255,13 +333,10 @@
         },
         body: JSON.stringify(body)
       });
-      console.log('[homebase] PUT status', r.status);
       if (!r.ok) {
-        var txt = '';
-        try { txt = (await r.json()).message || ''; } catch(e){}
+        var txt = ''; try { txt = (await r.json()).message || ''; } catch(e){}
         var err = new Error('PUT ' + r.status + (txt ? ': ' + txt : ''));
-        err.status = r.status;
-        throw err;
+        err.status = r.status; throw err;
       }
       var j = await r.json();
       return j.content && j.content.sha;
@@ -274,27 +349,22 @@
     }
 
     async function writeOne(entry) {
-      if (!cache) cache = await ghGetFile();
+      if (!cache) cache = await ghGetFile(LOG_PATH);
       var line = JSON.stringify(entry);
       var sep = (cache.content && !cache.content.endsWith('\n')) ? '\n' : '';
       var newContent = cache.content + sep + line + '\n';
-      var msg = entry.note
-        ? 'log: ' + shortenForCommit(entry.note)
-        : 'log: ' + entry.ts;
+      var msg = entry.note ? 'log: ' + shortenForCommit(entry.note) : 'log: ' + entry.ts;
       try {
         var newSha = await ghPutFile(newContent, cache.sha, msg);
         cache = { sha: newSha, content: newContent };
       } catch (e) {
         if (e.status === 409 || e.status === 422) {
-          console.warn('[homebase] sha conflict, refetching');
-          cache = await ghGetFile();
+          cache = await ghGetFile(LOG_PATH);
           var sep2 = (cache.content && !cache.content.endsWith('\n')) ? '\n' : '';
           var newContent2 = cache.content + sep2 + line + '\n';
           var newSha2 = await ghPutFile(newContent2, cache.sha, msg);
           cache = { sha: newSha2, content: newContent2 };
-        } else {
-          throw e;
-        }
+        } else { throw e; }
       }
     }
 
@@ -308,28 +378,21 @@
         var entry = queue[0];
         try {
           await writeOne(entry);
-          queue.shift();
-          saveQueue();
-          setStatus('pending');
+          queue.shift(); saveQueue(); setStatus('pending');
         } catch (e) {
           console.error('[homebase] write failed:', e);
           setStatus('error', e.message);
-          showBanner('error', 'WRITE FAILED — ' + e.message + '  (Click ⚙ to fix token. Open F12 console for details.)');
-          draining = false;
-          setTimeout(drain, 5000);
-          return;
+          showBanner('error', 'WRITE FAILED — ' + escapeHtml(e.message));
+          draining = false; setTimeout(drain, 5000); return;
         }
       }
-      setStatus('ok');
-      draining = false;
+      setStatus('ok'); draining = false;
     }
 
     function logClick(note) {
       var entry = { ts: new Date().toISOString(), clicks: clicks };
       if (note) entry.note = note;
-      queue.push(entry);
-      saveQueue();
-      drain();
+      queue.push(entry); saveQueue(); drain();
     }
 
     function bump(){
@@ -359,13 +422,10 @@
       clicks = 0; localStorage.setItem(KEY_CLICKS, '0');
       counter.textContent = 0; bump();
     });
-
-    // Enter inside the input → press
     intent.addEventListener('keydown', function(e){
       if (e.key === 'Enter') { e.preventDefault(); press(); }
       else if (e.key === 'Escape') { intent.value = ''; intent.blur(); }
     });
-
     document.addEventListener('keydown', function(e){
       if (e.code !== 'Space' && e.key !== ' ') return;
       var t = e.target; var tag = t && t.tagName;
@@ -373,59 +433,261 @@
       e.preventDefault(); btn.click();
     });
 
-    async function testToken() {
+    // ============ Modal (settings) ============
+    function openModal() {
+      ghInput.value = token || '';
+      gemInput.value = geminiKey || '';
+      ghHint.className = 'hint';
+      gemHint.className = 'hint';
+      ghHint.textContent = 'Fine-grained PAT · atomeam/HomeBase- · Contents: Read & write';
+      gemHint.textContent = 'Free at aistudio.google.com · no credit card · 1500 req/day';
+      modalBg.hidden = false;
+      setTimeout(function(){ ghInput.focus(); }, 50);
+    }
+    function closeModal() { modalBg.hidden = true; }
+    gear.addEventListener('click', openModal);
+    modalBg.addEventListener('click', function(e){ if (e.target === modalBg) closeModal(); });
+    document.getElementById('modal-close').addEventListener('click', closeModal);
+    document.getElementById('modal-clear').addEventListener('click', function(){
+      localStorage.removeItem(KEY_TOKEN);
+      localStorage.removeItem(KEY_GEMINI);
+      token = null; geminiKey = null;
+      ghInput.value = ''; gemInput.value = '';
+      cache = null;
+      setStatus('idle');
+      showBanner('warn', 'All keys cleared.', 2500);
+      closeModal();
+    });
+    document.getElementById('modal-save').addEventListener('click', async function(){
+      var newGh = ghInput.value.trim();
+      var newGem = gemInput.value.trim();
+      if (newGh) {
+        token = newGh;
+        localStorage.setItem(KEY_TOKEN, token);
+        cache = null;
+        var ok = await testGhToken();
+        ghHint.className = 'hint ' + (ok ? 'ok' : 'bad');
+      } else if (token) {
+        // unchanged
+      }
+      if (newGem) {
+        geminiKey = newGem;
+        localStorage.setItem(KEY_GEMINI, geminiKey);
+        var okG = await testGeminiKey();
+        gemHint.className = 'hint ' + (okG ? 'ok' : 'bad');
+      }
+      setStatus(token ? (queue.length ? 'pending' : 'ok') : 'idle');
+      if (token && queue.length) drain();
+    });
+
+    async function testGhToken() {
       try {
         var r = await fetch('https://api.github.com/repos/' + REPO_OWNER + '/' + REPO_NAME, {
           headers: { 'Authorization': 'token ' + token, 'Accept': 'application/vnd.github+json' }
         });
-        console.log('[homebase] token test status', r.status);
-        if (r.ok) {
-          showBanner('success', 'TOKEN OK — connected to ' + REPO_OWNER + '/' + REPO_NAME, 3000);
-          return true;
-        }
-        var msg = '';
-        try { msg = (await r.json()).message || ''; } catch(e){}
-        showBanner('error', 'TOKEN BAD (' + r.status + ') ' + msg + ' — needs fine-grained PAT with Contents: write on this repo.');
+        if (r.ok) { ghHint.textContent = 'OK · connected to ' + REPO_OWNER + '/' + REPO_NAME; return true; }
+        var msg = ''; try { msg = (await r.json()).message || ''; } catch(e){}
+        ghHint.textContent = 'BAD ' + r.status + ': ' + msg;
         return false;
       } catch (e) {
-        console.error('[homebase] token test error', e);
-        showBanner('error', 'TOKEN TEST FAILED — ' + e.message);
+        ghHint.textContent = 'TEST FAILED: ' + e.message;
+        return false;
+      }
+    }
+    async function testGeminiKey() {
+      try {
+        var r = await fetch('https://generativelanguage.googleapis.com/v1beta/models?key=' + encodeURIComponent(geminiKey));
+        if (r.ok) { gemHint.textContent = 'OK · Gemini ready'; return true; }
+        var j = {}; try { j = await r.json(); } catch(e){}
+        gemHint.textContent = 'BAD ' + r.status + ': ' + (j.error && j.error.message ? j.error.message : 'invalid key');
+        return false;
+      } catch (e) {
+        gemHint.textContent = 'TEST FAILED: ' + e.message;
         return false;
       }
     }
 
-    gear.addEventListener('click', async function(){
-      var existing = token ? '(set: ' + token.slice(0,4) + '…' + token.slice(-4) + ')' : '(none)';
-      var msg = 'GitHub Personal Access Token ' + existing + '\n\n' +
-                'Needs fine-grained PAT scoped to atomeam/HomeBase- with Contents: Read and write.\n' +
-                'Create at: https://github.com/settings/personal-access-tokens/new\n\n' +
-                'Paste token (or type "clear" to wipe):';
-      var input = prompt(msg, '');
-      if (input === null) return;
-      var v = input.trim();
-      if (!v || v.toLowerCase() === 'clear') {
-        localStorage.removeItem(KEY_TOKEN);
-        token = null;
-        cache = null;
-        setStatus('idle');
-        showBanner('warn', 'Token cleared. Clicks will not be logged.', 3000);
-        return;
+    // ============ Propose flow ============
+    function applyPatches(html, patches) {
+      if (!Array.isArray(patches) || !patches.length) throw new Error('No patches returned');
+      var out = html;
+      for (var i = 0; i < patches.length; i++) {
+        var p = patches[i];
+        if (!p || typeof p.find !== 'string' || typeof p.replace !== 'string') {
+          throw new Error('Patch ' + (i+1) + ' missing find/replace');
+        }
+        if (!p.find.length) throw new Error('Patch ' + (i+1) + ' has empty find');
+        var idx = out.indexOf(p.find);
+        if (idx === -1) throw new Error('Patch ' + (i+1) + ' find not found in source: ' + p.find.slice(0, 60));
+        var idx2 = out.indexOf(p.find, idx + 1);
+        if (idx2 !== -1) throw new Error('Patch ' + (i+1) + ' find is ambiguous (matches multiple places)');
+        out = out.slice(0, idx) + p.replace + out.slice(idx + p.find.length);
       }
-      token = v;
-      localStorage.setItem(KEY_TOKEN, token);
-      cache = null;
-      setStatus('idle');
-      var ok = await testToken();
-      if (ok) drain();
-    });
+      return out;
+    }
+
+    function buildPrompt(notesArr, indexHtml) {
+      var notesText = notesArr.length
+        ? notesArr.map(function(n, i){ return (i+1) + '. ' + n; }).join('\n')
+        : '(no user notes yet — propose any small UX improvement)';
+      return [
+        'You improve a single-file HTML app called HomeBase. The user has been logging button clicks with optional notes about their intent.',
+        '',
+        'TASK: Propose ONE small, focused change to the HTML/CSS/JS based on the user notes. Make a real, useful change — not decoration. Do not invent grandiose features. Small + working > big + broken.',
+        '',
+        'OUTPUT FORMAT (strict JSON only, no markdown fences):',
+        '{',
+        '  "summary": "one short sentence describing the change",',
+        '  "patches": [',
+        '    { "find": "<exact unique substring from current file>", "replace": "<new substring>" }',
+        '  ]',
+        '}',
+        '',
+        'RULES:',
+        '- Each patch.find MUST appear EXACTLY ONCE in the current file (verify this).',
+        '- Each patch.find should be the smallest unique snippet that anchors your change.',
+        '- Preserve ALL existing functionality: GitHub logging, intent input, propose button, modal settings, both API keys, click counter, idle pulse, spacebar.',
+        '- Do not remove the Gemini propose flow itself.',
+        '- 1–3 patches max. Smaller is better.',
+        '- No external dependencies, no new files.',
+        '',
+        'RECENT USER NOTES (chronological, most recent last):',
+        notesText,
+        '',
+        'CURRENT FILE (mini/index.html):',
+        '```html',
+        indexHtml,
+        '```'
+      ].join('\n');
+    }
+
+    async function callGemini(prompt) {
+      var url = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=' + encodeURIComponent(geminiKey);
+      var r = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: prompt }] }],
+          generationConfig: {
+            responseMimeType: 'application/json',
+            temperature: 0.7,
+            maxOutputTokens: 8192
+          }
+        })
+      });
+      if (!r.ok) {
+        var msg = ''; try { msg = (await r.json()).error.message; } catch(e){}
+        throw new Error('Gemini ' + r.status + ': ' + msg);
+      }
+      var j = await r.json();
+      var text = j.candidates && j.candidates[0] && j.candidates[0].content && j.candidates[0].content.parts && j.candidates[0].content.parts[0] && j.candidates[0].content.parts[0].text;
+      if (!text) throw new Error('Empty Gemini response');
+      try { return JSON.parse(text); }
+      catch (e) { throw new Error('Gemini returned invalid JSON: ' + text.slice(0, 200)); }
+    }
+
+    async function proposeChange() {
+      if (!token) { showBanner('warn', 'Set GitHub token first (⚙).', 4000); return; }
+      if (!geminiKey) { showBanner('warn', 'Set Gemini key first (⚙). Free at aistudio.google.com/app/apikey', 5000); return; }
+      proposeBtn.disabled = true;
+      try {
+        showBanner('warn', 'Reading log + current code…');
+        var logFile = await ghGetFile(LOG_PATH);
+        var lines = logFile.content.trim().split('\n').filter(Boolean);
+        var notes = [];
+        for (var i = Math.max(0, lines.length - 50); i < lines.length; i++) {
+          try {
+            var e = JSON.parse(lines[i]);
+            if (e && e.note) notes.push(e.note);
+          } catch (er) {}
+        }
+        var indexFile = await ghGetFile(INDEX_PATH);
+        if (!indexFile.content) throw new Error('Could not load mini/index.html');
+
+        showBanner('warn', 'Asking Gemini for a proposal… (this costs you 0¢)');
+        var proposal = await callGemini(buildPrompt(notes, indexFile.content));
+        if (!proposal.summary || !Array.isArray(proposal.patches)) {
+          throw new Error('Proposal missing summary or patches');
+        }
+
+        showBanner('warn', 'Applying patches · ' + escapeHtml(proposal.summary));
+        var newHtml = applyPatches(indexFile.content, proposal.patches);
+        if (newHtml === indexFile.content) throw new Error('Patches resulted in no change');
+        if (newHtml.length < 1000) throw new Error('Result suspiciously short (' + newHtml.length + ' bytes)');
+
+        var stamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+        var branchName = 'propose/' + stamp;
+
+        showBanner('warn', 'Creating branch ' + branchName + '…');
+        var refR = await fetch('https://api.github.com/repos/' + REPO_OWNER + '/' + REPO_NAME + '/git/ref/heads/' + BRANCH, {
+          headers: { 'Authorization': 'token ' + token, 'Accept': 'application/vnd.github+json' }
+        });
+        if (!refR.ok) throw new Error('GET main ref failed: ' + refR.status);
+        var refJ = await refR.json();
+        var mainSha = refJ.object.sha;
+
+        var brR = await fetch('https://api.github.com/repos/' + REPO_OWNER + '/' + REPO_NAME + '/git/refs', {
+          method: 'POST',
+          headers: { 'Authorization': 'token ' + token, 'Accept': 'application/vnd.github+json', 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ref: 'refs/heads/' + branchName, sha: mainSha })
+        });
+        if (!brR.ok) {
+          var brTxt = ''; try { brTxt = (await brR.json()).message || ''; } catch(e){}
+          throw new Error('Create branch failed ' + brR.status + ': ' + brTxt);
+        }
+
+        showBanner('warn', 'Committing patched file to branch…');
+        var commitMsg = 'propose: ' + shortenForCommit(proposal.summary);
+        var putR = await fetch('https://api.github.com/repos/' + REPO_OWNER + '/' + REPO_NAME + '/contents/' + INDEX_PATH, {
+          method: 'PUT',
+          headers: { 'Authorization': 'token ' + token, 'Accept': 'application/vnd.github+json', 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            message: commitMsg,
+            content: b64encode(newHtml),
+            sha: indexFile.sha,
+            branch: branchName
+          })
+        });
+        if (!putR.ok) {
+          var putTxt = ''; try { putTxt = (await putR.json()).message || ''; } catch(e){}
+          throw new Error('Commit failed ' + putR.status + ': ' + putTxt);
+        }
+
+        showBanner('warn', 'Opening pull request…');
+        var prBody = 'Generated by HomeBase based on recent log notes.\n\n' +
+                     '**Summary:** ' + proposal.summary + '\n\n' +
+                     '**Patches:** ' + proposal.patches.length + '\n\n' +
+                     'Review the diff. Merge to deploy to the live app.\n\n' +
+                     '_Notes seen by Gemini:_\n' + (notes.length ? notes.map(function(n){ return '- ' + n; }).join('\n') : '(none yet)');
+        var prR = await fetch('https://api.github.com/repos/' + REPO_OWNER + '/' + REPO_NAME + '/pulls', {
+          method: 'POST',
+          headers: { 'Authorization': 'token ' + token, 'Accept': 'application/vnd.github+json', 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            title: 'propose: ' + shortenForCommit(proposal.summary),
+            head: branchName,
+            base: BRANCH,
+            body: prBody
+          })
+        });
+        if (!prR.ok) {
+          var prTxt = ''; try { prTxt = (await prR.json()).message || ''; } catch(e){}
+          throw new Error('Open PR failed ' + prR.status + ': ' + prTxt);
+        }
+        var prJ = await prR.json();
+        showBanner('success', '✓ PR opened: <a href="' + prJ.html_url + '" target="_blank" rel="noopener">' + escapeHtml(proposal.summary) + '</a> — review and merge to deploy.');
+      } catch (e) {
+        console.error('[homebase] propose failed:', e);
+        showBanner('error', 'PROPOSE FAILED — ' + escapeHtml(e.message));
+      } finally {
+        proposeBtn.disabled = false;
+      }
+    }
+    proposeBtn.addEventListener('click', proposeChange);
 
     setStatus(token ? (queue.length ? 'pending' : 'ok') : 'idle');
     armIdle();
-    if (token) {
-      if (queue.length) drain();
-    } else {
-      showBanner('warn', 'No token. Click ⚙ in the bottom-right to paste a GitHub Personal Access Token.', 6000);
-    }
+    if (token && queue.length) drain();
+    if (!token) showBanner('warn', 'No GitHub token. Click ⚙ to set up.', 6000);
   </script>
 </body>
 </html>
