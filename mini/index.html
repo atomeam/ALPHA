@@ -181,7 +181,7 @@
       </button>
     </div>
     <div class="descriptor">Bridge Connection: Active</div>
-    <button class="propose-link" id="proposeBtn" type="button" title="Propose a code change as a Pull Request (Gemini -> OpenAI -> Groq)">✨ propose change</button>
+    <button class="propose-link" id="proposeBtn" type="button" title="Propose a code change as a Pull Request (Gemini -> OpenRouter -> Groq)">✨ propose change</button>
   </main>
   <footer>
     <div class="left">
@@ -194,7 +194,7 @@
       <span class="label-text" id="clicksLabel" title="Double-click to reset local count">clicks: <span id="counter">0</span></span>
     </div>
   </footer>
-  <div class="build-stamp">build tri-llm-v4</div>
+  <div class="build-stamp">build tri-llm-v5</div>
 
   <div class="modal-bg" id="modalBg" hidden>
     <div class="modal">
@@ -207,7 +207,7 @@
         <input type="password" id="gh-input" placeholder="github_pat_..." autocomplete="off" />
         <span class="hint" id="gh-hint">Fine-grained PAT · atomeam/HomeBase- · Contents + Pull requests: Read &amp; write</span>
       </label>
-      <div class="section-note">For ✨ propose change. Add any one or more. Tried in this order: Gemini → OpenAI → Groq.</div>
+      <div class="section-note">For ✨ propose change. Add any one or more. Tried in this order: Gemini → OpenRouter → Groq.</div>
       <label>
         <div class="label-row">
           <span>Gemini API Key (free)</span>
@@ -218,11 +218,11 @@
       </label>
       <label>
         <div class="label-row">
-          <span>OpenAI API Key (paid)</span>
-          <a href="https://platform.openai.com/api-keys" target="_blank" rel="noopener">create key</a>
+          <span>OpenRouter API Key (free)</span>
+          <a href="https://openrouter.ai/keys" target="_blank" rel="noopener">create key</a>
         </div>
-        <input type="password" id="oai-input" placeholder="sk-..." autocomplete="off" />
-        <span class="hint" id="oai-hint">platform.openai.com · gpt-4o-mini · ~$0.15 per 1M input tokens</span>
+        <input type="password" id="or-input" placeholder="sk-or-v1-..." autocomplete="off" />
+        <span class="hint" id="or-hint">openrouter.ai · no credit card · free Llama 3.3 70B · 200 req/day</span>
       </label>
       <label>
         <div class="label-row">
@@ -249,19 +249,22 @@
 
     var GROQ_MODEL = 'llama-3.1-8b-instant';
     var GEMINI_MODEL = 'gemini-2.0-flash';
-    var OPENAI_MODEL = 'gpt-4o-mini';
+    var OPENROUTER_MODEL = 'meta-llama/llama-3.3-70b-instruct:free';
 
-    var KEY_CLICKS  = 'homebase:clicks';
-    var KEY_TOKEN   = 'homebase:gh:token';
-    var KEY_GEMINI  = 'homebase:gemini:key';
-    var KEY_OPENAI  = 'homebase:openai:key';
-    var KEY_GROQ    = 'homebase:groq:key';
-    var KEY_PENDING = 'homebase:pending';
+    var KEY_CLICKS     = 'homebase:clicks';
+    var KEY_TOKEN      = 'homebase:gh:token';
+    var KEY_GEMINI     = 'homebase:gemini:key';
+    var KEY_OPENROUTER = 'homebase:openrouter:key';
+    var KEY_GROQ       = 'homebase:groq:key';
+    var KEY_PENDING    = 'homebase:pending';
 
     var oldLlm = localStorage.getItem('homebase:llm:key');
     if (oldLlm && !localStorage.getItem(KEY_GROQ)) {
       localStorage.setItem(KEY_GROQ, oldLlm);
       localStorage.removeItem('homebase:llm:key');
+    }
+    if (localStorage.getItem('homebase:openai:key')) {
+      localStorage.removeItem('homebase:openai:key');
     }
 
     var btn         = document.getElementById('homebase-button');
@@ -280,15 +283,15 @@
     var ghHint      = document.getElementById('gh-hint');
     var gemInput    = document.getElementById('gem-input');
     var gemHint     = document.getElementById('gem-hint');
-    var oaiInput    = document.getElementById('oai-input');
-    var oaiHint     = document.getElementById('oai-hint');
+    var orInput     = document.getElementById('or-input');
+    var orHint      = document.getElementById('or-hint');
     var groqInput   = document.getElementById('groq-input');
     var groqHint    = document.getElementById('groq-hint');
 
-    var token = localStorage.getItem(KEY_TOKEN) || null;
-    var geminiKey = localStorage.getItem(KEY_GEMINI) || null;
-    var openaiKey = localStorage.getItem(KEY_OPENAI) || null;
-    var groqKey = localStorage.getItem(KEY_GROQ) || null;
+    var token         = localStorage.getItem(KEY_TOKEN) || null;
+    var geminiKey     = localStorage.getItem(KEY_GEMINI) || null;
+    var openrouterKey = localStorage.getItem(KEY_OPENROUTER) || null;
+    var groqKey       = localStorage.getItem(KEY_GROQ) || null;
     var clicks = Number(localStorage.getItem(KEY_CLICKS) || 0);
     if (!isFinite(clicks)) clicks = 0;
     counter.textContent = clicks;
@@ -471,15 +474,15 @@
     function openModal() {
       ghInput.value = token || '';
       gemInput.value = geminiKey || '';
-      oaiInput.value = openaiKey || '';
+      orInput.value = openrouterKey || '';
       groqInput.value = groqKey || '';
       ghHint.className = 'hint';
       gemHint.className = 'hint';
-      oaiHint.className = 'hint';
+      orHint.className = 'hint';
       groqHint.className = 'hint';
       ghHint.textContent = 'Fine-grained PAT · atomeam/HomeBase- · Contents + Pull requests: Read & write';
       gemHint.textContent = 'Google AI Studio · no credit card · 1M context · 1500 req/day';
-      oaiHint.textContent = 'platform.openai.com · gpt-4o-mini · ~$0.15 per 1M input tokens';
+      orHint.textContent = 'openrouter.ai · no credit card · free Llama 3.3 70B · 200 req/day';
       groqHint.textContent = 'console.groq.com · no credit card · Llama 3.1 8B Instant';
       modalBg.hidden = false;
       setTimeout(function(){ ghInput.focus(); }, 50);
@@ -491,10 +494,10 @@
     document.getElementById('modal-clear').addEventListener('click', function(){
       localStorage.removeItem(KEY_TOKEN);
       localStorage.removeItem(KEY_GEMINI);
-      localStorage.removeItem(KEY_OPENAI);
+      localStorage.removeItem(KEY_OPENROUTER);
       localStorage.removeItem(KEY_GROQ);
-      token = null; geminiKey = null; openaiKey = null; groqKey = null;
-      ghInput.value = ''; gemInput.value = ''; oaiInput.value = ''; groqInput.value = '';
+      token = null; geminiKey = null; openrouterKey = null; groqKey = null;
+      ghInput.value = ''; gemInput.value = ''; orInput.value = ''; groqInput.value = '';
       cache = null;
       setStatus('idle');
       showBanner('warn', 'All keys cleared.', 2500);
@@ -503,7 +506,7 @@
     document.getElementById('modal-save').addEventListener('click', async function(){
       var newGh = ghInput.value.trim();
       var newGem = gemInput.value.trim();
-      var newOai = oaiInput.value.trim();
+      var newOr = orInput.value.trim();
       var newGroq = groqInput.value.trim();
       if (newGh) {
         token = newGh; localStorage.setItem(KEY_TOKEN, token); cache = null;
@@ -513,9 +516,9 @@
         geminiKey = newGem; localStorage.setItem(KEY_GEMINI, geminiKey);
         var okG = await testGeminiKey(); gemHint.className = 'hint ' + (okG ? 'ok' : 'bad');
       }
-      if (newOai) {
-        openaiKey = newOai; localStorage.setItem(KEY_OPENAI, openaiKey);
-        var okO = await testOpenaiKey(); oaiHint.className = 'hint ' + (okO ? 'ok' : 'bad');
+      if (newOr) {
+        openrouterKey = newOr; localStorage.setItem(KEY_OPENROUTER, openrouterKey);
+        var okO = await testOpenrouterKey(); orHint.className = 'hint ' + (okO ? 'ok' : 'bad');
       }
       if (newGroq) {
         groqKey = newGroq; localStorage.setItem(KEY_GROQ, groqKey);
@@ -545,14 +548,14 @@
         return false;
       } catch (e) { gemHint.textContent = 'TEST FAILED: ' + e.message; return false; }
     }
-    async function testOpenaiKey() {
+    async function testOpenrouterKey() {
       try {
-        var r = await fetch('https://api.openai.com/v1/models', { headers: { 'Authorization': 'Bearer ' + openaiKey } });
-        if (r.ok) { oaiHint.textContent = 'OK · OpenAI ready (' + OPENAI_MODEL + ')'; return true; }
+        var r = await fetch('https://openrouter.ai/api/v1/auth/key', { headers: { 'Authorization': 'Bearer ' + openrouterKey } });
+        if (r.ok) { orHint.textContent = 'OK · OpenRouter ready (Llama 3.3 70B free)'; return true; }
         var j = {}; try { j = await r.json(); } catch(e){}
-        oaiHint.textContent = 'BAD: ' + ((j.error && j.error.message) || ('status ' + r.status));
+        orHint.textContent = 'BAD: ' + ((j.error && j.error.message) || ('status ' + r.status));
         return false;
-      } catch (e) { oaiHint.textContent = 'TEST FAILED: ' + e.message; return false; }
+      } catch (e) { orHint.textContent = 'TEST FAILED: ' + e.message; return false; }
     }
     async function testGroqKey() {
       try {
@@ -646,12 +649,17 @@
       catch (e) { throw new Error('Gemini returned invalid JSON: ' + text.slice(0, 200)); }
     }
 
-    async function callOpenai(prompt) {
-      var r = await fetch('https://api.openai.com/v1/chat/completions', {
+    async function callOpenrouter(prompt) {
+      var r = await fetch('https://openrouter.ai/api/v1/chat/completions', {
         method: 'POST',
-        headers: { 'Authorization': 'Bearer ' + openaiKey, 'Content-Type': 'application/json' },
+        headers: {
+          'Authorization': 'Bearer ' + openrouterKey,
+          'Content-Type': 'application/json',
+          'HTTP-Referer': 'https://github.com/atomeam/HomeBase-',
+          'X-Title': 'HomeBase'
+        },
         body: JSON.stringify({
-          model: OPENAI_MODEL,
+          model: OPENROUTER_MODEL,
           messages: [
             { role: 'system', content: 'You output strict JSON only. No markdown fences. No prose outside the JSON object.' },
             { role: 'user', content: prompt }
@@ -663,13 +671,14 @@
       });
       if (!r.ok) {
         var msg = ''; try { msg = (await r.json()).error.message; } catch(e){}
-        var err = new Error('OpenAI ' + r.status + ': ' + msg); err.status = r.status; throw err;
+        var err = new Error('OpenRouter ' + r.status + ': ' + msg); err.status = r.status; throw err;
       }
       var j = await r.json();
       var text = j.choices && j.choices[0] && j.choices[0].message && j.choices[0].message.content;
-      if (!text) throw new Error('Empty OpenAI response');
-      try { return JSON.parse(text); }
-      catch (e) { throw new Error('OpenAI returned invalid JSON: ' + text.slice(0, 200)); }
+      if (!text) throw new Error('Empty OpenRouter response');
+      var cleaned = text.trim().replace(/^```(?:json)?\s*/i, '').replace(/```\s*$/, '').trim();
+      try { return JSON.parse(cleaned); }
+      catch (e) { throw new Error('OpenRouter returned invalid JSON: ' + cleaned.slice(0, 200)); }
     }
 
     async function callGroq(prompt) {
@@ -701,9 +710,9 @@
     async function callLlm(prompt) {
       var errors = [];
       var providers = [
-        { name: 'Gemini', key: geminiKey, fn: callGemini },
-        { name: 'OpenAI', key: openaiKey, fn: callOpenai },
-        { name: 'Groq',   key: groqKey,   fn: callGroq }
+        { name: 'Gemini',     key: geminiKey,     fn: callGemini },
+        { name: 'OpenRouter', key: openrouterKey, fn: callOpenrouter },
+        { name: 'Groq',       key: groqKey,       fn: callGroq }
       ];
       for (var i = 0; i < providers.length; i++) {
         var p = providers[i];
@@ -714,13 +723,13 @@
           errors.push(p.name + ': ' + e.message);
         }
       }
-      if (!errors.length) throw new Error('No LLM key. Add Gemini, OpenAI, or Groq in ⚙.');
+      if (!errors.length) throw new Error('No LLM key. Add Gemini, OpenRouter, or Groq in ⚙.');
       throw new Error('All providers failed — ' + errors.join(' / '));
     }
 
     async function proposeChange() {
       if (!token) { showBanner('warn', 'Set GitHub token first (⚙).', 4000); return; }
-      if (!geminiKey && !openaiKey && !groqKey) { showBanner('warn', 'Need a Gemini, OpenAI, or Groq key (⚙).', 5000); return; }
+      if (!geminiKey && !openrouterKey && !groqKey) { showBanner('warn', 'Need a Gemini, OpenRouter, or Groq key (⚙).', 5000); return; }
       proposeBtn.disabled = true;
       try {
         showBanner('warn', 'Reading log + current code…');
@@ -734,7 +743,7 @@
         if (!indexFile.content) throw new Error('Could not load mini/index.html');
 
         var split = splitStyle(indexFile.content);
-        var available = [geminiKey && 'Gemini', openaiKey && 'OpenAI', groqKey && 'Groq'].filter(Boolean).join('→');
+        var available = [geminiKey && 'Gemini', openrouterKey && 'OpenRouter', groqKey && 'Groq'].filter(Boolean).join('→');
         showBanner('warn', 'Asking ' + available + ' (slim prompt, ~' + Math.round(split.working.length/1024) + 'KB)…');
         var prompt = buildPrompt(notes, split.working);
         var result = await callLlm(prompt);
