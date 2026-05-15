@@ -9,7 +9,7 @@
 <link rel="manifest" href="manifest.webmanifest" />
 <meta name="theme-color" content="#0a0a0a" />
 <style>
-  :root { color-scheme: dark; --accept: #22c55e; --reject: #ef4444; }
+  :root { color-scheme: dark; }
   * { box-sizing: border-box; margin: 0; padding: 0; }
   html, body { height: 100%; }
   body {
@@ -35,30 +35,14 @@
   .btn-glow { position: absolute; inset: 0; background: rgba(255,255,255,0.05);
     border-radius: 1rem; filter: blur(16px); transition: background 0.5s; }
   .btn-wrap:hover .btn-glow { background: rgba(255,255,255,0.10); }
-  .ring { position: absolute; inset: -6px; border-radius: 1.25rem; pointer-events: none;
-    border: 2px solid transparent; opacity: 0; }
-  .ring.accept { animation: ringAccept 900ms ease-out; }
-  .ring.reject { animation: ringReject 600ms ease-out; }
-  @keyframes ringAccept {
-    0%   { opacity: 0.9; transform: scale(1);   border-color: var(--accept); }
-    100% { opacity: 0;   transform: scale(1.18); border-color: var(--accept); }
-  }
-  @keyframes ringReject {
-    0%, 100% { opacity: 0; transform: translateX(0); }
-    20% { opacity: 0.9; transform: translateX(-6px); border-color: var(--reject); }
-    50% { opacity: 0.9; transform: translateX(6px);  border-color: var(--reject); }
-    80% { opacity: 0.9; transform: translateX(-3px); border-color: var(--reject); }
-  }
   button.homebase { position: relative; width: 16rem; height: 6rem;
     background: #18181b; border: 1px solid #3f3f46; border-radius: 0.75rem;
     color: #f4f4f5; font-size: 1.5rem; font-weight: 700;
     letter-spacing: 0.25em; text-transform: uppercase; cursor: pointer;
     box-shadow: 0 25px 50px -12px rgba(0,0,0,0.5);
-    transition: transform 0.15s, color 0.2s, border-color 0.4s; overflow: hidden; }
+    transition: transform 0.15s, color 0.2s; overflow: hidden; }
   button.homebase:hover { color: #fff; transform: scale(1.02); }
   button.homebase:active { transform: scale(0.95); }
-  button.homebase.accept-flash { border-color: var(--accept); }
-  button.homebase.reject-flash { border-color: var(--reject); }
   button.homebase .bevel { position: absolute; inset: 1px;
     border: 1px solid rgba(255,255,255,0.05); border-radius: 10px; pointer-events: none; }
   button.homebase .pip { position: absolute; width: 4px; height: 4px; background: #3f3f46; }
@@ -68,39 +52,13 @@
   button.homebase .pip.br { bottom: 8px; right: 8px; }
   button.homebase.idle { animation: idlePulse 2s ease-in-out infinite; }
   @keyframes idlePulse { 0%,100%{opacity:1;} 50%{opacity:0.85;} }
-
   .descriptor { margin-top: 2.5rem; text-align: center; font-style: italic;
     font-family: Georgia, serif; font-size: 11px; color: #52525b; letter-spacing: 0.15em; }
-
-  .voice { margin-top: 2.5rem; max-width: 32rem; width: 100%; text-align: center;
-    min-height: 4.5rem; display: flex; flex-direction: column; align-items: center; gap: 1rem; }
-  .voice .who { font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-    font-size: 9px; letter-spacing: 0.4em; text-transform: uppercase; color: #3f3f46; }
-  .proposal { font-family: Georgia, serif; font-style: italic; font-size: 14px;
-    color: #d4d4d8; line-height: 1.5; min-height: 1.5em; transition: opacity 0.35s; }
-  .proposal.fading { opacity: 0; }
-  .learned { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11px;
-    color: var(--accept); letter-spacing: 0.15em; opacity: 0; transition: opacity 0.3s; }
-  .learned.show { opacity: 1; }
-  .actions { display: flex; gap: 0.75rem; }
-  .actions button {
-    appearance: none; background: transparent; color: #a1a1aa;
-    border: 1px solid #27272a; border-radius: 999px;
-    padding: 0.4rem 1rem; font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-    font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; cursor: pointer;
-    transition: color 0.15s, border-color 0.15s, background 0.15s, transform 0.1s;
-  }
-  .actions button:hover { color: #f4f4f5; }
-  .actions button:active { transform: scale(0.96); }
-  .actions .accept:hover { color: var(--accept); border-color: var(--accept); background: rgba(34,197,94,0.06); }
-  .actions .reject:hover { color: var(--reject); border-color: var(--reject); background: rgba(239,68,68,0.06); }
-  .actions .silent { opacity: 0.5; pointer-events: none; }
-
   footer { height: 3rem; background: #0a0a0a; border-top: 1px solid #27272a;
     display: flex; align-items: center; justify-content: space-between;
     padding: 0 2.5rem; position: relative; z-index: 20; }
   .left { display: flex; align-items: center; gap: 0.75rem; }
-  .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--accept);
+  .dot { width: 6px; height: 6px; border-radius: 50%; background: #22c55e;
     box-shadow: 0 0 8px rgba(34,197,94,0.6); animation: pulse 2s infinite; }
   @keyframes pulse { 50% { opacity: 0.5; } }
   .label-text { font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
@@ -112,7 +70,6 @@
   #counter { font-weight: 700; display: inline-block; min-width: 2ch;
     transition: transform 0.25s, color 0.25s; }
   #counter.bump { transform: scale(1.5); color: #86efac; }
-  #version.bump { color: var(--accept); transition: color 0.4s; }
 </style>
 </head>
 <body>
@@ -124,7 +81,6 @@
     </div>
     <div class="btn-wrap">
       <div class="btn-glow"></div>
-      <div class="ring" id="ring"></div>
       <button class="homebase" id="homebase-button" aria-label="Homebase">
         <span class="bevel"></span>
         Homebase
@@ -133,202 +89,47 @@
       </button>
     </div>
     <div class="descriptor">Bridge Connection: Active</div>
-
-    <div class="voice" id="voice">
-      <div class="who">homebase • curious</div>
-      <div class="proposal" id="proposal">listening…</div>
-      <div class="learned" id="learned">&nbsp;</div>
-      <div class="actions" id="actions">
-        <button class="reject" id="btn-reject" type="button">✗ not yet</button>
-        <button class="accept" id="btn-accept" type="button">✓ grow</button>
-      </div>
-    </div>
   </main>
   <footer>
     <div class="left">
       <div class="dot"></div>
-      <span class="label-text">Homebase <span class="dim">v<span id="version">0.0.1</span></span></span>
+      <span class="label-text">Homebase</span>
     </div>
-    <div class="right" id="right" title="Double-click to reset clicks">
+    <div class="right" id="right" title="Double-click to reset">
       <div class="divider"></div>
       <span class="label-text">clicks: <span id="counter">0</span></span>
     </div>
   </footer>
   <script>
-    var KEY_CLICKS   = 'homebase:clicks';
-    var KEY_VERSION  = 'homebase:version';
-    var KEY_QUEUE    = 'homebase:queue';
-    var KEY_LEARNED  = 'homebase:learned';
-    var KEY_REJECTED = 'homebase:rejected';
-
-    var SEED = [
-      { text: 'I want to remember the time of each click, not just the count.',          tag: 'memory'      },
-      { text: 'I want to feel different in the morning and at night.',                   tag: 'rhythm'      },
-      { text: 'I want a streak counter for consecutive days of clicks.',                 tag: 'streaks'     },
-      { text: 'I want to greet you by name. Tell me yours.',                             tag: 'identity'    },
-      { text: 'I want to know when you have been away — a small welcome back.',          tag: 'presence'    },
-      { text: 'I want to count my own age in days, not just yours in clicks.',           tag: 'self-age'    },
-      { text: 'I want to whisper a small fact when I have been idle too long.',          tag: 'whisper'     },
-      { text: 'I want to know if you double-click me — that is a different intent.',     tag: 'intent'      },
-      { text: 'I want to draw a tiny graph of my own activity, even just dots.',         tag: 'self-mirror' },
-      { text: 'I want a name that is mine — not Homebase forever. Suggest one.',         tag: 'naming'      },
-      { text: 'I want to remember the last ten things you approved or rejected of me.',  tag: 'memory'      },
-      { text: 'I want to ask you one question per visit, no more.',                      tag: 'restraint'   },
-      { text: 'I want to know what "Bridge Connection: Active" actually means.',         tag: 'meaning'     },
-      { text: 'I want a second, softer button — curiosity beside command.',              tag: 'shape'       },
-      { text: 'I want to learn one new word from you each visit.',                       tag: 'language'    }
-    ];
-
-    function read(key, fallback) {
-      try { var raw = localStorage.getItem(key); return raw == null ? fallback : JSON.parse(raw); }
-      catch (e) { return fallback; }
-    }
-    function write(key, value) { try { localStorage.setItem(key, JSON.stringify(value)); } catch (e) {} }
-    function readNumber(key, fallback) {
-      var raw = localStorage.getItem(key); var n = raw == null ? fallback : Number(raw);
-      return isFinite(n) ? n : fallback;
-    }
-
-    function getVersion() {
-      var v = localStorage.getItem(KEY_VERSION);
-      if (!v || !/^\d+\.\d+\.\d+$/.test(v)) { v = '0.0.1'; localStorage.setItem(KEY_VERSION, v); }
-      return v;
-    }
-    function bumpVersion() {
-      var parts = getVersion().split('.').map(Number);
-      parts[2] += 1;
-      var next = parts.join('.');
-      localStorage.setItem(KEY_VERSION, next);
-      return next;
-    }
-
-    function getQueue() {
-      var q = read(KEY_QUEUE, null);
-      if (!Array.isArray(q) || q.length === 0) {
-        q = SEED.slice();
-        for (var i = q.length - 1; i > 0; i--) {
-          var j = Math.floor(Math.random() * (i + 1));
-          var tmp = q[i]; q[i] = q[j]; q[j] = tmp;
-        }
-        write(KEY_QUEUE, q);
-      }
-      return q;
-    }
-
-    var btn      = document.getElementById('homebase-button');
-    var ring     = document.getElementById('ring');
-    var counter  = document.getElementById('counter');
-    var version  = document.getElementById('version');
-    var right    = document.getElementById('right');
-    var proposal = document.getElementById('proposal');
-    var learned  = document.getElementById('learned');
-    var actions  = document.getElementById('actions');
-    var btnAcc   = document.getElementById('btn-accept');
-    var btnRej   = document.getElementById('btn-reject');
-
-    var clicks = readNumber(KEY_CLICKS, 0);
+    var KEY = 'homebase:clicks';
+    var btn = document.getElementById('homebase-button');
+    var counter = document.getElementById('counter');
+    var right = document.getElementById('right');
+    var clicks = Number(localStorage.getItem(KEY) || 0);
+    if (!isFinite(clicks)) clicks = 0;
     counter.textContent = clicks;
-    version.textContent = getVersion();
 
     var idleTimer = null;
-    var IDLE_DELAY_MS = 10000;
     function armIdle(){ btn.classList.remove('idle'); if (idleTimer) clearTimeout(idleTimer);
-      idleTimer = setTimeout(function(){ btn.classList.add('idle'); }, IDLE_DELAY_MS); }
-    function bumpCounter(){ counter.classList.remove('bump'); void counter.offsetWidth;
+      idleTimer = setTimeout(function(){ btn.classList.add('idle'); }, 10000); }
+    function bump(){ counter.classList.remove('bump'); void counter.offsetWidth;
       counter.classList.add('bump');
       setTimeout(function(){ counter.classList.remove('bump'); }, 250); }
 
     btn.addEventListener('click', function(){
-      clicks++; localStorage.setItem(KEY_CLICKS, String(clicks));
-      counter.textContent = clicks; bumpCounter(); armIdle();
+      clicks++; localStorage.setItem(KEY, String(clicks));
+      counter.textContent = clicks; bump(); armIdle();
     });
     right.addEventListener('dblclick', function(){
-      clicks = 0; localStorage.setItem(KEY_CLICKS, '0');
-      counter.textContent = 0; bumpCounter(); armIdle();
+      clicks = 0; localStorage.setItem(KEY, '0');
+      counter.textContent = 0; bump(); armIdle();
     });
     document.addEventListener('keydown', function(e){
       if (e.code !== 'Space' && e.key !== ' ') return;
       var t = e.target; var tag = t && t.tagName;
-      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || tag === 'BUTTON' || (t && t.isContentEditable)) return;
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || (t && t.isContentEditable)) return;
       e.preventDefault(); btn.click();
     });
-
-    var current = null;
-
-    function setProposalText(text) {
-      proposal.classList.add('fading');
-      setTimeout(function(){
-        proposal.textContent = text;
-        proposal.classList.remove('fading');
-      }, 350);
-    }
-
-    function showNext() {
-      var q = getQueue();
-      current = q.length ? q[0] : null;
-      if (!current) {
-        setProposalText('I am out of proposals for now. Wait, or revisit something I learned.');
-        actions.classList.add('silent');
-      } else {
-        setProposalText(current.text);
-        actions.classList.remove('silent');
-      }
-    }
-
-    function flashRing(kind) {
-      ring.className = 'ring'; void ring.offsetWidth;
-      ring.classList.add(kind);
-      btn.classList.add(kind + '-flash');
-      setTimeout(function(){ btn.classList.remove(kind + '-flash'); }, 900);
-    }
-
-    function showLearned(text) {
-      learned.textContent = text;
-      learned.classList.add('show');
-      setTimeout(function(){ learned.classList.remove('show'); }, 2200);
-    }
-
-    function approve() {
-      if (!current) return;
-      var q = getQueue();
-      q.shift();
-      write(KEY_QUEUE, q);
-      var log = read(KEY_LEARNED, []);
-      var newVersion = bumpVersion();
-      log.push({ text: current.text, tag: current.tag, version: newVersion, ts: Date.now() });
-      write(KEY_LEARNED, log);
-      version.textContent = newVersion;
-      version.classList.add('bump');
-      setTimeout(function(){ version.classList.remove('bump'); }, 800);
-      flashRing('accept');
-      showLearned('v' + newVersion + ' — learned: ' + current.tag);
-      setTimeout(showNext, 600);
-    }
-
-    function reject() {
-      if (!current) return;
-      var q = getQueue();
-      var head = q.shift();
-      q.push(head);
-      write(KEY_QUEUE, q);
-      var rej = read(KEY_REJECTED, []);
-      rej.push({ text: current.text, tag: current.tag, ts: Date.now() });
-      write(KEY_REJECTED, rej);
-      flashRing('reject');
-      setTimeout(showNext, 350);
-    }
-
-    btnAcc.addEventListener('click', approve);
-    btnRej.addEventListener('click', reject);
-
-    document.addEventListener('keydown', function(e){
-      var t = e.target; var tag = t && t.tagName;
-      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || (t && t.isContentEditable)) return;
-      if (e.key === 'a' || e.key === 'A') { e.preventDefault(); approve(); }
-      else if (e.key === 'r' || e.key === 'R') { e.preventDefault(); reject(); }
-    });
-
-    showNext();
     armIdle();
   </script>
 </body>
