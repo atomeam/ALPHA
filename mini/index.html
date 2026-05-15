@@ -198,6 +198,11 @@
     <div class="descriptor">Bridge Connection: Active</div>
     <div class="quick-note-wrap">
       <input id="quickNote" type="text" maxlength="120" autocomplete="off" spellcheck="true" placeholder="quick note (enter to save)" aria-label="quick note" />
+      <button class="recent-notes-btn" id="recentNotesBtn" type="button" title="Show recent notes">📝</button>
+      <div class="recent-notes-dropdown" id="recentNotesDropdown" hidden>
+        <div class="recent-notes-header">Recent Notes</div>
+        <div class="recent-notes-list" id="recentNotesList"></div>
+      </div>
     </div>
     <button class="propose-link" id="proposeBtn" type="button" title="Have the LLM propose a new capability based on intent log + recent commits">✨ propose change</button>
   </main>
@@ -546,10 +551,40 @@
           logClick('[quick] ' + note);
           this.value = '';
           showBanner('success', 'Quick note saved.', 2000);
+          updateRecentNotes();
         }
       }
       else if (e.key === 'Escape') { this.value = ''; this.blur(); }
     });
+    document.getElementById('recentNotesBtn').addEventListener('click', function(){
+      var dropdown = document.getElementById('recentNotesDropdown');
+      dropdown.hidden = !dropdown.hidden;
+      if (!dropdown.hidden) updateRecentNotes();
+    });
+    function updateRecentNotes() {
+      var list = document.getElementById('recentNotesList');
+      list.innerHTML = '';
+      var notes = [];
+      try {
+        var logContent = localStorage.getItem(KEY_PENDING) || '[]';
+        var pending = JSON.parse(logContent);
+        if (Array.isArray(pending)) notes = pending.filter(e => e.note).map(e => e.note).slice(-5).reverse();
+      } catch (e) {}
+      if (notes.length === 0) {
+        var empty = document.createElement('div');
+        empty.className = 'recent-note-item empty';
+        empty.textContent = 'No recent notes';
+        list.appendChild(empty);
+      } else {
+        notes.forEach(function(note) {
+          var item = document.createElement('div');
+          item.className = 'recent-note-item';
+          item.textContent = note.replace(/^\s*\[quick\]\s*/, '');
+          item.title = note;
+          list.appendChild(item);
+        });
+      }
+    }
     document.addEventListener('keydown', function(e){
       if (e.code !== 'Space' && e.key !== ' ') return;
       var t = e.target; var tag = t && t.tagName;
