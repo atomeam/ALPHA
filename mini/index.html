@@ -130,6 +130,21 @@
   .modal-actions button.primary:hover { background: rgba(96,165,250,0.12); }
   .modal-actions button.danger { color: #a1a1aa; }
   .modal-actions button.danger:hover { color: var(--error); border-color: var(--error); }
+  .modal-actions button:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  .prop-summary { font-family: Georgia, serif; font-size: 18px; line-height: 1.4; color: #f4f4f5;
+    margin: 0.5rem 0 1rem; padding: 1rem; background: #050505; border-left: 3px solid var(--accent); border-radius: 0 6px 6px 0; }
+  .prop-meta { font-family: ui-monospace, monospace; font-size: 10px; letter-spacing: 0.1em;
+    text-transform: uppercase; color: #52525b; margin-bottom: 1rem; }
+  .prop-meta b { color: #a1a1aa; }
+  .prop-patches { background: #050505; border: 1px solid #18181b; border-radius: 6px;
+    padding: 0.75rem; max-height: 18rem; overflow-y: auto;
+    font-family: ui-monospace, monospace; font-size: 10px; color: #71717a; }
+  .prop-patches .patch { padding: 0.5rem 0; border-bottom: 1px dashed #18181b; }
+  .prop-patches .patch:last-child { border-bottom: 0; }
+  .prop-patches .line { white-space: pre-wrap; word-break: break-all; }
+  .prop-patches .line.del { color: #fca5a5; }
+  .prop-patches .line.add { color: #86efac; }
 
   footer { height: 3rem; background: #0a0a0a; border-top: 1px solid #27272a;
     display: flex; align-items: center; justify-content: space-between;
@@ -181,7 +196,7 @@
       </button>
     </div>
     <div class="descriptor">Bridge Connection: Active</div>
-    <button class="propose-link" id="proposeBtn" type="button" title="Propose a code change as a Pull Request (Mistral -> Gemini -> OpenRouter -> Groq)">✨ propose change</button>
+    <button class="propose-link" id="proposeBtn" type="button" title="Have the LLM propose a new capability based on intent log + recent commits">✨ propose change</button>
   </main>
   <footer>
     <div class="left">
@@ -194,7 +209,7 @@
       <span class="label-text" id="clicksLabel" title="Double-click to reset local count">clicks: <span id="counter">0</span></span>
     </div>
   </footer>
-  <div class="build-stamp">build quad-llm-v8</div>
+  <div class="build-stamp">build quad-llm-v9</div>
 
   <div class="modal-bg" id="modalBg" hidden>
     <div class="modal">
@@ -244,6 +259,19 @@
         <button id="modal-clear" type="button" class="danger">Clear all</button>
         <button id="modal-close" type="button">Close</button>
         <button id="modal-save" type="button" class="primary">Save &amp; test</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-bg" id="propModalBg" hidden>
+    <div class="modal">
+      <h2>Proposed Change</h2>
+      <div class="prop-meta" id="propMeta"></div>
+      <div class="prop-summary" id="propSummary"></div>
+      <div class="prop-patches" id="propPatches"></div>
+      <div class="modal-actions">
+        <button id="prop-skip" type="button" class="danger">Skip</button>
+        <button id="prop-apply" type="button" class="primary">Apply &amp; reload</button>
       </div>
     </div>
   </div>
@@ -304,6 +332,12 @@
     var orHint      = document.getElementById('or-hint');
     var groqInput   = document.getElementById('groq-input');
     var groqHint    = document.getElementById('groq-hint');
+    var propModalBg = document.getElementById('propModalBg');
+    var propMeta    = document.getElementById('propMeta');
+    var propSummary = document.getElementById('propSummary');
+    var propPatches = document.getElementById('propPatches');
+    var propApplyBtn= document.getElementById('prop-apply');
+    var propSkipBtn = document.getElementById('prop-skip');
 
     var token         = localStorage.getItem(KEY_TOKEN) || null;
     var mistralKey    = localStorage.getItem(KEY_MISTRAL) || null;
@@ -320,6 +354,7 @@
     var draining = false;
     var cache = null;
     var bannerTimer = null;
+    var pendingProposal = null;
 
     function saveQueue() { localStorage.setItem(KEY_PENDING, JSON.stringify(queue)); }
 
@@ -374,6 +409,22 @@
       }
       var j = await r.json();
       return { sha: j.sha, content: b64decode(j.content || '') };
+    }
+
+    async function ghGetCommits(limit) {
+      limit = limit || 25;
+      var url = 'https://api.github.com/repos/' + REPO_OWNER + '/' + REPO_NAME +
+                '/commits?sha=' + BRANCH + '&per_page=' + limit + '&t=' + Date.now();
+      var r = await fetch(url, {
+        headers: { 'Authorization': 'token ' + token, 'Accept': 'application/vnd.github+json' },
+        cache: 'no-store'
+      });
+      if (!r.ok) return [];
+      var j = await r.json();
+      return j.map(function(c){
+        var msg = (c.commit && c.commit.message) || '';
+        return msg.split('\n')[0];
+      });
     }
 
     async function ghPutFile(content, sha, commitMessage, branchName) {
@@ -634,27 +685,36 @@
       return out;
     }
 
-    function buildPrompt(notesArr, slimHtml) {
+    function buildPrompt(notesArr, commitsArr, slimHtml) {
       var notesText = notesArr.length
         ? notesArr.map(function(n, i){ return (i+1) + '. ' + n; }).join('\n')
-        : '(no user notes yet — propose any small JS/HTML improvement)';
+        : '(no user notes yet)';
+      var commitsText = commitsArr.length
+        ? commitsArr.map(function(c){ return '- ' + c; }).join('\n')
+        : '(no recent commits)';
       return [
-        'You improve a single-file HTML app called HomeBase. User logs button clicks with optional notes about intent.',
+        'You evolve HomeBase, a single-file HTML app where the user clicks a button + writes intent notes.',
         '',
-        'TASK: Propose ONE small focused change to HTML/JS based on the notes. Real + working > big + broken.',
+        'TASK: Propose ONE small, REAL, WORKING new capability. Must do something observable when used.',
+        '',
+        'CRITICAL: Look at RECENT COMMITS below. DO NOT propose anything already implemented (e.g. don\'t add an intent input if it already exists, don\'t add settings modal if it exists, etc).',
+        'Look at USER NOTES to understand what the user actually wants next. Prioritize their stated intent over generic improvements.',
         '',
         'OUTPUT: JSON only, no markdown, no prose:',
-        '{ "summary": "one short sentence", "patches": [ { "find": "<unique substring>", "replace": "<new substring>" } ] }',
+        '{ "summary": "one short sentence describing the new capability", "patches": [ { "find": "<unique substring>", "replace": "<new substring>" } ] }',
         '',
         'RULES:',
         '- Each patch.find must appear EXACTLY ONCE in the file shown. Smallest unique anchor.',
-        '- DO NOT edit the <style> block — CSS is hidden from you and replaced with a placeholder. Never patch lines containing CSS_HIDDEN_FROM_PROMPT.',
-        '- Preserve: GitHub logging, intent input, propose flow, modal settings, all API keys, click counter, idle pulse, spacebar.',
-        '- 1–3 patches max.',
-        '- No external dependencies, no new files.',
-        '- Escape JSON strings properly.',
+        '- DO NOT edit the <style> block — CSS is hidden and replaced with a placeholder. Never patch lines containing CSS_HIDDEN_FROM_PROMPT.',
+        '- Preserve everything that already works: GitHub logging, intent input, propose flow, modal settings, all API keys, click counter, idle pulse, spacebar.',
+        '- Real > fake. The new thing must function, not just appear.',
+        '- 1–3 patches max. No external dependencies. No new files.',
+        '- Escape JSON strings properly (\\n for newlines, \\" for quotes inside strings).',
         '',
-        'RECENT USER NOTES (most recent last):',
+        'RECENT COMMITS (already done — do not redo these):',
+        commitsText,
+        '',
+        'RECENT USER NOTES (most recent last — what they want next):',
         notesText,
         '',
         'CURRENT FILE (mini/index.html, CSS replaced with placeholder):',
@@ -799,93 +859,101 @@
       throw new Error('All providers failed — ' + errors.join(' / '));
     }
 
+    function renderProposal(provider, proposal, patchedHtml, indexSha) {
+      pendingProposal = { provider: provider, proposal: proposal, html: patchedHtml, sha: indexSha };
+      propMeta.innerHTML = 'via <b>' + escapeHtml(provider) + '</b> · ' + proposal.patches.length + ' patch' + (proposal.patches.length===1?'':'es');
+      propSummary.textContent = proposal.summary;
+      propPatches.innerHTML = '';
+      proposal.patches.forEach(function(p, idx){
+        var div = document.createElement('div'); div.className = 'patch';
+        var head = document.createElement('div'); head.style.color = '#a1a1aa'; head.style.marginBottom = '4px';
+        head.textContent = '— patch ' + (idx+1) + ' —';
+        var del = document.createElement('div'); del.className = 'line del'; del.textContent = '- ' + truncate(p.find, 220);
+        var add = document.createElement('div'); add.className = 'line add'; add.textContent = '+ ' + truncate(p.replace, 220);
+        div.appendChild(head); div.appendChild(del); div.appendChild(add);
+        propPatches.appendChild(div);
+      });
+      propApplyBtn.disabled = false;
+      propSkipBtn.disabled = false;
+      propApplyBtn.textContent = 'Apply & reload';
+      propModalBg.hidden = false;
+    }
+    function truncate(s, n) { s = String(s); return s.length > n ? s.slice(0, n) + '…' : s; }
+    function closeProposal() { propModalBg.hidden = true; pendingProposal = null; }
+    propSkipBtn.addEventListener('click', function(){
+      showBanner('warn', 'Proposal skipped.', 2500);
+      closeProposal();
+    });
+    propApplyBtn.addEventListener('click', async function(){
+      if (!pendingProposal) return;
+      propApplyBtn.disabled = true; propSkipBtn.disabled = true;
+      propApplyBtn.textContent = 'Committing…';
+      try {
+        var pp = pendingProposal;
+        var commitMsg = 'apply: ' + shortenForCommit(pp.proposal.summary);
+        var putR = await fetch('https://api.github.com/repos/' + REPO_OWNER + '/' + REPO_NAME + '/contents/' + INDEX_PATH, {
+          method: 'PUT',
+          headers: { 'Authorization': 'token ' + token, 'Accept': 'application/vnd.github+json', 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            message: commitMsg,
+            content: b64encode(pp.html),
+            sha: pp.sha,
+            branch: BRANCH
+          })
+        });
+        if (!putR.ok) {
+          var txt = ''; try { txt = (await putR.json()).message || ''; } catch(e){}
+          throw new Error('Commit failed ' + putR.status + ': ' + txt);
+        }
+        var jr = await putR.json();
+        var newSha = jr.commit && jr.commit.sha ? jr.commit.sha.slice(0,8) : '';
+        propApplyBtn.textContent = 'Reloading…';
+        showBanner('success', '✓ Applied. Reloading…', 2000);
+        setTimeout(function(){
+          var sep = location.search ? '&' : '?';
+          var bust = 'v=' + (newSha || Date.now());
+          var clean = location.search.replace(/[?&]v=[^&]*/g, '');
+          location.search = clean + (clean ? '&' : '?') + bust;
+        }, 700);
+      } catch (e) {
+        console.error('[homebase] apply failed:', e);
+        showBanner('error', 'APPLY FAILED — ' + escapeHtml(e.message));
+        propApplyBtn.disabled = false; propSkipBtn.disabled = false;
+        propApplyBtn.textContent = 'Retry apply';
+      }
+    });
+
     async function proposeChange() {
       if (!token) { showBanner('warn', 'Set GitHub token first (⚙).', 4000); return; }
       if (!mistralKey && !geminiKey && !openrouterKey && !groqKey) { showBanner('warn', 'Need a Mistral, Gemini, OpenRouter, or Groq key (⚙).', 5000); return; }
       proposeBtn.disabled = true;
       try {
-        showBanner('warn', 'Reading log + current code…');
+        showBanner('warn', 'Reading log + commits + current code…');
         var logFile = await ghGetFile(LOG_PATH);
         var lines = logFile.content.trim().split('\n').filter(Boolean);
         var notes = [];
         for (var i = Math.max(0, lines.length - 50); i < lines.length; i++) {
           try { var e = JSON.parse(lines[i]); if (e && e.note) notes.push(e.note); } catch (er) {}
         }
+        var commits = await ghGetCommits(25);
         var indexFile = await ghGetFile(INDEX_PATH);
         if (!indexFile.content) throw new Error('Could not load mini/index.html');
 
         var split = splitStyle(indexFile.content);
         var available = [mistralKey && 'Mistral', geminiKey && 'Gemini', openrouterKey && 'OpenRouter', groqKey && 'Groq'].filter(Boolean).join('→');
-        showBanner('warn', 'Asking ' + available + ' (slim prompt, ~' + Math.round(split.working.length/1024) + 'KB)…');
-        var prompt = buildPrompt(notes, split.working);
+        showBanner('warn', 'Asking ' + available + ' (~' + Math.round(split.working.length/1024) + 'KB code, ' + notes.length + ' notes, ' + commits.length + ' commits)…');
+        var prompt = buildPrompt(notes, commits, split.working);
         var result = await callLlm(prompt);
         var proposal = result.proposal;
         if (!proposal.summary || !Array.isArray(proposal.patches)) throw new Error('Proposal missing summary or patches');
 
-        showBanner('warn', '[' + result.provider + '] Applying · ' + escapeHtml(proposal.summary));
         var patchedSlim = applyPatches(split.working, proposal.patches);
         if (patchedSlim === split.working) throw new Error('Patches resulted in no change');
         var newHtml = restoreStyle(patchedSlim, split);
         if (newHtml.length < 1000) throw new Error('Result suspiciously short');
 
-        var stamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
-        var branchName = 'propose/' + stamp;
-
-        showBanner('warn', 'Creating branch ' + branchName + '…');
-        var refR = await fetch('https://api.github.com/repos/' + REPO_OWNER + '/' + REPO_NAME + '/git/ref/heads/' + BRANCH, {
-          headers: { 'Authorization': 'token ' + token, 'Accept': 'application/vnd.github+json' }
-        });
-        if (!refR.ok) throw new Error('GET main ref failed: ' + refR.status);
-        var refJ = await refR.json();
-        var mainSha = refJ.object.sha;
-
-        var brR = await fetch('https://api.github.com/repos/' + REPO_OWNER + '/' + REPO_NAME + '/git/refs', {
-          method: 'POST',
-          headers: { 'Authorization': 'token ' + token, 'Accept': 'application/vnd.github+json', 'Content-Type': 'application/json' },
-          body: JSON.stringify({ ref: 'refs/heads/' + branchName, sha: mainSha })
-        });
-        if (!brR.ok) {
-          var brTxt = ''; try { brTxt = (await brR.json()).message || ''; } catch(e){}
-          throw new Error('Create branch failed ' + brR.status + ': ' + brTxt);
-        }
-
-        showBanner('warn', 'Committing patched file to branch…');
-        var commitMsg = 'propose: ' + shortenForCommit(proposal.summary);
-        var putR = await fetch('https://api.github.com/repos/' + REPO_OWNER + '/' + REPO_NAME + '/contents/' + INDEX_PATH, {
-          method: 'PUT',
-          headers: { 'Authorization': 'token ' + token, 'Accept': 'application/vnd.github+json', 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            message: commitMsg,
-            content: b64encode(newHtml),
-            sha: indexFile.sha,
-            branch: branchName
-          })
-        });
-        if (!putR.ok) {
-          var putTxt = ''; try { putTxt = (await putR.json()).message || ''; } catch(e){}
-          throw new Error('Commit failed ' + putR.status + ': ' + putTxt);
-        }
-
-        showBanner('warn', 'Opening pull request…');
-        var prBody = 'Generated by HomeBase using **' + result.provider + '**.\n\n' +
-                     '**Summary:** ' + proposal.summary + '\n\n' +
-                     '**Patches:** ' + proposal.patches.length + '\n\n' +
-                     'Review the diff. Merge to deploy.\n\n' +
-                     '_Notes seen by the model:_\n' + (notes.length ? notes.map(function(n){ return '- ' + n; }).join('\n') : '(none yet)');
-        var prR = await fetch('https://api.github.com/repos/' + REPO_OWNER + '/' + REPO_NAME + '/pulls', {
-          method: 'POST',
-          headers: { 'Authorization': 'token ' + token, 'Accept': 'application/vnd.github+json', 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            title: 'propose: ' + shortenForCommit(proposal.summary),
-            head: branchName, base: BRANCH, body: prBody
-          })
-        });
-        if (!prR.ok) {
-          var prTxt = ''; try { prTxt = (await prR.json()).message || ''; } catch(e){}
-          throw new Error('Open PR failed ' + prR.status + ': ' + prTxt);
-        }
-        var prJ = await prR.json();
-        showBanner('success', '✓ [' + result.provider + '] PR opened: <a href="' + prJ.html_url + '" target="_blank" rel="noopener">' + escapeHtml(proposal.summary) + '</a> — review and merge to deploy.');
+        hideBanner();
+        renderProposal(result.provider, proposal, newHtml, indexFile.sha);
       } catch (e) {
         console.error('[homebase] propose failed:', e);
         showBanner('error', 'PROPOSE FAILED — ' + escapeHtml(e.message));
