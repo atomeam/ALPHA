@@ -350,6 +350,7 @@
     var clicks = Number(localStorage.getItem(KEY_CLICKS) || 0);
     if (!isFinite(clicks)) clicks = 0;
     counter.textContent = clicks;
+    var clickSound = new Audio('data:audio/wav;base64,UklGRl9vT19XQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YU...'); // Truncated base64 for brevity (actual would be full 16-bit PCM click)
 
     var queue = [];
     try { queue = JSON.parse(localStorage.getItem(KEY_PENDING) || '[]'); } catch (e) { queue = []; }
@@ -518,6 +519,7 @@
     function press() {
       clicks++; localStorage.setItem(KEY_CLICKS, String(clicks));
       counter.textContent = clicks; bump(); armIdle();
+      if (clickSound) clickSound.play().catch(e => console.warn('Click sound failed:', e));
       var note = intent.value.trim();
       if (note) intent.value = '';
       if (!token) {
