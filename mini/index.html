@@ -181,7 +181,7 @@
       </button>
     </div>
     <div class="descriptor">Bridge Connection: Active</div>
-    <button class="propose-link" id="proposeBtn" type="button" title="Propose a code change as a Pull Request (Groq 8B primary, Gemini fallback)">✨ propose change</button>
+    <button class="propose-link" id="proposeBtn" type="button" title="Propose a code change as a Pull Request (Gemini -> OpenAI -> Groq)">✨ propose change</button>
   </main>
   <footer>
     <div class="left">
@@ -194,7 +194,7 @@
       <span class="label-text" id="clicksLabel" title="Double-click to reset local count">clicks: <span id="counter">0</span></span>
     </div>
   </footer>
-  <div class="build-stamp">build slim-prompt-v3</div>
+  <div class="build-stamp">build tri-llm-v4</div>
 
   <div class="modal-bg" id="modalBg" hidden>
     <div class="modal">
@@ -207,7 +207,7 @@
         <input type="password" id="gh-input" placeholder="github_pat_..." autocomplete="off" />
         <span class="hint" id="gh-hint">Fine-grained PAT · atomeam/HomeBase- · Contents + Pull requests: Read &amp; write</span>
       </label>
-      <div class="section-note">For ✨ propose change. Either provider works. Groq is tried first; Gemini is fallback.</div>
+      <div class="section-note">For ✨ propose change. Add any one or more. Tried in this order: Gemini → OpenAI → Groq.</div>
       <label>
         <div class="label-row">
           <span>Gemini API Key (free)</span>
@@ -215,6 +215,14 @@
         </div>
         <input type="password" id="gem-input" placeholder="AIza..." autocomplete="off" />
         <span class="hint" id="gem-hint">Google AI Studio · no credit card · 1M context · 1500 req/day</span>
+      </label>
+      <label>
+        <div class="label-row">
+          <span>OpenAI API Key (paid)</span>
+          <a href="https://platform.openai.com/api-keys" target="_blank" rel="noopener">create key</a>
+        </div>
+        <input type="password" id="oai-input" placeholder="sk-..." autocomplete="off" />
+        <span class="hint" id="oai-hint">platform.openai.com · gpt-4o-mini · ~$0.15 per 1M input tokens</span>
       </label>
       <label>
         <div class="label-row">
@@ -241,10 +249,12 @@
 
     var GROQ_MODEL = 'llama-3.1-8b-instant';
     var GEMINI_MODEL = 'gemini-2.0-flash';
+    var OPENAI_MODEL = 'gpt-4o-mini';
 
     var KEY_CLICKS  = 'homebase:clicks';
     var KEY_TOKEN   = 'homebase:gh:token';
     var KEY_GEMINI  = 'homebase:gemini:key';
+    var KEY_OPENAI  = 'homebase:openai:key';
     var KEY_GROQ    = 'homebase:groq:key';
     var KEY_PENDING = 'homebase:pending';
 
@@ -270,11 +280,14 @@
     var ghHint      = document.getElementById('gh-hint');
     var gemInput    = document.getElementById('gem-input');
     var gemHint     = document.getElementById('gem-hint');
+    var oaiInput    = document.getElementById('oai-input');
+    var oaiHint     = document.getElementById('oai-hint');
     var groqInput   = document.getElementById('groq-input');
     var groqHint    = document.getElementById('groq-hint');
 
     var token = localStorage.getItem(KEY_TOKEN) || null;
     var geminiKey = localStorage.getItem(KEY_GEMINI) || null;
+    var openaiKey = localStorage.getItem(KEY_OPENAI) || null;
     var groqKey = localStorage.getItem(KEY_GROQ) || null;
     var clicks = Number(localStorage.getItem(KEY_CLICKS) || 0);
     if (!isFinite(clicks)) clicks = 0;
@@ -458,12 +471,15 @@
     function openModal() {
       ghInput.value = token || '';
       gemInput.value = geminiKey || '';
+      oaiInput.value = openaiKey || '';
       groqInput.value = groqKey || '';
       ghHint.className = 'hint';
       gemHint.className = 'hint';
+      oaiHint.className = 'hint';
       groqHint.className = 'hint';
       ghHint.textContent = 'Fine-grained PAT · atomeam/HomeBase- · Contents + Pull requests: Read & write';
       gemHint.textContent = 'Google AI Studio · no credit card · 1M context · 1500 req/day';
+      oaiHint.textContent = 'platform.openai.com · gpt-4o-mini · ~$0.15 per 1M input tokens';
       groqHint.textContent = 'console.groq.com · no credit card · Llama 3.1 8B Instant';
       modalBg.hidden = false;
       setTimeout(function(){ ghInput.focus(); }, 50);
@@ -475,9 +491,10 @@
     document.getElementById('modal-clear').addEventListener('click', function(){
       localStorage.removeItem(KEY_TOKEN);
       localStorage.removeItem(KEY_GEMINI);
+      localStorage.removeItem(KEY_OPENAI);
       localStorage.removeItem(KEY_GROQ);
-      token = null; geminiKey = null; groqKey = null;
-      ghInput.value = ''; gemInput.value = ''; groqInput.value = '';
+      token = null; geminiKey = null; openaiKey = null; groqKey = null;
+      ghInput.value = ''; gemInput.value = ''; oaiInput.value = ''; groqInput.value = '';
       cache = null;
       setStatus('idle');
       showBanner('warn', 'All keys cleared.', 2500);
@@ -486,6 +503,7 @@
     document.getElementById('modal-save').addEventListener('click', async function(){
       var newGh = ghInput.value.trim();
       var newGem = gemInput.value.trim();
+      var newOai = oaiInput.value.trim();
       var newGroq = groqInput.value.trim();
       if (newGh) {
         token = newGh; localStorage.setItem(KEY_TOKEN, token); cache = null;
@@ -494,6 +512,10 @@
       if (newGem) {
         geminiKey = newGem; localStorage.setItem(KEY_GEMINI, geminiKey);
         var okG = await testGeminiKey(); gemHint.className = 'hint ' + (okG ? 'ok' : 'bad');
+      }
+      if (newOai) {
+        openaiKey = newOai; localStorage.setItem(KEY_OPENAI, openaiKey);
+        var okO = await testOpenaiKey(); oaiHint.className = 'hint ' + (okO ? 'ok' : 'bad');
       }
       if (newGroq) {
         groqKey = newGroq; localStorage.setItem(KEY_GROQ, groqKey);
@@ -523,6 +545,15 @@
         return false;
       } catch (e) { gemHint.textContent = 'TEST FAILED: ' + e.message; return false; }
     }
+    async function testOpenaiKey() {
+      try {
+        var r = await fetch('https://api.openai.com/v1/models', { headers: { 'Authorization': 'Bearer ' + openaiKey } });
+        if (r.ok) { oaiHint.textContent = 'OK · OpenAI ready (' + OPENAI_MODEL + ')'; return true; }
+        var j = {}; try { j = await r.json(); } catch(e){}
+        oaiHint.textContent = 'BAD: ' + ((j.error && j.error.message) || ('status ' + r.status));
+        return false;
+      } catch (e) { oaiHint.textContent = 'TEST FAILED: ' + e.message; return false; }
+    }
     async function testGroqKey() {
       try {
         var r = await fetch('https://api.groq.com/openai/v1/models', { headers: { 'Authorization': 'Bearer ' + groqKey } });
@@ -533,9 +564,6 @@
       } catch (e) { groqHint.textContent = 'TEST FAILED: ' + e.message; return false; }
     }
 
-    // Strip CSS to slim prompt for LLMs with tight token budgets (Groq free tier).
-    // Returns { working, originalStyle, placeholder } so patches apply against `working`
-    // and we splice the original style block back before pushing.
     var STYLE_PLACEHOLDER = '<style>/* CSS_HIDDEN_FROM_PROMPT_DO_NOT_PATCH */</style>';
     function splitStyle(html) {
       var m = html.match(/<style>[\s\S]*?<\/style>/);
@@ -582,7 +610,7 @@
         'RULES:',
         '- Each patch.find must appear EXACTLY ONCE in the file shown. Smallest unique anchor.',
         '- DO NOT edit the <style> block — CSS is hidden from you and replaced with a placeholder. Never patch lines containing CSS_HIDDEN_FROM_PROMPT.',
-        '- Preserve: GitHub logging, intent input, propose flow, modal settings, both API keys, click counter, idle pulse, spacebar.',
+        '- Preserve: GitHub logging, intent input, propose flow, modal settings, all API keys, click counter, idle pulse, spacebar.',
         '- 1–3 patches max.',
         '- No external dependencies, no new files.',
         '- Escape JSON strings properly.',
@@ -597,33 +625,6 @@
       ].join('\n');
     }
 
-    async function callGroq(prompt) {
-      var r = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-        method: 'POST',
-        headers: { 'Authorization': 'Bearer ' + groqKey, 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          model: GROQ_MODEL,
-          messages: [
-            { role: 'system', content: 'You output strict JSON only. No markdown fences. No prose outside the JSON object.' },
-            { role: 'user', content: prompt }
-          ],
-          response_format: { type: 'json_object' },
-          temperature: 0.5,
-          max_tokens: 4096
-        })
-      });
-      if (!r.ok) {
-        var msg = ''; try { msg = (await r.json()).error.message; } catch(e){}
-        var err = new Error('Groq ' + r.status + ': ' + msg);
-        err.status = r.status; throw err;
-      }
-      var j = await r.json();
-      var text = j.choices && j.choices[0] && j.choices[0].message && j.choices[0].message.content;
-      if (!text) throw new Error('Empty Groq response');
-      try { return JSON.parse(text); }
-      catch (e) { throw new Error('Groq returned invalid JSON: ' + text.slice(0, 200)); }
-    }
-
     async function callGemini(prompt) {
       var url = 'https://generativelanguage.googleapis.com/v1beta/models/' + GEMINI_MODEL + ':generateContent?key=' + encodeURIComponent(geminiKey);
       var r = await fetch(url, {
@@ -636,8 +637,7 @@
       });
       if (!r.ok) {
         var msg = ''; try { msg = (await r.json()).error.message; } catch(e){}
-        var err = new Error('Gemini ' + r.status + ': ' + msg);
-        err.status = r.status; throw err;
+        var err = new Error('Gemini ' + r.status + ': ' + msg); err.status = r.status; throw err;
       }
       var j = await r.json();
       var text = j.candidates && j.candidates[0] && j.candidates[0].content && j.candidates[0].content.parts && j.candidates[0].content.parts[0] && j.candidates[0].content.parts[0].text;
@@ -646,30 +646,81 @@
       catch (e) { throw new Error('Gemini returned invalid JSON: ' + text.slice(0, 200)); }
     }
 
+    async function callOpenai(prompt) {
+      var r = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: { 'Authorization': 'Bearer ' + openaiKey, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model: OPENAI_MODEL,
+          messages: [
+            { role: 'system', content: 'You output strict JSON only. No markdown fences. No prose outside the JSON object.' },
+            { role: 'user', content: prompt }
+          ],
+          response_format: { type: 'json_object' },
+          temperature: 0.5,
+          max_tokens: 4096
+        })
+      });
+      if (!r.ok) {
+        var msg = ''; try { msg = (await r.json()).error.message; } catch(e){}
+        var err = new Error('OpenAI ' + r.status + ': ' + msg); err.status = r.status; throw err;
+      }
+      var j = await r.json();
+      var text = j.choices && j.choices[0] && j.choices[0].message && j.choices[0].message.content;
+      if (!text) throw new Error('Empty OpenAI response');
+      try { return JSON.parse(text); }
+      catch (e) { throw new Error('OpenAI returned invalid JSON: ' + text.slice(0, 200)); }
+    }
+
+    async function callGroq(prompt) {
+      var r = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+        method: 'POST',
+        headers: { 'Authorization': 'Bearer ' + groqKey, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model: GROQ_MODEL,
+          messages: [
+            { role: 'system', content: 'You output strict JSON only. No markdown fences. No prose outside the JSON object.' },
+            { role: 'user', content: prompt }
+          ],
+          response_format: { type: 'json_object' },
+          temperature: 0.5,
+          max_tokens: 1500
+        })
+      });
+      if (!r.ok) {
+        var msg = ''; try { msg = (await r.json()).error.message; } catch(e){}
+        var err = new Error('Groq ' + r.status + ': ' + msg); err.status = r.status; throw err;
+      }
+      var j = await r.json();
+      var text = j.choices && j.choices[0] && j.choices[0].message && j.choices[0].message.content;
+      if (!text) throw new Error('Empty Groq response');
+      try { return JSON.parse(text); }
+      catch (e) { throw new Error('Groq returned invalid JSON: ' + text.slice(0, 200)); }
+    }
+
     async function callLlm(prompt) {
-      var lastErr = null;
-      if (groqKey) {
-        try { return { proposal: await callGroq(prompt), provider: 'Groq 8B' }; }
+      var errors = [];
+      var providers = [
+        { name: 'Gemini', key: geminiKey, fn: callGemini },
+        { name: 'OpenAI', key: openaiKey, fn: callOpenai },
+        { name: 'Groq',   key: groqKey,   fn: callGroq }
+      ];
+      for (var i = 0; i < providers.length; i++) {
+        var p = providers[i];
+        if (!p.key) continue;
+        try { return { proposal: await p.fn(prompt), provider: p.name }; }
         catch (e) {
-          console.warn('[homebase] Groq failed:', e.message);
-          lastErr = e;
-          if (!geminiKey) throw e;
+          console.warn('[homebase] ' + p.name + ' failed:', e.message);
+          errors.push(p.name + ': ' + e.message);
         }
       }
-      if (geminiKey) {
-        try { return { proposal: await callGemini(prompt), provider: 'Gemini' }; }
-        catch (e) {
-          console.warn('[homebase] Gemini failed:', e.message);
-          if (lastErr) throw new Error('Groq: ' + lastErr.message + ' / Gemini: ' + e.message);
-          throw e;
-        }
-      }
-      throw new Error('No LLM key. Add Gemini or Groq in ⚙.');
+      if (!errors.length) throw new Error('No LLM key. Add Gemini, OpenAI, or Groq in ⚙.');
+      throw new Error('All providers failed — ' + errors.join(' / '));
     }
 
     async function proposeChange() {
       if (!token) { showBanner('warn', 'Set GitHub token first (⚙).', 4000); return; }
-      if (!geminiKey && !groqKey) { showBanner('warn', 'Need a Gemini OR Groq key (⚙). Both free.', 5000); return; }
+      if (!geminiKey && !openaiKey && !groqKey) { showBanner('warn', 'Need a Gemini, OpenAI, or Groq key (⚙).', 5000); return; }
       proposeBtn.disabled = true;
       try {
         showBanner('warn', 'Reading log + current code…');
@@ -683,8 +734,8 @@
         if (!indexFile.content) throw new Error('Could not load mini/index.html');
 
         var split = splitStyle(indexFile.content);
-        var preferred = groqKey ? 'Groq' : 'Gemini';
-        showBanner('warn', 'Asking ' + preferred + ' (slim prompt, ~' + Math.round(split.working.length/1024) + 'KB)…');
+        var available = [geminiKey && 'Gemini', openaiKey && 'OpenAI', groqKey && 'Groq'].filter(Boolean).join('→');
+        showBanner('warn', 'Asking ' + available + ' (slim prompt, ~' + Math.round(split.working.length/1024) + 'KB)…');
         var prompt = buildPrompt(notes, split.working);
         var result = await callLlm(prompt);
         var proposal = result.proposal;
