@@ -196,6 +196,9 @@
       </button>
     </div>
     <div class="descriptor">Bridge Connection: Active</div>
+    <div class="quick-note-wrap">
+      <input id="quickNote" type="text" maxlength="120" autocomplete="off" spellcheck="true" placeholder="quick note (enter to save)" aria-label="quick note" />
+    </div>
     <button class="propose-link" id="proposeBtn" type="button" title="Have the LLM propose a new capability based on intent log + recent commits">✨ propose change</button>
   </main>
   <footer>
@@ -532,6 +535,18 @@
     intent.addEventListener('keydown', function(e){
       if (e.key === 'Enter') { e.preventDefault(); press(); }
       else if (e.key === 'Escape') { intent.value = ''; intent.blur(); }
+    });
+    document.getElementById('quickNote').addEventListener('keydown', function(e){
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        var note = this.value.trim();
+        if (note) {
+          logClick('[quick] ' + note);
+          this.value = '';
+          showBanner('success', 'Quick note saved.', 2000);
+        }
+      }
+      else if (e.key === 'Escape') { this.value = ''; this.blur(); }
     });
     document.addEventListener('keydown', function(e){
       if (e.code !== 'Space' && e.key !== ' ') return;
