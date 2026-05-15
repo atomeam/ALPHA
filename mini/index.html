@@ -194,7 +194,7 @@
       <span class="label-text" id="clicksLabel" title="Double-click to reset local count">clicks: <span id="counter">0</span></span>
     </div>
   </footer>
-  <div class="build-stamp">build tri-llm-v6</div>
+  <div class="build-stamp">build tri-llm-v7</div>
 
   <div class="modal-bg" id="modalBg" hidden>
     <div class="modal">
@@ -253,8 +253,7 @@
     var OPENROUTER_FALLBACKS = [
       'meta-llama/llama-3.3-70b-instruct:free',
       'deepseek/deepseek-chat-v3.1:free',
-      'mistralai/mistral-small-3.2-24b-instruct:free',
-      'qwen/qwen-2.5-72b-instruct:free'
+      'mistralai/mistral-small-3.2-24b-instruct:free'
     ];
 
     var KEY_CLICKS     = 'homebase:clicks';
@@ -557,7 +556,7 @@
     async function testOpenrouterKey() {
       try {
         var r = await fetch('https://openrouter.ai/api/v1/auth/key', { headers: { 'Authorization': 'Bearer ' + openrouterKey } });
-        if (r.ok) { orHint.textContent = 'OK · OpenRouter ready (Gemini Flash → Llama → DeepSeek …)'; return true; }
+        if (r.ok) { orHint.textContent = 'OK · OpenRouter ready (Gemini Flash → Llama → DeepSeek)'; return true; }
         var j = {}; try { j = await r.json(); } catch(e){}
         orHint.textContent = 'BAD: ' + ((j.error && j.error.message) || ('status ' + r.status));
         return false;
