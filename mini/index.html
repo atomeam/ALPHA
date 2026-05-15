@@ -28,11 +28,28 @@
     background-image: radial-gradient(#fff 1px, transparent 1px); background-size: 32px 32px; }
   main { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center;
     position: relative; z-index: 10; padding: 0 2rem; }
-  .header { margin-bottom: 3rem; text-align: center; }
+  .header { margin-bottom: 2rem; text-align: center; }
   .header p { font-size: 10px; text-transform: uppercase; letter-spacing: 0.6em; color: #71717a;
     font-weight: 500; margin-bottom: 0.75rem; }
   .header .line { height: 1px; width: 192px; margin: 0 auto;
     background: linear-gradient(to right, transparent, #3f3f46, transparent); }
+
+  .intent-wrap { margin-bottom: 1.5rem; width: 22rem; max-width: 90vw; user-select: text; }
+  .intent-wrap input {
+    appearance: none; width: 100%;
+    background: transparent; color: #d4d4d8;
+    border: none; border-bottom: 1px solid #27272a;
+    padding: 0.5rem 0.25rem; text-align: center;
+    font-family: Georgia, serif; font-style: italic; font-size: 13px;
+    letter-spacing: 0.05em; outline: none;
+    transition: border-color 0.2s, color 0.2s;
+  }
+  .intent-wrap input::placeholder { color: #3f3f46; }
+  .intent-wrap input:focus { border-bottom-color: #71717a; color: #f4f4f5; }
+  .intent-wrap .hint { display: block; margin-top: 0.4rem; text-align: center;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 9px; letter-spacing: 0.3em; text-transform: uppercase; color: #3f3f46; }
+
   .btn-wrap { position: relative; }
   .btn-glow { position: absolute; inset: 0; background: rgba(255,255,255,0.05);
     border-radius: 1rem; filter: blur(16px); transition: background 0.5s; }
@@ -54,10 +71,9 @@
   button.homebase .pip.br { bottom: 8px; right: 8px; }
   button.homebase.idle { animation: idlePulse 2s ease-in-out infinite; }
   @keyframes idlePulse { 0%,100%{opacity:1;} 50%{opacity:0.85;} }
-  .descriptor { margin-top: 2.5rem; text-align: center; font-style: italic;
+  .descriptor { margin-top: 2rem; text-align: center; font-style: italic;
     font-family: Georgia, serif; font-size: 11px; color: #52525b; letter-spacing: 0.15em; }
 
-  /* Big diagnostic banner */
   .banner { position: fixed; top: 0; left: 0; right: 0; z-index: 50;
     padding: 14px 24px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
     font-size: 13px; line-height: 1.4; letter-spacing: 0.05em;
@@ -103,6 +119,11 @@
       <p>Primary Command Interface</p>
       <div class="line"></div>
     </div>
+    <div class="intent-wrap">
+      <input id="intent" type="text" maxlength="240" autocomplete="off" spellcheck="true"
+             placeholder="why are you summoning me?" aria-label="intent" />
+      <span class="hint">optional · enter or click to send</span>
+    </div>
     <div class="btn-wrap">
       <div class="btn-glow"></div>
       <button class="homebase" id="homebase-button" aria-label="Homebase">
@@ -131,19 +152,20 @@
     var LOG_PATH   = 'mini/log.jsonl';
     var BRANCH     = 'main';
 
-    var KEY_CLICKS = 'homebase:clicks';
-    var KEY_TOKEN  = 'homebase:gh:token';
+    var KEY_CLICKS  = 'homebase:clicks';
+    var KEY_TOKEN   = 'homebase:gh:token';
     var KEY_PENDING = 'homebase:pending';
 
-    var btn = document.getElementById('homebase-button');
-    var counter = document.getElementById('counter');
+    var btn         = document.getElementById('homebase-button');
+    var counter     = document.getElementById('counter');
     var clicksLabel = document.getElementById('clicksLabel');
-    var dot = document.getElementById('dot');
-    var statusMsg = document.getElementById('statusMsg');
-    var gear = document.getElementById('gear');
-    var banner = document.getElementById('banner');
-    var bannerKind = document.getElementById('bannerKind');
-    var bannerText = document.getElementById('bannerText');
+    var dot         = document.getElementById('dot');
+    var statusMsg   = document.getElementById('statusMsg');
+    var gear        = document.getElementById('gear');
+    var banner      = document.getElementById('banner');
+    var bannerKind  = document.getElementById('bannerKind');
+    var bannerText  = document.getElementById('bannerText');
+    var intent      = document.getElementById('intent');
 
     var token = localStorage.getItem(KEY_TOKEN) || null;
     var clicks = Number(localStorage.getItem(KEY_CLICKS) || 0);
@@ -188,9 +210,7 @@
                   token ? 'Token set. Ready.' : 'No token. Click gear to set up.';
     }
 
-    function b64encode(s) {
-      return btoa(unescape(encodeURIComponent(s)));
-    }
+    function b64encode(s) { return btoa(unescape(encodeURIComponent(s))); }
     function b64decode(s) {
       try { return decodeURIComponent(escape(atob(s.replace(/\s/g,'')))); } catch (e) { return ''; }
     }
@@ -216,11 +236,11 @@
       return { sha: j.sha, content: b64decode(j.content || '') };
     }
 
-    async function ghPutFile(content, sha) {
+    async function ghPutFile(content, sha, commitMessage) {
       var url = 'https://api.github.com/repos/' + REPO_OWNER + '/' + REPO_NAME +
                 '/contents/' + LOG_PATH;
       var body = {
-        message: 'log: ' + new Date().toISOString(),
+        message: commitMessage || ('log: ' + new Date().toISOString()),
         content: b64encode(content),
         branch: BRANCH
       };
@@ -247,13 +267,22 @@
       return j.content && j.content.sha;
     }
 
+    function shortenForCommit(note) {
+      var s = note.replace(/\s+/g, ' ').trim();
+      if (s.length > 64) s = s.slice(0, 61) + '…';
+      return s;
+    }
+
     async function writeOne(entry) {
       if (!cache) cache = await ghGetFile();
       var line = JSON.stringify(entry);
       var sep = (cache.content && !cache.content.endsWith('\n')) ? '\n' : '';
       var newContent = cache.content + sep + line + '\n';
+      var msg = entry.note
+        ? 'log: ' + shortenForCommit(entry.note)
+        : 'log: ' + entry.ts;
       try {
-        var newSha = await ghPutFile(newContent, cache.sha);
+        var newSha = await ghPutFile(newContent, cache.sha, msg);
         cache = { sha: newSha, content: newContent };
       } catch (e) {
         if (e.status === 409 || e.status === 422) {
@@ -261,7 +290,7 @@
           cache = await ghGetFile();
           var sep2 = (cache.content && !cache.content.endsWith('\n')) ? '\n' : '';
           var newContent2 = cache.content + sep2 + line + '\n';
-          var newSha2 = await ghPutFile(newContent2, cache.sha);
+          var newSha2 = await ghPutFile(newContent2, cache.sha, msg);
           cache = { sha: newSha2, content: newContent2 };
         } else {
           throw e;
@@ -292,7 +321,6 @@
         }
       }
       setStatus('ok');
-      showBanner('success', 'LOGGED to mini/log.jsonl. Check repo: github.com/atomeam/HomeBase-/commits/main', 3500);
       draining = false;
     }
 
@@ -314,19 +342,30 @@
     function armIdle(){ btn.classList.remove('idle'); if (idleTimer) clearTimeout(idleTimer);
       idleTimer = setTimeout(function(){ btn.classList.add('idle'); }, 10000); }
 
-    btn.addEventListener('click', function(){
+    function press() {
       clicks++; localStorage.setItem(KEY_CLICKS, String(clicks));
       counter.textContent = clicks; bump(); armIdle();
+      var note = intent.value.trim();
+      if (note) intent.value = '';
       if (!token) {
         showBanner('warn', 'NOT LOGGING — click the ⚙ in the footer to paste a GitHub token.', 4000);
         return;
       }
-      logClick();
-    });
+      logClick(note || undefined);
+    }
+
+    btn.addEventListener('click', press);
     clicksLabel.addEventListener('dblclick', function(){
       clicks = 0; localStorage.setItem(KEY_CLICKS, '0');
       counter.textContent = 0; bump();
     });
+
+    // Enter inside the input → press
+    intent.addEventListener('keydown', function(e){
+      if (e.key === 'Enter') { e.preventDefault(); press(); }
+      else if (e.key === 'Escape') { intent.value = ''; intent.blur(); }
+    });
+
     document.addEventListener('keydown', function(e){
       if (e.code !== 'Space' && e.key !== ' ') return;
       var t = e.target; var tag = t && t.tagName;
@@ -383,7 +422,7 @@
     setStatus(token ? (queue.length ? 'pending' : 'ok') : 'idle');
     armIdle();
     if (token) {
-      testToken().then(function(ok){ if (ok && queue.length) drain(); });
+      if (queue.length) drain();
     } else {
       showBanner('warn', 'No token. Click ⚙ in the bottom-right to paste a GitHub Personal Access Token.', 6000);
     }
