@@ -56,6 +56,20 @@
   @keyframes idlePulse { 0%,100%{opacity:1;} 50%{opacity:0.85;} }
   .descriptor { margin-top: 2.5rem; text-align: center; font-style: italic;
     font-family: Georgia, serif; font-size: 11px; color: #52525b; letter-spacing: 0.15em; }
+
+  /* Big diagnostic banner */
+  .banner { position: fixed; top: 0; left: 0; right: 0; z-index: 50;
+    padding: 14px 24px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 13px; line-height: 1.4; letter-spacing: 0.05em;
+    transform: translateY(-110%); transition: transform 0.3s ease;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.5); cursor: pointer; }
+  .banner.show { transform: translateY(0); }
+  .banner.error   { background: #7f1d1d; color: #fecaca; border-bottom: 2px solid #ef4444; }
+  .banner.warn    { background: #78350f; color: #fed7aa; border-bottom: 2px solid #f59e0b; }
+  .banner.success { background: #14532d; color: #bbf7d0; border-bottom: 2px solid #22c55e; }
+  .banner b { font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; margin-right: 8px; }
+  .banner .dismiss { float: right; opacity: 0.6; font-weight: 700; }
+
   footer { height: 3rem; background: #0a0a0a; border-top: 1px solid #27272a;
     display: flex; align-items: center; justify-content: space-between;
     padding: 0 2.5rem; position: relative; z-index: 20; }
@@ -79,12 +93,10 @@
   .gear { background: transparent; border: none; color: #52525b; font-size: 14px;
     cursor: pointer; padding: 4px 6px; line-height: 1; transition: color 0.2s; }
   .gear:hover { color: #a1a1aa; }
-  .status-msg { font-family: ui-monospace, monospace; font-size: 9px; color: #71717a;
-    letter-spacing: 0.1em; text-transform: uppercase; max-width: 14rem;
-    overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 </style>
 </head>
 <body>
+  <div class="banner" id="banner"><span class="dismiss">×</span><b id="bannerKind">info</b><span id="bannerText"></span></div>
   <div class="bg"><div class="blob1"></div><div class="blob2"></div><div class="grid"></div></div>
   <main>
     <div class="header">
@@ -129,6 +141,9 @@
     var dot = document.getElementById('dot');
     var statusMsg = document.getElementById('statusMsg');
     var gear = document.getElementById('gear');
+    var banner = document.getElementById('banner');
+    var bannerKind = document.getElementById('bannerKind');
+    var bannerText = document.getElementById('bannerText');
 
     var token = localStorage.getItem(KEY_TOKEN) || null;
     var clicks = Number(localStorage.getItem(KEY_CLICKS) || 0);
@@ -140,17 +155,31 @@
     if (!Array.isArray(queue)) queue = [];
     var draining = false;
     var cache = null; // { sha, content }
+    var bannerTimer = null;
 
     function saveQueue() { localStorage.setItem(KEY_PENDING, JSON.stringify(queue)); }
+
+    function showBanner(kind, text, autoHideMs) {
+      banner.className = 'banner show ' + kind;
+      bannerKind.textContent = kind;
+      bannerText.textContent = text;
+      if (bannerTimer) clearTimeout(bannerTimer);
+      if (autoHideMs) bannerTimer = setTimeout(hideBanner, autoHideMs);
+    }
+    function hideBanner() {
+      banner.className = 'banner';
+      if (bannerTimer) { clearTimeout(bannerTimer); bannerTimer = null; }
+    }
+    banner.addEventListener('click', hideBanner);
 
     function setStatus(kind, msg) {
       dot.classList.remove('ok','pending','error');
       if (kind && kind !== 'idle') dot.classList.add(kind);
       var labels = {
-        idle: token ? 'ready' : 'offline',
+        idle: token ? 'ready' : 'no token',
         ok: 'logged',
         pending: 'writing… q:' + queue.length,
-        error: msg || 'error'
+        error: 'error'
       };
       statusMsg.textContent = labels[kind] || labels.idle;
       dot.title = kind === 'error' ? (msg || 'Error') :
@@ -169,12 +198,20 @@
     async function ghGetFile() {
       var url = 'https://api.github.com/repos/' + REPO_OWNER + '/' + REPO_NAME +
                 '/contents/' + LOG_PATH + '?ref=' + BRANCH + '&t=' + Date.now();
+      console.log('[homebase] GET', url);
       var r = await fetch(url, {
         headers: { 'Authorization': 'token ' + token, 'Accept': 'application/vnd.github+json' },
         cache: 'no-store'
       });
+      console.log('[homebase] GET status', r.status);
       if (r.status === 404) return { sha: null, content: '' };
-      if (!r.ok) throw new Error('GET ' + r.status);
+      if (!r.ok) {
+        var txt = '';
+        try { txt = (await r.json()).message || ''; } catch(e){}
+        var err = new Error('GET ' + r.status + (txt ? ': ' + txt : ''));
+        err.status = r.status;
+        throw err;
+      }
       var j = await r.json();
       return { sha: j.sha, content: b64decode(j.content || '') };
     }
@@ -188,6 +225,7 @@
         branch: BRANCH
       };
       if (sha) body.sha = sha;
+      console.log('[homebase] PUT', url, 'sha:', sha);
       var r = await fetch(url, {
         method: 'PUT',
         headers: {
@@ -197,6 +235,7 @@
         },
         body: JSON.stringify(body)
       });
+      console.log('[homebase] PUT status', r.status);
       if (!r.ok) {
         var txt = '';
         try { txt = (await r.json()).message || ''; } catch(e){}
@@ -218,7 +257,7 @@
         cache = { sha: newSha, content: newContent };
       } catch (e) {
         if (e.status === 409 || e.status === 422) {
-          // sha conflict — refetch and retry once
+          console.warn('[homebase] sha conflict, refetching');
           cache = await ghGetFile();
           var sep2 = (cache.content && !cache.content.endsWith('\n')) ? '\n' : '';
           var newContent2 = cache.content + sep2 + line + '\n';
@@ -244,14 +283,16 @@
           saveQueue();
           setStatus('pending');
         } catch (e) {
+          console.error('[homebase] write failed:', e);
           setStatus('error', e.message);
+          showBanner('error', 'WRITE FAILED — ' + e.message + '  (Click ⚙ to fix token. Open F12 console for details.)');
           draining = false;
-          // retry in 5s
           setTimeout(drain, 5000);
           return;
         }
       }
       setStatus('ok');
+      showBanner('success', 'LOGGED to mini/log.jsonl. Check repo: github.com/atomeam/HomeBase-/commits/main', 3500);
       draining = false;
     }
 
@@ -276,6 +317,10 @@
     btn.addEventListener('click', function(){
       clicks++; localStorage.setItem(KEY_CLICKS, String(clicks));
       counter.textContent = clicks; bump(); armIdle();
+      if (!token) {
+        showBanner('warn', 'NOT LOGGING — click the ⚙ in the footer to paste a GitHub token.', 4000);
+        return;
+      }
       logClick();
     });
     clicksLabel.addEventListener('dblclick', function(){
@@ -289,12 +334,33 @@
       e.preventDefault(); btn.click();
     });
 
-    gear.addEventListener('click', function(){
-      var existing = token ? '(token set: ' + token.slice(0,4) + '…' + token.slice(-4) + ')' : '(none set)';
+    async function testToken() {
+      try {
+        var r = await fetch('https://api.github.com/repos/' + REPO_OWNER + '/' + REPO_NAME, {
+          headers: { 'Authorization': 'token ' + token, 'Accept': 'application/vnd.github+json' }
+        });
+        console.log('[homebase] token test status', r.status);
+        if (r.ok) {
+          showBanner('success', 'TOKEN OK — connected to ' + REPO_OWNER + '/' + REPO_NAME, 3000);
+          return true;
+        }
+        var msg = '';
+        try { msg = (await r.json()).message || ''; } catch(e){}
+        showBanner('error', 'TOKEN BAD (' + r.status + ') ' + msg + ' — needs fine-grained PAT with Contents: write on this repo.');
+        return false;
+      } catch (e) {
+        console.error('[homebase] token test error', e);
+        showBanner('error', 'TOKEN TEST FAILED — ' + e.message);
+        return false;
+      }
+    }
+
+    gear.addEventListener('click', async function(){
+      var existing = token ? '(set: ' + token.slice(0,4) + '…' + token.slice(-4) + ')' : '(none)';
       var msg = 'GitHub Personal Access Token ' + existing + '\n\n' +
-                'Needs fine-grained PAT scoped to atomeam/HomeBase- with Contents: Read & write.\n' +
+                'Needs fine-grained PAT scoped to atomeam/HomeBase- with Contents: Read and write.\n' +
                 'Create at: https://github.com/settings/personal-access-tokens/new\n\n' +
-                'Paste token (or leave blank to clear, type "clear" to wipe):';
+                'Paste token (or type "clear" to wipe):';
       var input = prompt(msg, '');
       if (input === null) return;
       var v = input.trim();
@@ -303,18 +369,24 @@
         token = null;
         cache = null;
         setStatus('idle');
+        showBanner('warn', 'Token cleared. Clicks will not be logged.', 3000);
         return;
       }
       token = v;
       localStorage.setItem(KEY_TOKEN, token);
       cache = null;
       setStatus('idle');
-      drain();
+      var ok = await testToken();
+      if (ok) drain();
     });
 
     setStatus(token ? (queue.length ? 'pending' : 'ok') : 'idle');
     armIdle();
-    if (token && queue.length) drain();
+    if (token) {
+      testToken().then(function(ok){ if (ok && queue.length) drain(); });
+    } else {
+      showBanner('warn', 'No token. Click ⚙ in the bottom-right to paste a GitHub Personal Access Token.', 6000);
+    }
   </script>
 </body>
 </html>
