@@ -175,7 +175,7 @@
       </button>
     </div>
     <div class="descriptor">Bridge Connection: Active</div>
-    <button class="propose-link" id="proposeBtn" type="button" title="Ask Gemini to read your notes and propose a code change as a Pull Request">✨ propose change</button>
+    <button class="propose-link" id="proposeBtn" type="button" title="Ask Groq Llama 3.3 to read your notes and propose a code change as a Pull Request">✨ propose change</button>
   </main>
   <footer>
     <div class="left">
@@ -198,15 +198,15 @@
           <a href="https://github.com/settings/personal-access-tokens/new" target="_blank" rel="noopener">create token</a>
         </div>
         <input type="password" id="gh-input" placeholder="github_pat_..." autocomplete="off" />
-        <span class="hint" id="gh-hint">Fine-grained PAT · atomeam/HomeBase- · Contents: Read &amp; write</span>
+        <span class="hint" id="gh-hint">Fine-grained PAT · atomeam/HomeBase- · Contents + Pull requests: Read &amp; write</span>
       </label>
       <label>
         <div class="label-row">
-          <span>Gemini API Key (free)</span>
-          <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener">create key</a>
+          <span>Groq API Key (free)</span>
+          <a href="https://console.groq.com/keys" target="_blank" rel="noopener">create key</a>
         </div>
-        <input type="password" id="gemini-input" placeholder="AIza..." autocomplete="off" />
-        <span class="hint" id="gemini-hint">Free at aistudio.google.com · no credit card · 1500 req/day</span>
+        <input type="password" id="llm-input" placeholder="gsk_..." autocomplete="off" />
+        <span class="hint" id="llm-hint">Free at console.groq.com · no credit card · Llama 3.3 70B · 30 req/min</span>
       </label>
       <div class="modal-actions">
         <button id="modal-clear" type="button" class="danger">Clear all</button>
@@ -223,9 +223,12 @@
     var INDEX_PATH = 'mini/index.html';
     var BRANCH     = 'main';
 
+    var GROQ_MODEL = 'llama-3.3-70b-versatile';
+    var GROQ_FALLBACK_MODEL = 'llama-3.1-8b-instant';
+
     var KEY_CLICKS  = 'homebase:clicks';
     var KEY_TOKEN   = 'homebase:gh:token';
-    var KEY_GEMINI  = 'homebase:gemini:key';
+    var KEY_LLM     = 'homebase:llm:key';
     var KEY_PENDING = 'homebase:pending';
 
     var btn         = document.getElementById('homebase-button');
@@ -242,11 +245,12 @@
     var modalBg     = document.getElementById('modalBg');
     var ghInput     = document.getElementById('gh-input');
     var ghHint      = document.getElementById('gh-hint');
-    var gemInput    = document.getElementById('gemini-input');
-    var gemHint     = document.getElementById('gemini-hint');
+    var llmInput    = document.getElementById('llm-input');
+    var llmHint     = document.getElementById('llm-hint');
 
     var token = localStorage.getItem(KEY_TOKEN) || null;
-    var geminiKey = localStorage.getItem(KEY_GEMINI) || null;
+    if (localStorage.getItem('homebase:gemini:key')) localStorage.removeItem('homebase:gemini:key');
+    var llmKey = localStorage.getItem(KEY_LLM) || null;
     var clicks = Number(localStorage.getItem(KEY_CLICKS) || 0);
     if (!isFinite(clicks)) clicks = 0;
     counter.textContent = clicks;
@@ -433,14 +437,13 @@
       e.preventDefault(); btn.click();
     });
 
-    // ============ Modal (settings) ============
     function openModal() {
       ghInput.value = token || '';
-      gemInput.value = geminiKey || '';
+      llmInput.value = llmKey || '';
       ghHint.className = 'hint';
-      gemHint.className = 'hint';
-      ghHint.textContent = 'Fine-grained PAT · atomeam/HomeBase- · Contents: Read & write';
-      gemHint.textContent = 'Free at aistudio.google.com · no credit card · 1500 req/day';
+      llmHint.className = 'hint';
+      ghHint.textContent = 'Fine-grained PAT · atomeam/HomeBase- · Contents + Pull requests: Read & write';
+      llmHint.textContent = 'Free at console.groq.com · no credit card · Llama 3.3 70B · 30 req/min';
       modalBg.hidden = false;
       setTimeout(function(){ ghInput.focus(); }, 50);
     }
@@ -450,9 +453,9 @@
     document.getElementById('modal-close').addEventListener('click', closeModal);
     document.getElementById('modal-clear').addEventListener('click', function(){
       localStorage.removeItem(KEY_TOKEN);
-      localStorage.removeItem(KEY_GEMINI);
-      token = null; geminiKey = null;
-      ghInput.value = ''; gemInput.value = '';
+      localStorage.removeItem(KEY_LLM);
+      token = null; llmKey = null;
+      ghInput.value = ''; llmInput.value = '';
       cache = null;
       setStatus('idle');
       showBanner('warn', 'All keys cleared.', 2500);
@@ -460,21 +463,19 @@
     });
     document.getElementById('modal-save').addEventListener('click', async function(){
       var newGh = ghInput.value.trim();
-      var newGem = gemInput.value.trim();
+      var newLlm = llmInput.value.trim();
       if (newGh) {
         token = newGh;
         localStorage.setItem(KEY_TOKEN, token);
         cache = null;
         var ok = await testGhToken();
         ghHint.className = 'hint ' + (ok ? 'ok' : 'bad');
-      } else if (token) {
-        // unchanged
       }
-      if (newGem) {
-        geminiKey = newGem;
-        localStorage.setItem(KEY_GEMINI, geminiKey);
-        var okG = await testGeminiKey();
-        gemHint.className = 'hint ' + (okG ? 'ok' : 'bad');
+      if (newLlm) {
+        llmKey = newLlm;
+        localStorage.setItem(KEY_LLM, llmKey);
+        var okL = await testLlmKey();
+        llmHint.className = 'hint ' + (okL ? 'ok' : 'bad');
       }
       setStatus(token ? (queue.length ? 'pending' : 'ok') : 'idle');
       if (token && queue.length) drain();
@@ -494,20 +495,22 @@
         return false;
       }
     }
-    async function testGeminiKey() {
+    async function testLlmKey() {
       try {
-        var r = await fetch('https://generativelanguage.googleapis.com/v1beta/models?key=' + encodeURIComponent(geminiKey));
-        if (r.ok) { gemHint.textContent = 'OK · Gemini ready'; return true; }
+        var r = await fetch('https://api.groq.com/openai/v1/models', {
+          headers: { 'Authorization': 'Bearer ' + llmKey }
+        });
+        if (r.ok) { llmHint.textContent = 'OK · Groq ready (' + GROQ_MODEL + ')'; return true; }
         var j = {}; try { j = await r.json(); } catch(e){}
-        gemHint.textContent = 'BAD ' + r.status + ': ' + (j.error && j.error.message ? j.error.message : 'invalid key');
+        var em = (j.error && j.error.message) ? j.error.message : ('status ' + r.status);
+        llmHint.textContent = 'BAD: ' + em;
         return false;
       } catch (e) {
-        gemHint.textContent = 'TEST FAILED: ' + e.message;
+        llmHint.textContent = 'TEST FAILED: ' + e.message;
         return false;
       }
     }
 
-    // ============ Propose flow ============
     function applyPatches(html, patches) {
       if (!Array.isArray(patches) || !patches.length) throw new Error('No patches returned');
       var out = html;
@@ -518,9 +521,9 @@
         }
         if (!p.find.length) throw new Error('Patch ' + (i+1) + ' has empty find');
         var idx = out.indexOf(p.find);
-        if (idx === -1) throw new Error('Patch ' + (i+1) + ' find not found in source: ' + p.find.slice(0, 60));
+        if (idx === -1) throw new Error('Patch ' + (i+1) + ' find not in source: ' + p.find.slice(0, 60));
         var idx2 = out.indexOf(p.find, idx + 1);
-        if (idx2 !== -1) throw new Error('Patch ' + (i+1) + ' find is ambiguous (matches multiple places)');
+        if (idx2 !== -1) throw new Error('Patch ' + (i+1) + ' find is ambiguous');
         out = out.slice(0, idx) + p.replace + out.slice(idx + p.find.length);
       }
       return out;
@@ -533,9 +536,9 @@
       return [
         'You improve a single-file HTML app called HomeBase. The user has been logging button clicks with optional notes about their intent.',
         '',
-        'TASK: Propose ONE small, focused change to the HTML/CSS/JS based on the user notes. Make a real, useful change — not decoration. Do not invent grandiose features. Small + working > big + broken.',
+        'TASK: Propose ONE small, focused change to the HTML/CSS/JS based on the user notes. Make a real, useful change — not decoration. Small + working > big + broken.',
         '',
-        'OUTPUT FORMAT (strict JSON only, no markdown fences):',
+        'OUTPUT FORMAT (return JSON object, no markdown, no explanation outside JSON):',
         '{',
         '  "summary": "one short sentence describing the change",',
         '  "patches": [',
@@ -544,12 +547,13 @@
         '}',
         '',
         'RULES:',
-        '- Each patch.find MUST appear EXACTLY ONCE in the current file (verify this).',
+        '- Each patch.find MUST appear EXACTLY ONCE in the current file. Verify uniqueness.',
         '- Each patch.find should be the smallest unique snippet that anchors your change.',
-        '- Preserve ALL existing functionality: GitHub logging, intent input, propose button, modal settings, both API keys, click counter, idle pulse, spacebar.',
-        '- Do not remove the Gemini propose flow itself.',
+        '- Preserve ALL existing functionality: GitHub logging, intent input, propose button, modal settings, both API keys (GitHub + Groq), click counter, idle pulse, spacebar.',
+        '- DO NOT remove the propose flow itself.',
         '- 1–3 patches max. Smaller is better.',
         '- No external dependencies, no new files.',
+        '- Escape JSON strings properly. Backslashes and quotes inside find/replace must be escaped.',
         '',
         'RECENT USER NOTES (chronological, most recent last):',
         notesText,
@@ -561,34 +565,39 @@
       ].join('\n');
     }
 
-    async function callGemini(prompt) {
-      var url = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=' + encodeURIComponent(geminiKey);
-      var r = await fetch(url, {
+    async function callLlm(prompt, model) {
+      var r = await fetch('https://api.groq.com/openai/v1/chat/completions', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Authorization': 'Bearer ' + llmKey,
+          'Content-Type': 'application/json'
+        },
         body: JSON.stringify({
-          contents: [{ parts: [{ text: prompt }] }],
-          generationConfig: {
-            responseMimeType: 'application/json',
-            temperature: 0.7,
-            maxOutputTokens: 8192
-          }
+          model: model || GROQ_MODEL,
+          messages: [
+            { role: 'system', content: 'You output strict JSON only. No markdown fences. No prose outside the JSON object.' },
+            { role: 'user', content: prompt }
+          ],
+          response_format: { type: 'json_object' },
+          temperature: 0.5,
+          max_tokens: 4096
         })
       });
       if (!r.ok) {
         var msg = ''; try { msg = (await r.json()).error.message; } catch(e){}
-        throw new Error('Gemini ' + r.status + ': ' + msg);
+        var err = new Error('Groq ' + r.status + ': ' + msg);
+        err.status = r.status; throw err;
       }
       var j = await r.json();
-      var text = j.candidates && j.candidates[0] && j.candidates[0].content && j.candidates[0].content.parts && j.candidates[0].content.parts[0] && j.candidates[0].content.parts[0].text;
-      if (!text) throw new Error('Empty Gemini response');
+      var text = j.choices && j.choices[0] && j.choices[0].message && j.choices[0].message.content;
+      if (!text) throw new Error('Empty Groq response');
       try { return JSON.parse(text); }
-      catch (e) { throw new Error('Gemini returned invalid JSON: ' + text.slice(0, 200)); }
+      catch (e) { throw new Error('Groq returned invalid JSON: ' + text.slice(0, 200)); }
     }
 
     async function proposeChange() {
       if (!token) { showBanner('warn', 'Set GitHub token first (⚙).', 4000); return; }
-      if (!geminiKey) { showBanner('warn', 'Set Gemini key first (⚙). Free at aistudio.google.com/app/apikey', 5000); return; }
+      if (!llmKey) { showBanner('warn', 'Set Groq key first (⚙). Free at console.groq.com/keys', 5000); return; }
       proposeBtn.disabled = true;
       try {
         showBanner('warn', 'Reading log + current code…');
@@ -604,8 +613,17 @@
         var indexFile = await ghGetFile(INDEX_PATH);
         if (!indexFile.content) throw new Error('Could not load mini/index.html');
 
-        showBanner('warn', 'Asking Gemini for a proposal… (this costs you 0¢)');
-        var proposal = await callGemini(buildPrompt(notes, indexFile.content));
+        showBanner('warn', 'Asking Groq Llama 3.3 70B for a proposal…');
+        var prompt = buildPrompt(notes, indexFile.content);
+        var proposal;
+        try {
+          proposal = await callLlm(prompt, GROQ_MODEL);
+        } catch (e) {
+          if (e.status === 429 || e.status === 413) {
+            showBanner('warn', '70B rate-limited or too big — retrying with 8B Instant…');
+            proposal = await callLlm(prompt, GROQ_FALLBACK_MODEL);
+          } else { throw e; }
+        }
         if (!proposal.summary || !Array.isArray(proposal.patches)) {
           throw new Error('Proposal missing summary or patches');
         }
@@ -613,7 +631,7 @@
         showBanner('warn', 'Applying patches · ' + escapeHtml(proposal.summary));
         var newHtml = applyPatches(indexFile.content, proposal.patches);
         if (newHtml === indexFile.content) throw new Error('Patches resulted in no change');
-        if (newHtml.length < 1000) throw new Error('Result suspiciously short (' + newHtml.length + ' bytes)');
+        if (newHtml.length < 1000) throw new Error('Result suspiciously short');
 
         var stamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
         var branchName = 'propose/' + stamp;
@@ -658,7 +676,7 @@
                      '**Summary:** ' + proposal.summary + '\n\n' +
                      '**Patches:** ' + proposal.patches.length + '\n\n' +
                      'Review the diff. Merge to deploy to the live app.\n\n' +
-                     '_Notes seen by Gemini:_\n' + (notes.length ? notes.map(function(n){ return '- ' + n; }).join('\n') : '(none yet)');
+                     '_Notes seen by Groq:_\n' + (notes.length ? notes.map(function(n){ return '- ' + n; }).join('\n') : '(none yet)');
         var prR = await fetch('https://api.github.com/repos/' + REPO_OWNER + '/' + REPO_NAME + '/pulls', {
           method: 'POST',
           headers: { 'Authorization': 'token ' + token, 'Accept': 'application/vnd.github+json', 'Content-Type': 'application/json' },
