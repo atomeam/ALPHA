@@ -93,14 +93,16 @@
   .banner a { color: inherit; text-decoration: underline; }
 
   .modal-bg { position: fixed; inset: 0; background: rgba(0,0,0,0.7); z-index: 100;
-    display: flex; align-items: center; justify-content: center; padding: 1rem; }
+    display: flex; align-items: center; justify-content: center; padding: 1rem;
+    overflow-y: auto; }
   .modal-bg[hidden] { display: none; }
   .modal { background: #0a0a0a; border: 1px solid #27272a; border-radius: 0.75rem;
     padding: 1.75rem; max-width: 32rem; width: 100%;
-    box-shadow: 0 25px 50px -12px rgba(0,0,0,0.8); user-select: text; }
+    box-shadow: 0 25px 50px -12px rgba(0,0,0,0.8); user-select: text;
+    max-height: 95vh; overflow-y: auto; }
   .modal h2 { font-size: 13px; letter-spacing: 0.3em; text-transform: uppercase; color: #71717a;
     font-weight: 600; margin-bottom: 1.25rem; font-family: ui-monospace, monospace; }
-  .modal label { display: block; margin-bottom: 1.25rem; }
+  .modal label { display: block; margin-bottom: 1.1rem; }
   .modal .label-row { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 0.4rem; }
   .modal .label-row span { font-size: 11px; color: #a1a1aa; letter-spacing: 0.1em; text-transform: uppercase; font-family: ui-monospace, monospace; }
   .modal .label-row a { font-size: 10px; color: var(--accent); text-decoration: none; letter-spacing: 0.1em; text-transform: uppercase; font-family: ui-monospace, monospace; }
@@ -114,6 +116,8 @@
     letter-spacing: 0.05em; font-family: ui-monospace, monospace; }
   .modal .hint.ok { color: var(--ok); }
   .modal .hint.bad { color: var(--error); }
+  .modal .section-note { font-size: 10px; color: #71717a; font-family: ui-monospace, monospace;
+    letter-spacing: 0.05em; margin: 0.5rem 0 0.75rem; padding-left: 0.5rem; border-left: 2px solid #27272a; }
   .modal-actions { display: flex; justify-content: flex-end; gap: 0.5rem; margin-top: 1.5rem; }
   .modal-actions button {
     background: transparent; border: 1px solid #27272a; color: #a1a1aa;
@@ -150,6 +154,8 @@
   .gear { background: transparent; border: none; color: #52525b; font-size: 14px;
     cursor: pointer; padding: 4px 6px; line-height: 1; transition: color 0.2s; }
   .gear:hover { color: #a1a1aa; }
+  .build-stamp { position: fixed; bottom: 4rem; right: 0.75rem; font-family: ui-monospace, monospace;
+    font-size: 9px; color: #27272a; letter-spacing: 0.1em; pointer-events: none; z-index: 5; }
 </style>
 </head>
 <body>
@@ -175,7 +181,7 @@
       </button>
     </div>
     <div class="descriptor">Bridge Connection: Active</div>
-    <button class="propose-link" id="proposeBtn" type="button" title="Ask Groq Llama 3.3 to read your notes and propose a code change as a Pull Request">✨ propose change</button>
+    <button class="propose-link" id="proposeBtn" type="button" title="Propose a code change as a Pull Request (tries Groq 8B first, falls back to Gemini)">✨ propose change</button>
   </main>
   <footer>
     <div class="left">
@@ -188,6 +194,7 @@
       <span class="label-text" id="clicksLabel" title="Double-click to reset local count">clicks: <span id="counter">0</span></span>
     </div>
   </footer>
+  <div class="build-stamp">build dual-llm-v2</div>
 
   <div class="modal-bg" id="modalBg" hidden>
     <div class="modal">
@@ -200,13 +207,22 @@
         <input type="password" id="gh-input" placeholder="github_pat_..." autocomplete="off" />
         <span class="hint" id="gh-hint">Fine-grained PAT · atomeam/HomeBase- · Contents + Pull requests: Read &amp; write</span>
       </label>
+      <div class="section-note">For ✨ propose change. Add either or both. Groq is tried first; Gemini is fallback (handles bigger files).</div>
+      <label>
+        <div class="label-row">
+          <span>Gemini API Key (free)</span>
+          <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener">create key</a>
+        </div>
+        <input type="password" id="gem-input" placeholder="AIza..." autocomplete="off" />
+        <span class="hint" id="gem-hint">Google AI Studio · no credit card · 1M context · 1500 req/day</span>
+      </label>
       <label>
         <div class="label-row">
           <span>Groq API Key (free)</span>
           <a href="https://console.groq.com/keys" target="_blank" rel="noopener">create key</a>
         </div>
-        <input type="password" id="llm-input" placeholder="gsk_..." autocomplete="off" />
-        <span class="hint" id="llm-hint">Free at console.groq.com · no credit card · Llama 3.3 70B · 30 req/min</span>
+        <input type="password" id="groq-input" placeholder="gsk_..." autocomplete="off" />
+        <span class="hint" id="groq-hint">console.groq.com · no credit card · Llama 3.1 8B Instant</span>
       </label>
       <div class="modal-actions">
         <button id="modal-clear" type="button" class="danger">Clear all</button>
@@ -223,13 +239,22 @@
     var INDEX_PATH = 'mini/index.html';
     var BRANCH     = 'main';
 
-    var GROQ_MODEL = 'llama-3.3-70b-versatile';
-    var GROQ_FALLBACK_MODEL = 'llama-3.1-8b-instant';
+    // 8B has 5x the TPM allowance of 70B on free tier — avoids 413 on a ~30KB file.
+    var GROQ_MODEL = 'llama-3.1-8b-instant';
+    var GEMINI_MODEL = 'gemini-2.0-flash';
 
     var KEY_CLICKS  = 'homebase:clicks';
     var KEY_TOKEN   = 'homebase:gh:token';
-    var KEY_LLM     = 'homebase:llm:key';
+    var KEY_GEMINI  = 'homebase:gemini:key';
+    var KEY_GROQ    = 'homebase:groq:key';
     var KEY_PENDING = 'homebase:pending';
+
+    // Migrate older single-LLM key storage to KEY_GROQ
+    var oldLlm = localStorage.getItem('homebase:llm:key');
+    if (oldLlm && !localStorage.getItem(KEY_GROQ)) {
+      localStorage.setItem(KEY_GROQ, oldLlm);
+      localStorage.removeItem('homebase:llm:key');
+    }
 
     var btn         = document.getElementById('homebase-button');
     var counter     = document.getElementById('counter');
@@ -245,12 +270,14 @@
     var modalBg     = document.getElementById('modalBg');
     var ghInput     = document.getElementById('gh-input');
     var ghHint      = document.getElementById('gh-hint');
-    var llmInput    = document.getElementById('llm-input');
-    var llmHint     = document.getElementById('llm-hint');
+    var gemInput    = document.getElementById('gem-input');
+    var gemHint     = document.getElementById('gem-hint');
+    var groqInput   = document.getElementById('groq-input');
+    var groqHint    = document.getElementById('groq-hint');
 
     var token = localStorage.getItem(KEY_TOKEN) || null;
-    if (localStorage.getItem('homebase:gemini:key')) localStorage.removeItem('homebase:gemini:key');
-    var llmKey = localStorage.getItem(KEY_LLM) || null;
+    var geminiKey = localStorage.getItem(KEY_GEMINI) || null;
+    var groqKey = localStorage.getItem(KEY_GROQ) || null;
     var clicks = Number(localStorage.getItem(KEY_CLICKS) || 0);
     if (!isFinite(clicks)) clicks = 0;
     counter.textContent = clicks;
@@ -439,11 +466,14 @@
 
     function openModal() {
       ghInput.value = token || '';
-      llmInput.value = llmKey || '';
+      gemInput.value = geminiKey || '';
+      groqInput.value = groqKey || '';
       ghHint.className = 'hint';
-      llmHint.className = 'hint';
+      gemHint.className = 'hint';
+      groqHint.className = 'hint';
       ghHint.textContent = 'Fine-grained PAT · atomeam/HomeBase- · Contents + Pull requests: Read & write';
-      llmHint.textContent = 'Free at console.groq.com · no credit card · Llama 3.3 70B · 30 req/min';
+      gemHint.textContent = 'Google AI Studio · no credit card · 1M context · 1500 req/day';
+      groqHint.textContent = 'console.groq.com · no credit card · Llama 3.1 8B Instant';
       modalBg.hidden = false;
       setTimeout(function(){ ghInput.focus(); }, 50);
     }
@@ -453,9 +483,10 @@
     document.getElementById('modal-close').addEventListener('click', closeModal);
     document.getElementById('modal-clear').addEventListener('click', function(){
       localStorage.removeItem(KEY_TOKEN);
-      localStorage.removeItem(KEY_LLM);
-      token = null; llmKey = null;
-      ghInput.value = ''; llmInput.value = '';
+      localStorage.removeItem(KEY_GEMINI);
+      localStorage.removeItem(KEY_GROQ);
+      token = null; geminiKey = null; groqKey = null;
+      ghInput.value = ''; gemInput.value = ''; groqInput.value = '';
       cache = null;
       setStatus('idle');
       showBanner('warn', 'All keys cleared.', 2500);
@@ -463,19 +494,19 @@
     });
     document.getElementById('modal-save').addEventListener('click', async function(){
       var newGh = ghInput.value.trim();
-      var newLlm = llmInput.value.trim();
+      var newGem = gemInput.value.trim();
+      var newGroq = groqInput.value.trim();
       if (newGh) {
-        token = newGh;
-        localStorage.setItem(KEY_TOKEN, token);
-        cache = null;
-        var ok = await testGhToken();
-        ghHint.className = 'hint ' + (ok ? 'ok' : 'bad');
+        token = newGh; localStorage.setItem(KEY_TOKEN, token); cache = null;
+        var ok = await testGhToken(); ghHint.className = 'hint ' + (ok ? 'ok' : 'bad');
       }
-      if (newLlm) {
-        llmKey = newLlm;
-        localStorage.setItem(KEY_LLM, llmKey);
-        var okL = await testLlmKey();
-        llmHint.className = 'hint ' + (okL ? 'ok' : 'bad');
+      if (newGem) {
+        geminiKey = newGem; localStorage.setItem(KEY_GEMINI, geminiKey);
+        var okG = await testGeminiKey(); gemHint.className = 'hint ' + (okG ? 'ok' : 'bad');
+      }
+      if (newGroq) {
+        groqKey = newGroq; localStorage.setItem(KEY_GROQ, groqKey);
+        var okQ = await testGroqKey(); groqHint.className = 'hint ' + (okQ ? 'ok' : 'bad');
       }
       setStatus(token ? (queue.length ? 'pending' : 'ok') : 'idle');
       if (token && queue.length) drain();
@@ -490,25 +521,27 @@
         var msg = ''; try { msg = (await r.json()).message || ''; } catch(e){}
         ghHint.textContent = 'BAD ' + r.status + ': ' + msg;
         return false;
-      } catch (e) {
-        ghHint.textContent = 'TEST FAILED: ' + e.message;
-        return false;
-      }
+      } catch (e) { ghHint.textContent = 'TEST FAILED: ' + e.message; return false; }
     }
-    async function testLlmKey() {
+    async function testGeminiKey() {
+      try {
+        var r = await fetch('https://generativelanguage.googleapis.com/v1beta/models?key=' + encodeURIComponent(geminiKey));
+        if (r.ok) { gemHint.textContent = 'OK · Gemini ready'; return true; }
+        var j = {}; try { j = await r.json(); } catch(e){}
+        gemHint.textContent = 'BAD: ' + ((j.error && j.error.message) || ('status ' + r.status));
+        return false;
+      } catch (e) { gemHint.textContent = 'TEST FAILED: ' + e.message; return false; }
+    }
+    async function testGroqKey() {
       try {
         var r = await fetch('https://api.groq.com/openai/v1/models', {
-          headers: { 'Authorization': 'Bearer ' + llmKey }
+          headers: { 'Authorization': 'Bearer ' + groqKey }
         });
-        if (r.ok) { llmHint.textContent = 'OK · Groq ready (' + GROQ_MODEL + ')'; return true; }
+        if (r.ok) { groqHint.textContent = 'OK · Groq ready (' + GROQ_MODEL + ')'; return true; }
         var j = {}; try { j = await r.json(); } catch(e){}
-        var em = (j.error && j.error.message) ? j.error.message : ('status ' + r.status);
-        llmHint.textContent = 'BAD: ' + em;
+        groqHint.textContent = 'BAD: ' + ((j.error && j.error.message) || ('status ' + r.status));
         return false;
-      } catch (e) {
-        llmHint.textContent = 'TEST FAILED: ' + e.message;
-        return false;
-      }
+      } catch (e) { groqHint.textContent = 'TEST FAILED: ' + e.message; return false; }
     }
 
     function applyPatches(html, patches) {
@@ -536,9 +569,9 @@
       return [
         'You improve a single-file HTML app called HomeBase. The user has been logging button clicks with optional notes about their intent.',
         '',
-        'TASK: Propose ONE small, focused change to the HTML/CSS/JS based on the user notes. Make a real, useful change — not decoration. Small + working > big + broken.',
+        'TASK: Propose ONE small, focused change to the HTML/CSS/JS based on the user notes. Make a real, useful change. Small + working > big + broken.',
         '',
-        'OUTPUT FORMAT (return JSON object, no markdown, no explanation outside JSON):',
+        'OUTPUT FORMAT (return JSON object, no markdown, no prose outside JSON):',
         '{',
         '  "summary": "one short sentence describing the change",',
         '  "patches": [',
@@ -549,11 +582,11 @@
         'RULES:',
         '- Each patch.find MUST appear EXACTLY ONCE in the current file. Verify uniqueness.',
         '- Each patch.find should be the smallest unique snippet that anchors your change.',
-        '- Preserve ALL existing functionality: GitHub logging, intent input, propose button, modal settings, both API keys (GitHub + Groq), click counter, idle pulse, spacebar.',
+        '- Preserve ALL existing functionality: GitHub logging, intent input, propose button, modal settings, both API keys, click counter, idle pulse, spacebar.',
         '- DO NOT remove the propose flow itself.',
         '- 1–3 patches max. Smaller is better.',
         '- No external dependencies, no new files.',
-        '- Escape JSON strings properly. Backslashes and quotes inside find/replace must be escaped.',
+        '- Escape JSON strings properly.',
         '',
         'RECENT USER NOTES (chronological, most recent last):',
         notesText,
@@ -565,15 +598,15 @@
       ].join('\n');
     }
 
-    async function callLlm(prompt, model) {
+    async function callGroq(prompt) {
       var r = await fetch('https://api.groq.com/openai/v1/chat/completions', {
         method: 'POST',
         headers: {
-          'Authorization': 'Bearer ' + llmKey,
+          'Authorization': 'Bearer ' + groqKey,
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
-          model: model || GROQ_MODEL,
+          model: GROQ_MODEL,
           messages: [
             { role: 'system', content: 'You output strict JSON only. No markdown fences. No prose outside the JSON object.' },
             { role: 'user', content: prompt }
@@ -595,9 +628,60 @@
       catch (e) { throw new Error('Groq returned invalid JSON: ' + text.slice(0, 200)); }
     }
 
+    async function callGemini(prompt) {
+      var url = 'https://generativelanguage.googleapis.com/v1beta/models/' + GEMINI_MODEL + ':generateContent?key=' + encodeURIComponent(geminiKey);
+      var r = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: prompt }] }],
+          generationConfig: {
+            responseMimeType: 'application/json',
+            temperature: 0.5,
+            maxOutputTokens: 8192
+          }
+        })
+      });
+      if (!r.ok) {
+        var msg = ''; try { msg = (await r.json()).error.message; } catch(e){}
+        var err = new Error('Gemini ' + r.status + ': ' + msg);
+        err.status = r.status; throw err;
+      }
+      var j = await r.json();
+      var text = j.candidates && j.candidates[0] && j.candidates[0].content && j.candidates[0].content.parts && j.candidates[0].content.parts[0] && j.candidates[0].content.parts[0].text;
+      if (!text) throw new Error('Empty Gemini response');
+      try { return JSON.parse(text); }
+      catch (e) { throw new Error('Gemini returned invalid JSON: ' + text.slice(0, 200)); }
+    }
+
+    async function callLlm(prompt) {
+      var lastErr = null;
+      if (groqKey) {
+        try {
+          return { proposal: await callGroq(prompt), provider: 'Groq 8B' };
+        } catch (e) {
+          console.warn('[homebase] Groq failed:', e.message);
+          lastErr = e;
+          if (!geminiKey) throw e;
+        }
+      }
+      if (geminiKey) {
+        try {
+          return { proposal: await callGemini(prompt), provider: 'Gemini' };
+        } catch (e) {
+          console.warn('[homebase] Gemini failed:', e.message);
+          if (lastErr) throw new Error('Groq: ' + lastErr.message + ' / Gemini: ' + e.message);
+          throw e;
+        }
+      }
+      throw new Error('No LLM key set. Click ⚙ and add a Gemini or Groq key.');
+    }
+
     async function proposeChange() {
       if (!token) { showBanner('warn', 'Set GitHub token first (⚙).', 4000); return; }
-      if (!llmKey) { showBanner('warn', 'Set Groq key first (⚙). Free at console.groq.com/keys', 5000); return; }
+      if (!geminiKey && !groqKey) {
+        showBanner('warn', 'Need a Gemini OR Groq key (⚙). Both are free.', 5000); return;
+      }
       proposeBtn.disabled = true;
       try {
         showBanner('warn', 'Reading log + current code…');
@@ -613,22 +697,16 @@
         var indexFile = await ghGetFile(INDEX_PATH);
         if (!indexFile.content) throw new Error('Could not load mini/index.html');
 
-        showBanner('warn', 'Asking Groq Llama 3.3 70B for a proposal…');
+        var preferred = groqKey ? 'Groq' : 'Gemini';
+        showBanner('warn', 'Asking ' + preferred + ' for a proposal…');
         var prompt = buildPrompt(notes, indexFile.content);
-        var proposal;
-        try {
-          proposal = await callLlm(prompt, GROQ_MODEL);
-        } catch (e) {
-          if (e.status === 429 || e.status === 413) {
-            showBanner('warn', '70B rate-limited or too big — retrying with 8B Instant…');
-            proposal = await callLlm(prompt, GROQ_FALLBACK_MODEL);
-          } else { throw e; }
-        }
+        var result = await callLlm(prompt);
+        var proposal = result.proposal;
         if (!proposal.summary || !Array.isArray(proposal.patches)) {
           throw new Error('Proposal missing summary or patches');
         }
 
-        showBanner('warn', 'Applying patches · ' + escapeHtml(proposal.summary));
+        showBanner('warn', '[' + result.provider + '] Applying · ' + escapeHtml(proposal.summary));
         var newHtml = applyPatches(indexFile.content, proposal.patches);
         if (newHtml === indexFile.content) throw new Error('Patches resulted in no change');
         if (newHtml.length < 1000) throw new Error('Result suspiciously short');
@@ -672,11 +750,11 @@
         }
 
         showBanner('warn', 'Opening pull request…');
-        var prBody = 'Generated by HomeBase based on recent log notes.\n\n' +
+        var prBody = 'Generated by HomeBase using **' + result.provider + '**.\n\n' +
                      '**Summary:** ' + proposal.summary + '\n\n' +
                      '**Patches:** ' + proposal.patches.length + '\n\n' +
                      'Review the diff. Merge to deploy to the live app.\n\n' +
-                     '_Notes seen by Groq:_\n' + (notes.length ? notes.map(function(n){ return '- ' + n; }).join('\n') : '(none yet)');
+                     '_Notes seen by the model:_\n' + (notes.length ? notes.map(function(n){ return '- ' + n; }).join('\n') : '(none yet)');
         var prR = await fetch('https://api.github.com/repos/' + REPO_OWNER + '/' + REPO_NAME + '/pulls', {
           method: 'POST',
           headers: { 'Authorization': 'token ' + token, 'Accept': 'application/vnd.github+json', 'Content-Type': 'application/json' },
@@ -692,7 +770,7 @@
           throw new Error('Open PR failed ' + prR.status + ': ' + prTxt);
         }
         var prJ = await prR.json();
-        showBanner('success', '✓ PR opened: <a href="' + prJ.html_url + '" target="_blank" rel="noopener">' + escapeHtml(proposal.summary) + '</a> — review and merge to deploy.');
+        showBanner('success', '✓ [' + result.provider + '] PR opened: <a href="' + prJ.html_url + '" target="_blank" rel="noopener">' + escapeHtml(proposal.summary) + '</a> — review and merge to deploy.');
       } catch (e) {
         console.error('[homebase] propose failed:', e);
         showBanner('error', 'PROPOSE FAILED — ' + escapeHtml(e.message));
