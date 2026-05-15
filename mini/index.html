@@ -194,7 +194,7 @@
       <span class="label-text" id="clicksLabel" title="Double-click to reset local count">clicks: <span id="counter">0</span></span>
     </div>
   </footer>
-  <div class="build-stamp">build tri-llm-v5</div>
+  <div class="build-stamp">build tri-llm-v6</div>
 
   <div class="modal-bg" id="modalBg" hidden>
     <div class="modal">
@@ -222,7 +222,7 @@
           <a href="https://openrouter.ai/keys" target="_blank" rel="noopener">create key</a>
         </div>
         <input type="password" id="or-input" placeholder="sk-or-v1-..." autocomplete="off" />
-        <span class="hint" id="or-hint">openrouter.ai · no credit card · free Llama 3.3 70B · 200 req/day</span>
+        <span class="hint" id="or-hint">openrouter.ai · no credit card · free models w/ auto-fallback</span>
       </label>
       <label>
         <div class="label-row">
@@ -249,7 +249,13 @@
 
     var GROQ_MODEL = 'llama-3.1-8b-instant';
     var GEMINI_MODEL = 'gemini-2.0-flash';
-    var OPENROUTER_MODEL = 'meta-llama/llama-3.3-70b-instruct:free';
+    var OPENROUTER_MODEL = 'google/gemini-2.0-flash-exp:free';
+    var OPENROUTER_FALLBACKS = [
+      'meta-llama/llama-3.3-70b-instruct:free',
+      'deepseek/deepseek-chat-v3.1:free',
+      'mistralai/mistral-small-3.2-24b-instruct:free',
+      'qwen/qwen-2.5-72b-instruct:free'
+    ];
 
     var KEY_CLICKS     = 'homebase:clicks';
     var KEY_TOKEN      = 'homebase:gh:token';
@@ -482,7 +488,7 @@
       groqHint.className = 'hint';
       ghHint.textContent = 'Fine-grained PAT · atomeam/HomeBase- · Contents + Pull requests: Read & write';
       gemHint.textContent = 'Google AI Studio · no credit card · 1M context · 1500 req/day';
-      orHint.textContent = 'openrouter.ai · no credit card · free Llama 3.3 70B · 200 req/day';
+      orHint.textContent = 'openrouter.ai · no credit card · free models w/ auto-fallback';
       groqHint.textContent = 'console.groq.com · no credit card · Llama 3.1 8B Instant';
       modalBg.hidden = false;
       setTimeout(function(){ ghInput.focus(); }, 50);
@@ -551,7 +557,7 @@
     async function testOpenrouterKey() {
       try {
         var r = await fetch('https://openrouter.ai/api/v1/auth/key', { headers: { 'Authorization': 'Bearer ' + openrouterKey } });
-        if (r.ok) { orHint.textContent = 'OK · OpenRouter ready (Llama 3.3 70B free)'; return true; }
+        if (r.ok) { orHint.textContent = 'OK · OpenRouter ready (Gemini Flash → Llama → DeepSeek …)'; return true; }
         var j = {}; try { j = await r.json(); } catch(e){}
         orHint.textContent = 'BAD: ' + ((j.error && j.error.message) || ('status ' + r.status));
         return false;
@@ -660,11 +666,11 @@
         },
         body: JSON.stringify({
           model: OPENROUTER_MODEL,
+          models: OPENROUTER_FALLBACKS,
           messages: [
             { role: 'system', content: 'You output strict JSON only. No markdown fences. No prose outside the JSON object.' },
             { role: 'user', content: prompt }
           ],
-          response_format: { type: 'json_object' },
           temperature: 0.5,
           max_tokens: 4096
         })
@@ -674,11 +680,12 @@
         var err = new Error('OpenRouter ' + r.status + ': ' + msg); err.status = r.status; throw err;
       }
       var j = await r.json();
+      var usedModel = j.model || OPENROUTER_MODEL;
       var text = j.choices && j.choices[0] && j.choices[0].message && j.choices[0].message.content;
-      if (!text) throw new Error('Empty OpenRouter response');
+      if (!text) throw new Error('Empty OpenRouter response from ' + usedModel);
       var cleaned = text.trim().replace(/^```(?:json)?\s*/i, '').replace(/```\s*$/, '').trim();
-      try { return JSON.parse(cleaned); }
-      catch (e) { throw new Error('OpenRouter returned invalid JSON: ' + cleaned.slice(0, 200)); }
+      try { var parsed = JSON.parse(cleaned); parsed.__model = usedModel; return parsed; }
+      catch (e) { throw new Error('OpenRouter (' + usedModel + ') returned invalid JSON: ' + cleaned.slice(0, 200)); }
     }
 
     async function callGroq(prompt) {
@@ -717,7 +724,15 @@
       for (var i = 0; i < providers.length; i++) {
         var p = providers[i];
         if (!p.key) continue;
-        try { return { proposal: await p.fn(prompt), provider: p.name }; }
+        try {
+          var proposal = await p.fn(prompt);
+          var providerLabel = p.name;
+          if (p.name === 'OpenRouter' && proposal.__model) {
+            providerLabel = 'OpenRouter:' + proposal.__model.split('/').pop().replace(':free','');
+            delete proposal.__model;
+          }
+          return { proposal: proposal, provider: providerLabel };
+        }
         catch (e) {
           console.warn('[homebase] ' + p.name + ' failed:', e.message);
           errors.push(p.name + ': ' + e.message);
