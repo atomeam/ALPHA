@@ -118,6 +118,7 @@
       </button>
     </div>
     <div class="descriptor">Bridge Connection: Active</div>
+    <div class="quick-replay-wrap"><button class="quick-replay" id="replayBtn" type="button" title="Replay the last logged intent note">🔄 replay last</button></div>
     <button class="propose-link" id="proposeBtn" type="button" title="LLM proposes a working capability based on intent log + recent commits">✨ propose change</button>
   </main>
   <footer>
@@ -281,7 +282,8 @@
       }
       setStatus('ok'); draining=false;
     }
-    function logClick(note){ var entry={ts:new Date().toISOString(),clicks:clicks}; if(note) entry.note=note; queue.push(entry); saveQueue(); drain(); }
+    var lastNote=null;
+    function logClick(note){ var entry={ts:new Date().toISOString(),clicks:clicks}; if(note) entry.note=note; queue.push(entry); if(note) lastNote=note; saveQueue(); drain(); }
 
     function bump(){ counter.classList.remove('bump'); void counter.offsetWidth; counter.classList.add('bump'); setTimeout(function(){counter.classList.remove('bump')},250); }
     var idleTimer=null;
@@ -295,6 +297,7 @@
     }
     btn.addEventListener('click',press);
     clicksLabel.addEventListener('dblclick',function(){ clicks=0; localStorage.setItem(KEY_CLICKS,'0'); counter.textContent=0; bump(); });
+    document.getElementById('replayBtn').addEventListener('click',function(){ if(lastNote){ intent.value=lastNote; press(); } else { showBanner('warn','No intent note to replay.',2000); } });
     intent.addEventListener('keydown',function(e){ if(e.key==='Enter'){e.preventDefault(); press();} else if(e.key==='Escape'){intent.value=''; intent.blur();} });
     document.addEventListener('keydown',function(e){
       if(e.code!=='Space'&&e.key!==' ') return;
