@@ -1,0 +1,8 @@
+{
+  "name": "Aether",
+  "description": "A self-evolving generative UI ecosystem that builds itself through natural language prompts.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
