@@ -1,3 +1,10 @@
+/**
+ * HomeBase Component
+ * 
+ * Main control panel for Alpha execution engine.
+ * Provides objective input, execution controls, and status display.
+ */
+
 import { useState, useEffect } from 'react';
 
 interface ExecutionStatus {
@@ -11,7 +18,11 @@ interface ExecutionStatus {
   error: string;
 }
 
-function App() {
+interface HomeBaseProps {
+  runtimeUrl?: string;
+}
+
+export function HomeBase({ runtimeUrl = '' }: HomeBaseProps) {
   const [objective, setObjective] = useState('');
   const [result, setResult] = useState<any>(null);
   const [loading, setLoading] = useState(false);
@@ -57,10 +68,8 @@ function App() {
   };
 
   return (
-    <div className="app">
-      <header>
-        <h1>⚡ Alpha - HomeBase</h1>
-      </header>
+    <div className="homebase">
+      <h1>⚡ Alpha - HomeBase</h1>
       
       <section className="control-panel">
         <input
@@ -102,4 +111,4 @@ function App() {
   );
 }
 
-export default App;
+export default HomeBase;
