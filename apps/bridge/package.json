@@ -3,11 +3,22 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
+  "description": "Alpha bridge — lightweight HTTP relay on :8090. Full PowerShell bridge ships in Phase 6.",
   "scripts": {
-    "build": "echo 'bridge: PowerShell scripts only'",
-    "dev": "echo 'Run homebase.ps1 on Windows/PowerShell host'",
-    "lint": "echo 'bridge: no JS lint target'",
-    "typecheck": "echo 'bridge: no TS target'",
+    "build": "tsc -p tsconfig.json --noEmit",
+    "dev": "node --import tsx src/server.ts",
+    "start": "node --import tsx src/server.ts",
+    "lint": "echo 'bridge: ESLint skipped (ignored in root config until Phase 6)'",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "echo 'bridge: no tests yet'"
+  },
+  "dependencies": {
+    "@alpha/logger": "workspace:*",
+    "express": "^4.21.2"
+  },
+  "devDependencies": {
+    "@types/express": "^4.17.21",
+    "@types/node": "^22.14.0",
+    "tsx": "^4.21.0"
   }
 }
