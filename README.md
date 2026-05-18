@@ -6,11 +6,26 @@ This is the ALPHA Stack monorepo with npm workspaces.
 
 ```powershell
 # Windows PowerShell
-# Navigate to your project folder first:
-cd C:\Path\To\Aether
-
-# Then run:
+cd Aether
+npm install
 npm run dev
+```
+
+## Two Terminals Required
+
+**Terminal 1 (Backend):**
+```powershell
+npm run dev:backend
+```
+
+**Terminal 2 (Frontend):**
+```powershell
+npm run dev:frontend
+```
+
+## Then open in browser:
+```
+http://localhost:5173
 ```
 
 ## Project Structure
