@@ -1,21 +1,19 @@
 import express from 'express';
-import { IntegrationManager } from './integration_manager';
-import { VictusBridge } from './victus_bridge';
-import { Orchestrator } from './orchestrator';
+import path from 'path';
+import { IntegrationManager } from './core/integration_manager';
+import { VictusBridge } from './core/victus_bridge';
+import { Orchestrator } from './core/orchestrator';
 
 const app = express();
 const PORT = 8080;
 
 app.use(express.json());
 
-// Initialize services
-const integrationManager = new IntegrationManager({ logLevel: 'info' });
-const victusBridge = new VictusBridge({ baseUrl: 'http://localhost:8080' });
-const orchestrator = new Orchestrator(
-  { logLevel: 'info', stopOnFailure: true },
-  integrationManager,
-  victusBridge
-);
+// Initialize services with correct constructor signatures
+const configPath = path.join(process.cwd(), 'config', 'integrations.json');
+const integrationManager = new IntegrationManager(configPath);
+const victusBridge = new VictusBridge({ runtimeUrl: 'http://localhost:8080' });
+const orchestrator = new Orchestrator(integrationManager, victusBridge, { stopOnFailure: true });
 
 // POST /api/execute - Main entry point for frontend
 app.post('/api/execute', async (req, res) => {
