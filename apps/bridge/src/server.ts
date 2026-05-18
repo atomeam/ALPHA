@@ -24,7 +24,12 @@ export function createApp(): Express {
   // Relay: POST /relay/prompt/:name → backend POST /api/prompt/:name
   app.post('/relay/prompt/:name', async (req, res) => {
     try {
-      const url = `${BACKEND_ORIGIN}/api/prompt/${req.params['name']}`;
+      const name = req.params['name'];
+      if (!name) {
+        res.status(400).json({ error: 'missing prompt name' });
+        return;
+      }
+      const url = `${BACKEND_ORIGIN}/api/prompt/${encodeURIComponent(name)}`;
       const upstream = await fetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
