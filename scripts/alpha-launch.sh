@@ -7,6 +7,15 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
+# Ensure Node/pnpm are on PATH (desktop launchers skip .bashrc)
+if [ -s "$HOME/.nvm/nvm.sh" ]; then
+  export NVM_DIR="$HOME/.nvm"
+  . "$NVM_DIR/nvm.sh"
+elif [ -d "$HOME/.local/share/nvm" ]; then
+  export NVM_DIR="$HOME/.local/share/nvm"
+  . "$NVM_DIR/nvm.sh"
+fi
+
 # Terminal emulator preference (first available wins)
 pick_terminal() {
   for t in x-terminal-emulator gnome-terminal konsole xfce4-terminal xterm; do
@@ -30,19 +39,19 @@ if [ -n "$TERM_EMU" ]; then
   # Open in a visible terminal so the user can see logs
   case "$TERM_EMU" in
     gnome-terminal)
-      gnome-terminal -- bash -c "cd '$PROJECT_ROOT' && echo '=== ALPHA Dev Server ===' && pnpm dev; exec bash"
+      gnome-terminal -- bash -lc "cd '$PROJECT_ROOT' && echo '=== ALPHA Dev Server ===' && pnpm dev; exec bash"
       ;;
     konsole)
-      konsole -e bash -c "cd '$PROJECT_ROOT' && echo '=== ALPHA Dev Server ===' && pnpm dev; exec bash"
+      konsole -e bash -lc "cd '$PROJECT_ROOT' && echo '=== ALPHA Dev Server ===' && pnpm dev; exec bash"
       ;;
     xfce4-terminal)
-      xfce4-terminal -e "bash -c \"cd '$PROJECT_ROOT' && echo '=== ALPHA Dev Server ===' && pnpm dev; exec bash\""
+      xfce4-terminal -e "bash -lc \"cd '$PROJECT_ROOT' && echo '=== ALPHA Dev Server ===' && pnpm dev; exec bash\""
       ;;
     xterm)
-      xterm -hold -e "cd '$PROJECT_ROOT' && echo '=== ALPHA Dev Server ===' && pnpm dev" &
+      xterm -hold -e "bash -lc 'cd \"$PROJECT_ROOT\" && echo \"=== ALPHA Dev Server ===\" && pnpm dev'" &
       ;;
     *)
-      $TERM_EMU -e "bash -c \"cd '$PROJECT_ROOT' && echo '=== ALPHA Dev Server ===' && pnpm dev; exec bash\""
+      $TERM_EMU -e "bash -lc \"cd '$PROJECT_ROOT' && echo '=== ALPHA Dev Server ===' && pnpm dev; exec bash\""
       ;;
   esac
 else
