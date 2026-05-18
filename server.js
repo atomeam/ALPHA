@@ -7,6 +7,7 @@
  * - GET  /api/logs             — recent activity from homebase-logs.jsonl
  * - POST /api/prompt/:name     — dispatches one of the 6 Alpha prompts to Gemini, server-side only
  * - POST /api/run/:script      — execute HomeBase scripts (observer, evaluator, proposer, etc.)
+ * - POST /api/run/alpha-loop   — execute full Alpha loop (Observer → Evaluator → Proposer)
  *
  * The GEMINI_API_KEY never reaches the client bundle.
  */
@@ -16,6 +17,7 @@ import { readFileSync, existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { GoogleGenAI } from '@google/genai';
+import { runAlphaLoop } from './src/alpha/orchestrator.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PORT = Number(process.env.PORT || 8080);
@@ -209,9 +211,33 @@ app.post('/api/prompt/:name', async (req, res) => {
   }
 });
 
-// Run a HomeBase script (placeholder for now)
+// Run a HomeBase script
 app.post('/api/run/:script', async (req, res) => {
   const script = req.params.script;
+  
+  // Alpha loop (special case)
+  if (script === 'alpha-loop') {
+    try {
+      const result = await runAlphaLoop();
+      return res.json({
+        script,
+        status: result.status,
+        loopId: result.loopId,
+        timestamp: result.timestamp,
+        message: result.status === 'success' 
+          ? `Loop completed: Observer → Evaluator → Proposer`
+          : result.error,
+      });
+    } catch (err) {
+      return res.status(500).json({
+        script,
+        status: 'error',
+        error: err.message || String(err),
+      });
+    }
+  }
+
+  // Individual scripts (placeholder)
   const validScripts = ['observer', 'evaluator', 'proposer', 'curator', 'applier', 'reflector'];
   
   if (!validScripts.includes(script)) {
@@ -219,8 +245,6 @@ app.post('/api/run/:script', async (req, res) => {
   }
   
   try {
-    // TODO: Execute the actual script on Victus
-    // For now, just return a placeholder response
     res.json({
       script,
       status: 'running',
@@ -245,4 +269,5 @@ if (process.env.SERVE_STATIC === 'true') {
 app.listen(PORT, () => {
   console.log(`[homebase] listening on :${PORT} sha=${GIT_SHA} v${VERSION} building=${BUILDING.branch}→${BUILDING.base} PR#${BUILDING.pr_number}`);
   console.log(`[homebase] reading logs from: ${HOMEBASE_LOGS_PATH}`);
+  console.log(`[homebase] Gemini configured: ${Boolean(process.env.GEMINI_API_KEY)}`);
 });
