@@ -141,3 +141,32 @@ Encoded in Detail: `HomeBaseSHA=<...> BridgeVersion=<...> BridgeURL=<...> | <fai
 - Appends: `Resolved at <timestamp> (Duration: X min HomeBaseSHA=<...>)`
 
 This enables correlating outages to specific deploys.
+
+### Deploy Correlation View
+
+Group incidents by version pair to identify regressions:
+
+```bash
+GET /api/bridge/incidents/correlation
+```
+
+Response:
+
+```json
+{
+  "rows": [
+    {
+      "homeBaseSha": "abc1234",
+      "bridgeSha": "def5678",
+      "count": 5,
+      "openCount": 1,
+      "flappingCount": 0,
+      "lastSeen": "2026-05-18T12:34:56Z",
+      "avgDuration": "3 min"
+    }
+  ],
+  "generatedAt": "2026-05-18T12:34:56Z"
+}
+```
+
+Use this to see "this deploy pair is noisy" at a glance.

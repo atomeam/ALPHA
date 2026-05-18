@@ -96,6 +96,15 @@ let lastNotionPageId = null; // Page ID of last created incident
 // Map of open incidents by signature (for recovery resolution)
 const openIncidents = new Map(); // signature -> { pageId, openedAt, title }
 
+// All incidents for correlation analysis (including resolved)
+const allIncidents = []; // { homebaseSha, bridgeVersion, status, openedAt, resolvedAt, duration }
+
+// Current versions (for correlation)
+const currentVersions = {
+  homebaseSha: GIT_SHA,
+  bridgeVersion: null, // set after first bridge health fetch
+};
+
 function getSignature(data, isFlapping) {
   return JSON.stringify({
     ok: data.ok,
@@ -194,6 +203,17 @@ async function resolveIncidentInNotion(signature) {
     
     console.log(`[incident] Resolved incident: ${entry.pageId} (${duration})`);
     openIncidents.delete(signature);
+    
+    // Mark in correlation tracker
+    for (const inc of allIncidents) {
+      if (inc.status === 'Open' && inc.openedAt === entry.openedAt) {
+        inc.status = 'Resolved';
+        inc.resolvedAt = resolveTime;
+        inc.duration = duration;
+        break;
+      }
+    }
+    
     return { resolved: true, duration };
   } catch (err) {
     console.error('[incident] Resolve failed:', err.message);
@@ -277,6 +297,16 @@ async function handleHealthTransition(bridgeData, flappingStatus) {
       openedAt: incident.timestamp,
       title: incident.title,
       detail: incident.detail,
+    });
+    
+    // Track for correlation
+    allIncidents.push({
+      homebaseSha: incident.homebaseSha || 'unknown',
+      bridgeVersion: incident.bridgeVersion || 'unknown',
+      status: 'Open',
+      openedAt: incident.timestamp,
+      resolvedAt: null,
+      duration: null,
     });
   }
 }
@@ -494,6 +524,67 @@ app.get('/api/bridge/health/history', (_req, res) => {
   res.json({
     history: healthHistory,
     flapping: getFlappingStatus(),
+  });
+});
+
+// Deploy Correlation: group incidents by (HomeBaseSHA, BridgeSHA)
+app.get('/api/bridge/incidents/correlation', (_req, res) => {
+  // Group incidents by version pair
+  const groups = new Map();
+  
+  for (const inc of allIncidents) {
+    const key = `${inc.homebaseSha || 'unknown'}|${inc.bridgeVersion || 'unknown'}`;
+    if (!groups.has(key)) {
+      groups.set(key, {
+        homeBaseSha: inc.homebaseSha || 'unknown',
+        bridgeSha: inc.bridgeVersion || 'unknown',
+        count: 0,
+        openCount: 0,
+        flappingCount: 0,
+        lastSeen: null,
+        durations: [],
+      });
+    }
+    const g = groups.get(key);
+    g.count++;
+    if (inc.status === 'Open') g.openCount++;
+    if (inc.status === 'Resolved' && inc.resolvedAt) {
+      g.durations.push({ openedAt: inc.openedAt, resolvedAt: inc.resolvedAt });
+    }
+    if (!g.lastSeen || inc.openedAt > g.lastSeen) {
+      g.lastSeen = inc.openedAt;
+    }
+  }
+  
+  // Calculate avg duration
+  const rows = Array.from(groups.values()).map(g => {
+    let avgDuration = 'N/A';
+    if (g.durations.length > 0) {
+      let totalMins = 0;
+      for (const d of g.durations) {
+        try {
+          totalMins += (new Date(d.resolvedAt).getTime() - new Date(d.openedAt).getTime()) / 60000;
+        } catch {}
+      }
+      avgDuration = `${Math.round(totalMins / g.durations.length)} min`;
+    }
+    return {
+      homeBaseSha: g.homeBaseSha,
+      bridgeSha: g.bridgeSha,
+      count: g.count,
+      openCount: g.openCount,
+      flappingCount: g.flappingCount,
+      lastSeen: g.lastSeen,
+      avgDuration,
+    };
+  });
+  
+  // Sort by lastSeen desc
+  rows.sort((a, b) => (b.lastSeen || '').localeCompare(a.lastSeen || ''));
+  
+  res.json({
+    rows,
+    generatedAt: new Date().toISOString(),
   });
 });
 
