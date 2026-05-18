@@ -1,23 +1,23 @@
 {
-  "name": "@alpha/core",
-  "version": "0.0.0",
+  "name": "@alpha/alpha-core",
+  "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "Alpha self-improving loop — Proposal types, Curator (default-deny), Applier (9 hardening rules).",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
   "exports": {
     ".": {
-      "types": "./src/index.ts",
-      "default": "./src/index.ts"
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
     }
   },
   "scripts": {
-    "lint": "eslint src/",
-    "typecheck": "tsc --noEmit",
+    "build": "tsc -p tsconfig.build.json",
+    "lint": "eslint src tests",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run"
   },
   "devDependencies": {
-    "@alpha/tsconfig": "workspace:*",
-    "typescript": "~5.8.2",
     "vitest": "^2.1.9"
   }
 }

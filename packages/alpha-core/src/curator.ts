@@ -2,8 +2,8 @@
 // Enforces the 5 base conditions in ALPHA.md plus cooldown + idempotency.
 // Pure functions: no side effects, no network.
 
-import { ALPHA_CONFIG } from './config.js';
-import type { CuratorDecision, Lesson, NeighborhoodState, Proposal } from './types.js';
+import { ALPHA_CONFIG } from './config';
+import type { CuratorDecision, Lesson, NeighborhoodState, Proposal } from './types';
 
 export interface CuratorContext {
   lessons: Lesson[];

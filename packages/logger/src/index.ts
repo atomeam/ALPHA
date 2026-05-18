@@ -1,44 +1,38 @@
-// Alpha v0 — Structured event logger.
-// All integration calls, grant checks, and loop events emit through this interface.
-
 export type LogLevel = 'debug' | 'info' | 'warn' | 'error';
 
 export interface LogEvent {
   level: LogLevel;
-  event: string;
+  message: string;
+  service: string;
   timestamp: string;
-  data?: Record<string, unknown>;
+  fields?: Record<string, string | number | boolean | null>;
 }
 
 export interface Logger {
-  emit(event: string, data?: Record<string, unknown>): void;
-  info(event: string, data?: Record<string, unknown>): void;
-  warn(event: string, data?: Record<string, unknown>): void;
-  error(event: string, data?: Record<string, unknown>): void;
+  event: (message: string, fields?: LogEvent['fields']) => LogEvent;
+  warn: (message: string, fields?: LogEvent['fields']) => LogEvent;
+  error: (message: string, fields?: LogEvent['fields']) => LogEvent;
+}
+
+function emit(event: LogEvent): LogEvent {
+  const payload = JSON.stringify(event);
+  if (event.level === 'error') {
+    console.error(payload);
+  } else if (event.level === 'warn') {
+    console.warn(payload);
+  } else {
+    console.log(payload);
+  }
+  return event;
 }
 
 export function createLogger(service: string): Logger {
-  function write(level: LogLevel, event: string, data?: Record<string, unknown>): void {
-    const entry: LogEvent = {
-      level,
-      event,
-      timestamp: new Date().toISOString(),
-      data: { service, ...data },
-    };
-    const line = JSON.stringify(entry);
-    if (level === 'error') {
-      console.error(line);
-    } else if (level === 'warn') {
-      console.warn(line);
-    } else {
-      console.log(line);
-    }
-  }
+  const log = (level: LogLevel, message: string, fields?: LogEvent['fields']): LogEvent =>
+    emit({ level, message, service, timestamp: new Date().toISOString(), fields });
 
   return {
-    emit: (event, data) => write('info', event, data),
-    info: (event, data) => write('info', event, data),
-    warn: (event, data) => write('warn', event, data),
-    error: (event, data) => write('error', event, data),
+    event: (message, fields) => log('info', message, fields),
+    warn: (message, fields) => log('warn', message, fields),
+    error: (message, fields) => log('error', message, fields),
   };
 }

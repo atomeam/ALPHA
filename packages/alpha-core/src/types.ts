@@ -1,5 +1,5 @@
 // Alpha v0 — canonical Proposal contract.
-// Mirrors the schema documented in docs/ALPHA.md.
+// Mirrors the schema documented in ALPHA.md.
 
 export type RiskClass = 'low' | 'medium' | 'high';
 

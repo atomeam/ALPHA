@@ -62,7 +62,7 @@ const STARTED_AT = new Date().toISOString();
 if (process.env['NODE_ENV'] !== 'test') {
   const app = createApp();
   app.listen(PORT, () => {
-    log.info('bridge-start', {
+    log.event('bridge-start', {
       port: PORT,
       upstream: BACKEND_ORIGIN,
     });

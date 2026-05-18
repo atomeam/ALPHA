@@ -1,25 +1,21 @@
 import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
-import path from 'path';
 import { defineConfig } from 'vite';
 
-export default defineConfig(() => {
-  return {
-    plugins: [react(), tailwindcss()],
-    resolve: {
-      alias: {
-        '@': path.resolve(__dirname, 'src'),
+const backendUrl = process.env['VITE_BACKEND_URL'] || 'http://localhost:8080';
+
+export default defineConfig({
+  plugins: [react(), tailwindcss()],
+  server: {
+    host: '0.0.0.0',
+    port: 5173,
+    hmr: process.env['DISABLE_HMR'] !== 'true',
+    watch: process.env['DISABLE_HMR'] === 'true' ? null : {},
+    proxy: {
+      '/api': {
+        target: backendUrl,
+        changeOrigin: true,
       },
     },
-    server: {
-      hmr: process.env['DISABLE_HMR'] !== 'true',
-      watch: process.env['DISABLE_HMR'] === 'true' ? null : {},
-      proxy: {
-        '/api': {
-          target: 'http://localhost:8080',
-          changeOrigin: true,
-        },
-      },
-    },
-  };
+  },
 });
