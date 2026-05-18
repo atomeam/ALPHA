@@ -48,7 +48,14 @@ function App() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ objective }),
       });
-      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(`HTTP ${res.status}`);
+      }
+      const text = await res.text();
+      if (!text) {
+        throw new Error('Empty response');
+      }
+      const data = JSON.parse(text);
       setResult(data);
     } catch (e: any) {
       setResult({ error: e.message });

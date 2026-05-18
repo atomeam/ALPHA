@@ -30,7 +30,11 @@ const orchestrator = new Orchestrator(integrationManager, victusBridge, { stopOn
 // POST /api/execute - Main entry point for frontend
 app.post('/api/execute', async (req, res) => {
   try {
-    const { objective, plan } = req.body;
+    const { objective, plan } = req.body || {};
+    
+    if (!objective && !plan) {
+      return res.status(400).json({ success: false, error: 'Missing objective or plan' });
+    }
     
     // Reset execution state
     executionState = {
