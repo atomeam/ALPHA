@@ -59,6 +59,19 @@ type LogsResponse = {
   error?: string;
 };
 
+// Bridge health response type (from /api/bridge/health)
+type BridgeHealthResponse = {
+  ok: boolean;
+  version?: string;
+  timestamp?: string;
+  checks: {
+    env: { ok: boolean; detail: string; latencyMs: number };
+    notion: { ok: boolean; detail: string; latencyMs: number };
+    ollama: { ok: boolean; detail: string; latencyMs: number };
+    gemini: { ok: boolean; detail: string; latencyMs: number };
+  };
+};
+
 const ALPHA_SCRIPTS = [
   { id: 'observer', label: 'Observer', icon: '👁️' },
   { id: 'evaluator', label: 'Evaluator', icon: '📊' },
@@ -82,6 +95,12 @@ export default function App() {
   const [logsError, setLogsError] = useState<string | null>(null);
   const [runningScript, setRunningScript] = useState<string | null>(null);
   const [showActivityFeed, setShowActivityFeed] = useState(true);
+  
+  // Bridge health state
+  const [bridgeHealth, setBridgeHealth] = useState<BridgeHealthResponse | null>(null);
+  const [bridgeHealthError, setBridgeHealthError] = useState(false);
+  const [bridgeHealthLastChecked, setBridgeHealthLastChecked] = useState<string | null>(null);
+  
   const buttonRef = useRef<HTMLButtonElement | null>(null);
   const idleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -116,7 +135,37 @@ export default function App() {
     };
   }, []);
 
-  // Poll /api/logs for activity feed
+  // Poll /api/bridge/health every 15 seconds
+  useEffect(() => {
+    let cancelled = false;
+    const fetchBridgeHealth = () => {
+      fetch('/api/bridge/health')
+        .then((r) => (r.ok ? r.json() : Promise.reject(r.statusText)))
+        .then((j: BridgeHealthResponse) => {
+          if (cancelled) return;
+          setBridgeHealth(j);
+          setBridgeHealthError(false);
+          // Parse timestamp for display
+          if (j.timestamp) {
+            const d = new Date(j.timestamp);
+            setBridgeHealthLastChecked(d.toLocaleTimeString());
+          }
+        })
+        .catch((err) => {
+          if (cancelled) return;
+          setBridgeHealth(null);
+          setBridgeHealthError(true);
+        });
+    };
+    fetchBridgeHealth();
+    const t = window.setInterval(fetchBridgeHealth, 15000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(t);
+    };
+  }, []);
+
+  // Manual bridge health refresh
   useEffect(() => {
     let cancelled = false;
     const fetchLogs = () => {
@@ -190,6 +239,24 @@ export default function App() {
       console.error(`[homebase] ${scriptId} failed:`, err);
     } finally {
       setRunningScript(null);
+    }
+  };
+
+  // Manual refresh for bridge health
+  const handleRefreshBridge = async () => {
+    try {
+      const r = await fetch('/api/bridge/health');
+      if (r.ok) {
+        const j: BridgeHealthResponse = await r.json();
+        setBridgeHealth(j);
+        setBridgeHealthError(false);
+        if (j.timestamp) {
+          const d = new Date(j.timestamp);
+          setBridgeHealthLastChecked(d.toLocaleTimeString());
+        }
+      }
+    } catch (err) {
+      setBridgeHealthError(true);
     }
   };
 
@@ -389,6 +456,72 @@ export default function App() {
           )}
         </div>
       </main>
+
+      {/* Bridge Health Card */}
+      <div className="mx-4 sm:mx-8 mb-4 p-4 bg-zinc-900/80 border border-zinc-700/50 rounded-lg">
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center gap-2">
+            <span className="font-mono text-xs font-bold text-zinc-300 uppercase tracking-wider">
+              Bridge Health
+            </span>
+            {/* Overall status dot */}
+            <span className={`w-2 h-2 rounded-full ${
+              bridgeHealth?.ok 
+                ? 'bg-green-500 shadow-[0_0_6px_rgba(34,197,94,0.6)]' 
+                : bridgeHealthError 
+                ? 'bg-red-500 shadow-[0_0_6px_rgba(239,68,68,0.6)]'
+                : 'bg-amber-500 shadow-[0_0_6px_rgba(245,158,11,0.6)]'
+            }`}></span>
+          </div>
+          <div className="flex items-center gap-3">
+            {bridgeHealthLastChecked && (
+              <span className="font-mono text-[10px] text-zinc-500">
+                Last checked: {bridgeHealthLastChecked}
+              </span>
+            )}
+            <button
+              onClick={handleRefreshBridge}
+              className="font-mono text-[10px] px-2 py-1 bg-zinc-800 hover:bg-zinc-700 text-zinc-400 rounded transition-colors"
+            >
+              ↻ Refresh
+            </button>
+          </div>
+        </div>
+        
+        {/* Health rows */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+          {bridgeHealth && bridgeHealth.checks ? (
+            Object.entries(bridgeHealth.checks).map(([key, check]: [string, any]) => (
+              <div key={key} className="flex items-center gap-2 p-2 bg-zinc-950/50 rounded">
+                <span className={`w-1.5 h-1.5 rounded-full ${
+                  check.ok 
+                    ? 'bg-green-500' 
+                    : 'bg-red-500'
+                }`}></span>
+                <div className="flex-1 min-w-0">
+                  <div className="font-mono text-[10px] text-zinc-400 uppercase">
+                    {key}
+                  </div>
+                  <div className="font-mono text-[9px] text-zinc-500 truncate" title={check.detail}>
+                    {check.detail}
+                  </div>
+                </div>
+                {check.latencyMs !== undefined && (
+                  <span className="font-mono text-[8px] text-zinc-600">
+                    {check.latencyMs}ms
+                  </span>
+                )}
+              </div>
+            ))
+          ) : (
+            <div className="col-span-4 text-center py-2">
+              <span className="font-mono text-[10px] text-zinc-500">
+                {bridgeHealthError ? 'Bridge unreachable' : 'Loading...'}
+              </span>
+            </div>
+          )}
+        </div>
+      </div>
 
       {/* Footer Status Bar */}
       <footer

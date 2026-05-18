@@ -146,6 +146,51 @@ app.get('/api/health', (_req, res) => {
   });
 });
 
+// Proxy endpoint: fetch bridge health from AtomArcade Bridge
+// Uses BRIDGE_BASE_URL (defaults to http://localhost:8080)
+app.get('/api/bridge/health', async (_req, res) => {
+  const bridgeUrl = process.env.BRIDGE_BASE_URL;
+  
+  // Gracefully handle missing BRIDGE_BASE_URL
+  if (!bridgeUrl) {
+    return res.json({
+      ok: false,
+      detail: 'BRIDGE_BASE_URL not set',
+      timestamp: new Date().toISOString(),
+    });
+  }
+  
+  try {
+    // Short timeout fetch (3 seconds)
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 3000);
+    
+    const response = await fetch(`${bridgeUrl}/api/health`, {
+      signal: controller.signal,
+    });
+    
+    clearTimeout(timeoutId);
+    
+    if (response.ok) {
+      const data = await response.json();
+      return res.json(data);
+    } else {
+      return res.json({
+        ok: false,
+        detail: `Bridge HTTP ${response.status}`,
+        timestamp: new Date().toISOString(),
+      });
+    }
+  } catch (error) {
+    // Catch network errors, timeouts, etc.
+    return res.json({
+      ok: false,
+      detail: error instanceof Error ? error.message : 'Bridge unreachable',
+      timestamp: new Date().toISOString(),
+    });
+  }
+});
+
 // Read homebase-logs.jsonl from Victus and return recent entries
 app.get('/api/logs', (_req, res) => {
   try {
