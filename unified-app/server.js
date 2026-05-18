@@ -166,8 +166,8 @@ app.get('/api/status', (req, res) => {
 
 // Write to Notion log
 app.post('/api/notion/log', async (req, res) => {
-  const { message, level = 'info', source = 'api' } = req.body;
-  const result = await appendLogEntry(LOGS_DB_ID, { message, level, source });
+  const { event, level = 'info', kind = '', source = 'api', intent = '', outcome = 'success', mode = 'apply', payload } = req.body;
+  const result = await appendLogEntry(LOGS_DB_ID, { event: event || 'API Log', level, kind, source, intent, outcome, mode, payload });
   res.json(result);
 });
 
