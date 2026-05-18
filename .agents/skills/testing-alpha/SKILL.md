@@ -29,13 +29,13 @@ cd apps/bridge && node --import tsx src/server.ts
 
 ## Shell Smoke Tests
 
-| Endpoint | Method | Expected |
-|----------|--------|----------|
-| `localhost:8080/api/health` | GET | `{"status":"ok","service":"alpha-backend",...}` |
-| `localhost:5173/api/health` | GET | Same as above (Vite proxy) |
-| `localhost:8090/health` | GET | `{"status":"ok","service":"alpha-bridge",...}` |
-| `localhost:8090/relay/health` | GET | Backend health proxied through bridge |
-| `localhost:8090/relay/prompt/unknown` | POST | 404 with `{"error":"unknown prompt"}` |
+| Endpoint                              | Method | Expected                                        |
+| ------------------------------------- | ------ | ----------------------------------------------- |
+| `localhost:8080/api/health`           | GET    | `{"status":"ok","service":"alpha-backend",...}` |
+| `localhost:5173/api/health`           | GET    | Same as above (Vite proxy)                      |
+| `localhost:8090/health`               | GET    | `{"status":"ok","service":"alpha-bridge",...}`  |
+| `localhost:8090/relay/health`         | GET    | Backend health proxied through bridge           |
+| `localhost:8090/relay/prompt/unknown` | POST   | 404 with `{"error":"unknown prompt"}`           |
 
 ## Browser UI Tests (localhost:5173)
 
