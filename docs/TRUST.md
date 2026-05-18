@@ -31,7 +31,7 @@ interface Grant {
 
 ## Outbound call pipeline
 
-```
+```text
 Frontend ──POST /api/integrations/<provider>/<action>──▶ Backend
                                                           │
                                                           ▼

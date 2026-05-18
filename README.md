@@ -4,7 +4,7 @@ Consolidated AtoMind ecosystem. Backend on `:8080`, frontend on `:5173`, trust-f
 
 ## Status
 
-**Phase 0 — Skeleton.** Workspace structure and tooling only; no application code yet. See [docs/MIGRATION.md](docs/MIGRATION.md) for the phase roadmap and [`alpha_blueprint.md` (in session)](#) for the full design.
+**Phase 0 — Skeleton.** Workspace structure and tooling only; no application code yet. See [docs/MIGRATION.md](docs/MIGRATION.md) for the phase roadmap.
 
 ## Stack
 
@@ -18,7 +18,7 @@ Consolidated AtoMind ecosystem. Backend on `:8080`, frontend on `:5173`, trust-f
 
 ## Layout
 
-```
+```text
 apps/
   backend/            Node/Express on :8080
   frontend/           Vite + React 19 on :5173
