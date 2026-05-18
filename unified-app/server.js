@@ -75,9 +75,16 @@ app.get('/api/keys/gemini/test', async (req, res) => {
 });
 
 // Endpoint: Test Notion (ping)
-app.get('/api/keys/notion/test', async (req, res) => {
-  const result = await pingNotion();
-  res.json(result);
+app.get('/api/keys/notion/test', (req, res) => {
+  const key = process.env.NOTION_API_KEY;
+  if (!key) {
+    res.json({ ok: false, error: 'No NOTION_API_KEY' });
+    return;
+  }
+  const notion = new Client({ auth: key });
+  notion.users.me()
+    .then(user => res.json({ ok: true, user: user.name || user.id }))
+    .catch(e => res.json({ ok: false, error: e.message }));
 });
 
 // Notion config (for actual API calls)
