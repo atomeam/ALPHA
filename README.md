@@ -193,3 +193,46 @@ GET /api/bridge/incidents/correlation/export?window=24h
 ```
 
 Returns CSV file for postmortems.
+
+---
+
+## Loxa Routing Layer (v0)
+
+Single routing entrypoint with classification and guardrails.
+
+### POST /api/route
+
+**Request:**
+```json
+{
+  "request": "show correlation export"
+}
+```
+
+**Response:**
+```json
+{
+  "traceId": "trace_1234567_abc123",
+  "route": "telemetry",
+  "confidence": 1.0,
+  "decision": "allow",
+  "reason": "telemetry routes are safe",
+  "next": { "endpoint": "/api/bridge/incidents/correlation", "method": "GET" },
+  "timestamp": "2026-05-18T12:00:00.000Z",
+  "homeBaseSha": "abc1234"
+}
+```
+
+**Routing Decisions:**
+
+| Route | Decision | Notes |
+|-------|----------|-------|
+| `telemetry` | allow | Health, incidents, correlation, export |
+| `lore` | allow | Memory, profile, curator |
+| `kraken` | deny | Run, execute, deploy - locked by default |
+| `unknown` | needs_human | Unrecognized - requires review |
+
+**Test Harness:**
+```bash
+node loxa-test.js
+```
