@@ -78,8 +78,18 @@ app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
-app.listen(PORT, () => {
+// Start server
+const server = app.listen(PORT, () => {
   console.log(`HomeBase runtime running on port ${PORT}`);
+  console.log(`  Health: http://localhost:${PORT}/api/health`);
+  console.log(`  Execute: POST http://localhost:${PORT}/api/execute`);
+  console.log(`  Status: GET http://localhost:${PORT}/api/execute/status`);
+});
+
+// Graceful shutdown
+process.on('SIGTERM', () => {
+  console.log('Shutting down...');
+  server.close(() => process.exit(0));
 });
 
 export default app;
