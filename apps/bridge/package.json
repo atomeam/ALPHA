@@ -1,0 +1,13 @@
+{
+  "name": "@alpha/bridge",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "echo 'bridge: PowerShell scripts only'",
+    "dev": "echo 'Run homebase.ps1 on Windows/PowerShell host'",
+    "lint": "echo 'bridge: no JS lint target'",
+    "typecheck": "echo 'bridge: no TS target'",
+    "test": "echo 'bridge: no tests yet'"
+  }
+}

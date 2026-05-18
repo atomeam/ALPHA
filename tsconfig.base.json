@@ -4,6 +4,14 @@
     "module": "ESNext",
     "lib": ["ES2022", "DOM", "DOM.Iterable"],
     "moduleResolution": "bundler",
+    "baseUrl": ".",
+    "paths": {
+      "@alpha/alpha-core": ["packages/alpha-core/src/index.ts"],
+      "@alpha/logger": ["packages/logger/src/index.ts"],
+      "@alpha/mcp-core": ["packages/mcp-core/src/index.ts"],
+      "@alpha/nexus-core": ["packages/nexus-core/src/index.ts"],
+      "@alpha/permissions": ["packages/permissions/src/index.ts"]
+    },
     "isolatedModules": true,
     "moduleDetection": "force",
     "allowJs": true,
