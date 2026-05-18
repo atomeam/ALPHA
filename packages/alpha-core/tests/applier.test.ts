@@ -79,7 +79,44 @@ describe('runApplier', () => {
     );
     const r = await runApplier(p, c);
     expect(r.code).toBe('APP_CANARY_FAIL');
+    expect(r.hook).toBe('applyLive');
     expect(c.hooks.restoreSnapshot).toHaveBeenCalledTimes(1);
+  });
+
+  it('halts when dry-run hook fails and records the hook', async () => {
+    const c = ctx(
+      {},
+      {
+        dryRun: vi.fn(async () => {
+          throw new Error('dry run boom');
+        }),
+      },
+    );
+    const r = await runApplier(baseProposal, c);
+    expect(r.status).toBe('halted');
+    expect(r.code).toBe('APP_DRY_RUN_FAIL');
+    expect(r.hook).toBe('dryRun');
+    expect(r.error).toBe('dry run boom');
+    expect(c.hooks.restoreSnapshot).toHaveBeenCalledTimes(1);
+  });
+
+  it('halts on restore failure when recovering from hook failure', async () => {
+    const c = ctx(
+      {},
+      {
+        applyLive: vi.fn(async () => {
+          throw new Error('apply boom');
+        }),
+        restoreSnapshot: vi.fn(async () => {
+          throw new Error('restore boom');
+        }),
+      },
+    );
+    const r = await runApplier(baseProposal, c);
+    expect(r.status).toBe('halted');
+    expect(r.code).toBe('APP_RESTORE_FAIL');
+    expect(r.hook).toBe('restoreSnapshot');
+    expect(r.error).toBe('restore boom');
   });
 
   it('auto-reverts on drift > 2× tolerance (APP_AUTOREVERT)', async () => {

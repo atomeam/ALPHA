@@ -20,7 +20,7 @@ Source repos:
 | `Aether/.env.example`                         | merged into root `.env.example`                                              |
 | `HomeBase-/server.js`                         | rewritten to TS in `apps/backend/src/server.ts`                              |
 | `HomeBase-/src/alpha/*`                       | `packages/alpha-core/src/*`                                                  |
-| `HomeBase-/src/alpha/*.test.ts`               | `apps/backend/tests/alpha/*.test.ts`                                         |
+| `HomeBase-/src/alpha/*.test.ts`               | `packages/alpha-core/tests/*.test.ts`                                        |
 | `HomeBase-/src/App.tsx`                       | `apps/frontend/src/home/`                                                    |
 | `HomeBase-/ALPHA.md` + `docs/`                | `docs/`                                                                      |
 | `HomeBase-/mini/`                             | **retired** (frontend stays clean)                                           |
@@ -42,8 +42,8 @@ Source repos:
 
 | Phase | Scope                                                                                                        | Status                    |
 | ----- | ------------------------------------------------------------------------------------------------------------ | ------------------------- |
-| 0     | Skeleton: workspace + tooling + CI + hooks. No app code.                                                     | **in progress (this PR)** |
-| 1     | Backend cutover: HomeBase `server.js` → `apps/backend/src/server.ts`; alpha modules → `packages/alpha-core`. | pending                   |
+| 0     | Skeleton: workspace + tooling + CI + hooks. No app code.                                                     | complete                  |
+| 1     | Backend cutover: HomeBase `server.js` → `apps/backend/src/server.ts`; alpha modules → `packages/alpha-core`. | **in progress (this PR)** |
 | 2     | Frontend cutover: HomeBase `App.tsx` → `apps/frontend/src/home/` on `:5173`.                                 | pending                   |
 | 3     | Aether merge: Nexus/MCP/Neural-Bridge → `apps/backend`; `App.tsx` → `apps/frontend/src/operator/`.           | pending                   |
 | 4     | Trust kernel: `packages/permissions` + Grant management UI.                                                  | pending                   |

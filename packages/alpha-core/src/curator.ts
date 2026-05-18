@@ -3,13 +3,29 @@
 // Pure functions: no side effects, no network.
 
 import { ALPHA_CONFIG } from './config';
-import type { CuratorDecision, Lesson, NeighborhoodState, Proposal } from './types';
+import type { CuratorDecision, Lesson, NeighborhoodState, Proposal, RiskClass } from './types';
 
 export interface CuratorContext {
   lessons: Lesson[];
   neighborhood: NeighborhoodState;
   amplitudeMetricsAvailable: Set<string>;
   now: Date;
+}
+
+const riskRank: Record<RiskClass, number> = {
+  low: 0,
+  medium: 1,
+  high: 2,
+};
+
+function parseIsoMs(value: string): number | undefined {
+  const timestamp = Date.parse(value);
+  return Number.isFinite(timestamp) ? timestamp : undefined;
+}
+
+function riskRequiresOperator(risk: RiskClass): boolean {
+  const threshold = ALPHA_CONFIG.curator.requireOperatorForRiskAtOrAbove;
+  return riskRank[risk] >= riskRank[threshold];
 }
 
 export function evaluateProposal(proposal: Proposal, ctx: CuratorContext): CuratorDecision {
@@ -40,15 +56,18 @@ export function evaluateProposal(proposal: Proposal, ctx: CuratorContext): Curat
     return { approved: false, code: 'CUR_UNMEASURABLE' };
   }
 
-  // 5. risk gate — anything above "low" needs Operator co-sign.
-  // Applier still gates unattended "high" execution (loop SLA).
-  if (proposal.risk_class !== 'low' && !proposal.operator_cosign) {
+  // 5. risk gate
+  if (riskRequiresOperator(proposal.risk_class) && !proposal.operator_cosign) {
     return { approved: false, code: 'CUR_NEEDS_OPERATOR' };
   }
 
   // Cooldown check (hardening rule 2)
   if (ctx.neighborhood.last_apply_at) {
-    const last = new Date(ctx.neighborhood.last_apply_at).getTime();
+    const last = parseIsoMs(ctx.neighborhood.last_apply_at);
+    if (last === undefined) {
+      return { approved: false, code: 'CUR_COOLDOWN', message: 'Invalid cooldown timestamp.' };
+    }
+
     const cooldownMs = ctx.neighborhood.current_cooldown_hours * 60 * 60 * 1000;
     if (ctx.now.getTime() - last < cooldownMs) {
       const until = new Date(last + cooldownMs).toISOString();
@@ -57,24 +76,26 @@ export function evaluateProposal(proposal: Proposal, ctx: CuratorContext): Curat
   }
 
   // Quarantine check (hardening rule 6)
-  if (
-    ctx.neighborhood.quarantined_until &&
-    new Date(ctx.neighborhood.quarantined_until) > ctx.now
-  ) {
-    return {
-      approved: false,
-      code: 'CUR_COOLDOWN',
-      cooldown_until: ctx.neighborhood.quarantined_until,
-      message: 'Neighborhood is quarantined.',
-    };
+  if (ctx.neighborhood.quarantined_until) {
+    const quarantinedUntil = parseIsoMs(ctx.neighborhood.quarantined_until);
+    if (quarantinedUntil === undefined) {
+      return { approved: false, code: 'CUR_COOLDOWN', message: 'Invalid quarantine timestamp.' };
+    }
+
+    if (quarantinedUntil > ctx.now.getTime()) {
+      return {
+        approved: false,
+        code: 'CUR_COOLDOWN',
+        cooldown_until: ctx.neighborhood.quarantined_until,
+        message: 'Neighborhood is quarantined.',
+      };
+    }
   }
 
   // Idempotency check (hardening rule 8)
   if (!proposal.idempotent && !proposal.idempotency_guard) {
     return { approved: false, code: 'CUR_NOT_IDEMPOTENT' };
   }
-
-  void ALPHA_CONFIG;
 
   return { approved: true };
 }

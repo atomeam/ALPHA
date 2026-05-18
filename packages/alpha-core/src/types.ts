@@ -54,8 +54,20 @@ export type HaltCode =
   | 'APP_CANARY_FAIL'
   | 'APP_AUTOREVERT'
   | 'APP_QUARANTINE'
-  | 'APPLY_HALT_DIFF_DRIFT'
-  | 'APPLY_HALT_SNAPSHOT_FAIL';
+  | 'APP_DIFF_DRIFT'
+  | 'APP_SNAPSHOT_FAIL'
+  | 'APP_SHADOW_FAIL'
+  | 'APP_DRY_RUN_FAIL'
+  | 'APP_MEASURE_FAIL'
+  | 'APP_RESTORE_FAIL';
+
+export type ApplierHookName =
+  | 'snapshot'
+  | 'dryRun'
+  | 'applyLive'
+  | 'applyShadow'
+  | 'restoreSnapshot'
+  | 'measureActual';
 
 export interface CuratorDecision {
   approved: boolean;
@@ -70,6 +82,8 @@ export interface ApplierResult {
   snapshot_id?: string;
   delta_observed?: number;
   message?: string;
+  hook?: ApplierHookName;
+  error?: string;
 }
 
 export interface Lesson {

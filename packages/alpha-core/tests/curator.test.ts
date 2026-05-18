@@ -124,6 +124,23 @@ describe('evaluateProposal', () => {
     expect(d.cooldown_until).toBeDefined();
   });
 
+  it('denies invalid cooldown timestamps fail-closed', () => {
+    const d = evaluateProposal(
+      baseProposal,
+      baseCtx({
+        neighborhood: {
+          inputs_hash: 'hash-a',
+          last_apply_at: 'not-a-date',
+          current_cooldown_hours: 6,
+          consecutive_halts_24h: 0,
+          seen_before: true,
+        },
+      }),
+    );
+    expect(d.code).toBe('CUR_COOLDOWN');
+    expect(d.message).toBe('Invalid cooldown timestamp.');
+  });
+
   it('denies during active quarantine (CUR_COOLDOWN)', () => {
     const d = evaluateProposal(
       baseProposal,
@@ -138,6 +155,23 @@ describe('evaluateProposal', () => {
       }),
     );
     expect(d.code).toBe('CUR_COOLDOWN');
+  });
+
+  it('denies invalid quarantine timestamps fail-closed', () => {
+    const d = evaluateProposal(
+      baseProposal,
+      baseCtx({
+        neighborhood: {
+          inputs_hash: 'hash-a',
+          current_cooldown_hours: 24,
+          consecutive_halts_24h: 3,
+          quarantined_until: 'not-a-date',
+          seen_before: true,
+        },
+      }),
+    );
+    expect(d.code).toBe('CUR_COOLDOWN');
+    expect(d.message).toBe('Invalid quarantine timestamp.');
   });
 
   it('denies non-idempotent without guard (CUR_NOT_IDEMPOTENT)', () => {
