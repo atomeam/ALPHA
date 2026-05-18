@@ -1,20 +1,21 @@
 {
   "name": "@alpha/logger",
-  "version": "0.1.0",
+  "version": "0.0.0",
   "private": true,
   "type": "module",
-  "main": "./dist/index.js",
-  "types": "./dist/index.d.ts",
+  "description": "Structured event logger for the Alpha ecosystem.",
   "exports": {
     ".": {
-      "types": "./dist/index.d.ts",
-      "import": "./dist/index.js"
+      "types": "./src/index.ts",
+      "default": "./src/index.ts"
     }
   },
   "scripts": {
-    "build": "tsc -p tsconfig.build.json",
-    "lint": "eslint src",
-    "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "echo 'logger: no tests yet'"
+    "lint": "eslint src/",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@alpha/tsconfig": "workspace:*",
+    "typescript": "~5.8.2"
   }
 }

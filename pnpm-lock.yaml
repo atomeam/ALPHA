@@ -41,37 +41,40 @@ importers:
 
   apps/backend:
     dependencies:
-      '@alpha/alpha-core':
+      '@alpha/core':
         specifier: workspace:*
         version: link:../../packages/alpha-core
       '@alpha/logger':
         specifier: workspace:*
         version: link:../../packages/logger
-      '@alpha/mcp-core':
-        specifier: workspace:*
-        version: link:../../packages/mcp-core
       '@alpha/nexus-core':
         specifier: workspace:*
         version: link:../../packages/nexus-core
-      '@alpha/permissions':
-        specifier: workspace:*
-        version: link:../../packages/permissions
       '@google/genai':
         specifier: ^1.29.0
         version: 1.52.0
-      dotenv:
-        specifier: ^17.2.3
-        version: 17.4.2
       express:
         specifier: ^4.21.2
         version: 4.22.2
     devDependencies:
+      '@alpha/tsconfig':
+        specifier: workspace:*
+        version: link:../../packages/tsconfig
       '@types/express':
         specifier: ^4.17.21
         version: 4.17.25
+      '@types/node':
+        specifier: ^22.14.0
+        version: 22.19.19
       tsx:
         specifier: ^4.21.0
         version: 4.22.1
+      typescript:
+        specifier: ~5.8.2
+        version: 5.8.3
+      vitest:
+        specifier: ^2.1.9
+        version: 2.1.9(@types/node@22.19.19)
 
   apps/bridge: {}
 
@@ -101,17 +104,32 @@ importers:
 
   packages/alpha-core:
     devDependencies:
+      '@alpha/tsconfig':
+        specifier: workspace:*
+        version: link:../tsconfig
+      typescript:
+        specifier: ~5.8.2
+        version: 5.8.3
       vitest:
         specifier: ^2.1.9
         version: 2.1.9(@types/node@22.19.19)
 
-  packages/logger: {}
+  packages/logger:
+    devDependencies:
+      '@alpha/tsconfig':
+        specifier: workspace:*
+        version: link:../tsconfig
+      typescript:
+        specifier: ~5.8.2
+        version: 5.8.3
 
   packages/mcp-core: {}
 
   packages/nexus-core: {}
 
   packages/permissions: {}
+
+  packages/tsconfig: {}
 
 packages:
 
@@ -1293,10 +1311,6 @@ packages:
   destroy@1.2.0:
     resolution: {integrity: sha512-2sJGJTaXIIaR1w4iJSNoN0hnMY7Gpc/n8D4qSCJw8QqFWXf7cuAgnEHxBpweaVcPevC2l3KpjYCx3NypQQgaJg==}
     engines: {node: '>= 0.8', npm: 1.2.8000 || >= 1.4.16}
-
-  dotenv@17.4.2:
-    resolution: {integrity: sha512-nI4U3TottKAcAD9LLud4Cb7b2QztQMUEfHbvhTH09bqXTxnSie8WnjPALV/WMCrJZ6UV/qHJ6L03OqO3LcdYZw==}
-    engines: {node: '>=12'}
 
   dunder-proto@1.0.1:
     resolution: {integrity: sha512-KIN/nDJBQRcXw0MLVhZE9iQHmG68qAVIBg9CqmUYjmQIhgij9U5MFvrqkUL5FbtyyzZuOeOt0zdeRe4UY7ct+A==}
@@ -3247,8 +3261,6 @@ snapshots:
   depd@2.0.0: {}
 
   destroy@1.2.0: {}
-
-  dotenv@17.4.2: {}
 
   dunder-proto@1.0.1:
     dependencies:

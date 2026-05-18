@@ -1,0 +1,11 @@
+{
+  "name": "@alpha/tsconfig",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Shared TypeScript configuration bases for the Alpha monorepo.",
+  "files": [
+    "base.json",
+    "node.json",
+    "react.json"
+  ]
+}
