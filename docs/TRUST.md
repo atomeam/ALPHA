@@ -45,13 +45,21 @@ Frontend ──POST /api/integrations/<provider>/<action>──▶ Backend
                                   alpha-core.curator         logger.event('grant-denied')
                                             │                           │
                                             ▼                           ▼
-                              integrations/<provider>.<action>     400 no_grant
+                              integrations/<provider>.<action>     deny status
                                             │
                                             ▼
-                                  logger.event('integration-call', …)
+                                  logger.event('grant-denied', …)
 ```
 
-Default-deny. Missing or expired Grant ⇒ 4xx, never silent. Every Grant check writes a logger event.
+Default-deny returns one of these deterministic deny responses and always emits `logger.event('grant-denied', { status, integration_id, scope, audit_id })`:
+
+| Condition                  | HTTP | `status`        |
+| -------------------------- | ---- | --------------- |
+| No matching Grant exists   | 401  | `missing_grant` |
+| Matching Grant is expired  | 401  | `expired_grant` |
+| Matching Grant was revoked | 403  | `revoked_grant` |
+
+Successful Grant checks continue to the provider action and emit `logger.event('integration-call', …)`.
 
 ## Scopes (initial draft)
 
@@ -72,4 +80,4 @@ These move to `packages/permissions/src/scope.ts` constants once approved.
 
 ## Storage
 
-Grants persist locally under `~/.alpha/grants.db` (sqlite or JSON store). They are **never synced to cloud** without a Grant whose own scope is `alpha:grants:sync`.
+Grants persist locally under `~/.alpha/grants.db` (sqlite or JSON store). The store must be owner-read/write only (for example, `0600`) and use filesystem-level or OS-provided encryption at rest where available. Deployment checklists must document these host controls. Grants are **never synced to cloud** without a Grant whose own scope is `alpha:grants:sync`.
