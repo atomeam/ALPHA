@@ -6,11 +6,12 @@
  */
 
 import { fileURLToPath } from 'url';
+import path from 'path';
 import { IntegrationManager, RouteRequest, RouteResponse } from './integration_manager';
 import { VictusBridge, VictusCommand, VictusResponse } from './victus_bridge';
 
 const __filename = fileURLToPath(import.meta.url);
-const __dirname = require('path').dirname(__filename);
+const __dirname = path.dirname(__filename);
 
 // Types for Orchestrator
 export type StepType = 'api' | 'local' | 'conditional';
