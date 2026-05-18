@@ -7,6 +7,8 @@ const __dirname = fileURLToPath(new URL('.', import.meta.url));
 
 // Config
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
+const HB_AI_MODEL = process.env.HB_AI_MODEL || 'gpt-oss:20b';
+const OLLAMA_URL = process.env.OLLAMA_URL || 'http://localhost:11434';
 const LOG_FILE = join(__dirname, '../../homebase-logs.jsonl');
 
 // Prompts for each Alpha step
@@ -45,31 +47,52 @@ function log(entry) {
   }
 }
 
-// Call Gemini
-async function callGemini(prompt, context = {}) {
-  if (!GEMINI_API_KEY) {
-    return { provider: 'mock', output: 'No API key - mock response' };
-  }
-  
-  const url = `https://generativelanguage.googleapis.com/v1/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`;
-  
+// Call AI (try Ollama first, fallback to Gemini, then mock)
+async function callAI(prompt, context = {}) {
+  // Try Ollama first
   try {
-    const res = await fetch(url, {
+    const res = await fetch(`${OLLAMA_URL}/api/generate`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        contents: [{ parts: [{ text: prompt }] },
-        generationConfig: { temperature: 0.7, maxOutputTokens: 2048 }
+        model: HB_AI_MODEL,
+        prompt: prompt,
+        system: context.system || "You are an adaptive context engine.",
+        stream: false
       })
     });
-    const data = await res.json();
-    return { 
-      provider: 'gemini', 
-      output: data.candidates?.[0]?.content?.parts?.[0]?.text || 'No response'
-    };
+    if (res.ok) {
+      const data = await res.json();
+      return { provider: 'ollama', output: data.response, model: HB_AI_MODEL };
+    }
   } catch (e) {
-    return { provider: 'gemini', error: e.message };
+    console.log('[Alpha] Ollama not available, trying Gemini...');
   }
+  
+  // Try Gemini
+  if (GEMINI_API_KEY) {
+    try {
+      const url = `https://generativelanguage.googleapis.com/v1/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`;
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: prompt }] },
+          generationConfig: { temperature: 0.7, maxOutputTokens: 2048 }
+        })
+      });
+      const data = await res.json();
+      return { 
+        provider: 'gemini', 
+        output: data.candidates?.[0]?.content?.parts?.[0]?.text || 'No response'
+      };
+    } catch (e) {
+      return { provider: 'gemini', error: e.message };
+    }
+  }
+  
+  // Fallback to mock
+  return { provider: 'mock', output: 'No AI available - mock response' };
 }
 
 // Run a single step
@@ -80,7 +103,7 @@ async function runStep(step, input = null) {
   
   log({ step, status: 'running', message: `Running ${step}...`, input });
   
-  const result = await callGemini(prompt);
+  const result = await callAI(prompt);
   
   log({ step, status: 'success', message: `Completed ${step}`, output: result.output || result.error });
   
