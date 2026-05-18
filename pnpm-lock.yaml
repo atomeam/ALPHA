@@ -111,7 +111,11 @@ importers:
 
   packages/nexus-core: {}
 
-  packages/permissions: {}
+  packages/permissions:
+    devDependencies:
+      vitest:
+        specifier: ^2.1.9
+        version: 2.1.9(@types/node@22.19.19)
 
 packages:
 
