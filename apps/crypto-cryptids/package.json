@@ -1,0 +1,13 @@
+{
+  "name": "@alpha/crypto-cryptids",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "echo 'crypto-cryptids: Python sidecar only'",
+    "dev": "python -m game",
+    "lint": "echo 'crypto-cryptids: no JS lint target'",
+    "typecheck": "echo 'crypto-cryptids: no TS target'",
+    "test": "echo 'crypto-cryptids: no tests yet'"
+  }
+}

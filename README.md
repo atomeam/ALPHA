@@ -4,7 +4,7 @@ Consolidated AtoMind ecosystem. Backend on `:8080`, frontend on `:5173`, trust-f
 
 ## Status
 
-**Phase 0 — Skeleton.** Workspace structure and tooling only; no application code yet. See [docs/MIGRATION.md](docs/MIGRATION.md) for the phase roadmap.
+**Phase 1 — Connected cockpit.** The monorepo now contains a backend, frontend dashboard, trust kernel, Alpha core, MCP envelope, provider registry, and isolated source mirrors. See [docs/MIGRATION.md](docs/MIGRATION.md) for the remaining phase roadmap.
 
 ## Stack
 
@@ -43,7 +43,7 @@ docs/
 archive/              Pre-merge mirrors (read-only)
 ```
 
-All `apps/*`, `packages/*`, and `integrations/*` folders are placeholders this phase; they each ship a `.gitkeep` and will be filled in subsequent phases.
+`apps/backend` exposes `/api/health`, `/api/stack`, `/api/nexus/registry`, `/api/trust/check`, `/api/mcp/rpc`, and Gemini prompt endpoints. `apps/frontend` renders the connected stack cockpit. Bridge is represented as a gated sidecar until its worker runtime is migrated behind permissions; Crypto Cryptids source assets are isolated under its app folder so they do not run inside the Node stack.
 
 ## Setup
 
@@ -70,7 +70,7 @@ pnpm build           # Turbo build pipeline
 pnpm dev             # All `dev` scripts in parallel
 ```
 
-Turbo will skip any package that doesn't declare the corresponding script, so Phase 0 runs are no-ops by design — they only validate that the workspace bootstraps cleanly.
+Turbo runs each app and package script. The bridge and Crypto Cryptids packages remain isolated sidecars, so their Node scripts intentionally report no JS/TS targets.
 
 ## Trust rule
 
@@ -78,7 +78,7 @@ No background pollers, schedulers, scrapers, or `while`-loops in this repo. Ever
 
 1. Frontend pinging its own backend `/api/health` (no external data).
 2. Webhook receivers reacting to provider-initiated events.
-3. User-clicked "Refresh" / "Run Cycle" / "Sync Now" buttons.
+3. User-clicked "Refresh" / "Run Cycle" / "Sync Now" / "Queue Command" buttons.
 
 See [docs/TRUST.md](docs/TRUST.md).
 
