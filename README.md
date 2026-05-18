@@ -121,7 +121,23 @@ When the system recovers (health transitions from `ok: false` → `ok: true`), t
 1. System detects: `ok` flips false → true
 2. Looks up open incident by signature (same failed checks)
 3. Updates Status: "Open" → "Resolved"
-4. Appends: `Resolved at <timestamp>` to Detail
+4. Appends: `Resolved at <timestamp> (Duration: X min HomeBaseSHA=...)`
 5. Clears tracking so next failure creates a fresh incident
 
 This ensures you never have stale "Open" incidents after temporary blips.
+
+### Version Correlation
+
+Every incident now includes version information for deployment correlation:
+
+**On Open:**
+- `HomeBaseSHA`: Git SHA of HomeBase (from `GIT_SHA` env or `.git/HEAD`)
+- `BridgeVersion`: Version reported by Bridge (`bridge.version` or `bridge.gitSha`)
+- `BridgeURL`: The bridge endpoint being monitored
+
+Encoded in Detail: `HomeBaseSHA=<...> BridgeVersion=<...> BridgeURL=<...> | <failure detail>`
+
+**On Resolve:**
+- Appends: `Resolved at <timestamp> (Duration: X min HomeBaseSHA=<...>)`
+
+This enables correlating outages to specific deploys.

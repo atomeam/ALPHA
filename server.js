@@ -133,18 +133,22 @@ async function writeIncidentToNotion(incident) {
       return { written: false, reason: 'no-db' };
     }
     
+    // Build detail with version info inline
+    const versionInfo = `HomeBaseSHA=${incident.homebaseSha || 'unknown'} BridgeVersion=${incident.bridgeVersion || 'unknown'} BridgeURL=${incident.bridgeBaseUrl || 'n/a'}`;
+    const fullDetail = `${versionInfo} | ${incident.detail}`;
+    
     const page = await notion.pages.create({
       parent: { database_id: dbId },
       properties: {
         'Kind': { select: { name: 'Incident' } },
         'Timestamp': { rich_text: [{ text: { content: incident.timestamp } }] },
         'Status': { select: { name: incident.ok ? 'Resolved' : 'Open' } },
-        'Detail': { rich_text: [{ text: { content: incident.detail } }] },
+        'Detail': { rich_text: [{ text: { content: fullDetail } }] },
         'Source': { rich_text: [{ text: { content: 'HomeBase Telemetry' } }] },
       },
     });
     
-    console.log(`[incident] Written to Notion: ${incident.title}`);
+    console.log(`[incident] Written to Notion: ${incident.title} (HB:${incident.homebaseSha} BR:${incident.bridgeVersion})`);
     return { written: true, pageId: page.id };
   } catch (err) {
     console.error('[incident] Notion write failed:', err.message);
@@ -164,20 +168,33 @@ async function resolveIncidentInNotion(signature) {
     const notion = new Client({ apiKey: process.env.NOTION_API_KEY });
     
     const resolveTime = new Date().toISOString();
-    const detailUpdate = `Resolved at ${resolveTime}`;
+    
+    // Calculate duration
+    let duration = 'unknown';
+    try {
+      const opened = new Date(entry.openedAt).getTime();
+      const resolved = new Date(resolveTime).getTime();
+      const diffMs = resolved - opened;
+      const diffMins = Math.round(diffMs / 60000);
+      duration = diffMins < 1 ? '<1 min' : `${diffMins} min`;
+    } catch {
+      // ignore
+    }
+    
+    // Build version info for resolve
+    const resolveInfo = `Resolved at ${resolveTime} (Duration: ${duration} HomeBaseSHA=${GIT_SHA})`;
     
     await notion.pages.update({
       page_id: entry.pageId,
       properties: {
         'Status': { select: { name: 'Resolved' } },
-        // Append resolution time to Detail (if field exists)
-        'Detail': { rich_text: [{ text: { content: `${entry.detail || ''} | ${detailUpdate}` } }] },
+        'Detail': { rich_text: [{ text: { content: `${entry.detail || ''} | ${resolveInfo}` } }] },
       },
     });
     
-    console.log(`[incident] Resolved incident: ${entry.pageId}`);
+    console.log(`[incident] Resolved incident: ${entry.pageId} (${duration})`);
     openIncidents.delete(signature);
-    return { resolved: true };
+    return { resolved: true, duration };
   } catch (err) {
     console.error('[incident] Resolve failed:', err.message);
     return { resolved: false, error: err.message };
@@ -228,6 +245,9 @@ async function handleHealthTransition(bridgeData, flappingStatus) {
     .filter(([_, v]) => !v.ok)
     .map(([k, v]) => `${k}: ${v.detail} (${v.latencyMs}ms)`);
   
+  // Extract bridge version from response
+  const bridgeVersion = bridgeData.version || bridgeData.gitSha || 'unknown';
+  
   const incident = {
     timestamp: new Date().toISOString(),
     title: isFlapping ? 'WARNING: Connection Flapping' : 'CRITICAL: System Outage',
@@ -235,6 +255,8 @@ async function handleHealthTransition(bridgeData, flappingStatus) {
     ok: bridgeData.ok,
     source: 'bridge-health',
     bridgeBaseUrl: process.env.BRIDGE_BASE_URL,
+    homebaseSha: GIT_SHA,
+    bridgeVersion: bridgeVersion,
     telemetry: {
       isFlapping,
       historyLength: healthHistory.length,
