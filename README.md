@@ -185,3 +185,11 @@ GET /api/bridge/incidents/correlation?window=24h|7d|all
 - In-memory cache for 30s (invalidated on new incident)
 - Numeric `avgDurationMs` available for programmatic sorting
 - 7d shows superset of 24h
+
+**Export:**
+
+```bash
+GET /api/bridge/incidents/correlation/export?window=24h
+```
+
+Returns CSV file for postmortems.

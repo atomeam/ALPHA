@@ -734,6 +734,54 @@ app.get('/api/bridge/incidents/correlation', (req, res) => {
   });
 });
 
+// Export correlation as CSV
+app.get('/api/bridge/incidents/correlation/export', (req, res) => {
+  const window = req.query.window || '24h';
+  
+  // Read from JSONL + in-memory (bypass cache for fresh export)
+  const diskIncidents = readIncidentLog();
+  const memIncidents = allIncidents.map(inc => ({
+    homebaseSha: inc.homebaseSha,
+    bridgeVersion: inc.bridgeVersion,
+    status: inc.status,
+    openedAt: inc.openedAt,
+    resolvedAt: inc.resolvedAt,
+    isFlapping: false,
+    timestamp: inc.openedAt,
+  }));
+  
+  const all = [...diskIncidents];
+  for (const inc of memIncidents) {
+    const exists = all.some(a => a.openedAt === inc.openedAt && a.homebaseSha === inc.homebaseSha);
+    if (!exists) all.push(inc);
+  }
+  
+  const rows = buildCorrelation(all, window);
+  
+  // Build CSV
+  const header = 'homeBaseSha,bridgeSha,count,openCount,flappingCount,lastSeen,avgDuration,avgDurationMs';
+  const lines = [header];
+  for (const row of rows) {
+    lines.push([
+      row.homeBaseSha,
+      row.bridgeSha,
+      row.count,
+      row.openCount,
+      row.flappingCount || 0,
+      row.lastSeen || '',
+      row.avgDuration || 'N/A',
+      row.avgDurationMs || '',
+    ].join(','));
+  }
+  
+  const csv = lines.join('\n');
+  const generatedAt = new Date().toISOString();
+  
+  res.setHeader('Content-Type', 'text/csv');
+  res.setHeader('Content-Disposition', `attachment; filename="correlation-${window}-${generatedAt.slice(0,10)}.csv"`);
+  res.send(csv);
+});
+
 // Read homebase-logs.jsonl from Victus and return recent entries
 app.get('/api/logs', (_req, res) => {
   try {
