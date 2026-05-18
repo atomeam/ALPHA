@@ -86,7 +86,13 @@ For each `TrustRequest`, the kernel runs the same five-stage pipeline:
 
 1. **Validate** the request shape. Malformed requests are denied with `reason: "malformed_request"`.
 2. **Resolve subject** against the grants registry. Unknown subjects are denied with `reason: "unknown_subject"`.
-3. **Match grants** whose `(subject, action, resource)` triple covers the request. The first non-expired, non-revoked match wins.
+3. **Match grants** whose `(subject, action, resource)` triple covers the request. Expired and revoked grants are filtered out first, then the surviving candidates are evaluated in a fixed order so the result is deterministic:
+   1. **By specificity of the resource match:** `DirectGrant` (exact `resource`) → `ScopeGrant` (longest matching `resourcePrefix` first) → `DelegationGrant` (longest matching `resourcePrefix` first).
+   2. **By `issuedAt` descending** within the same specificity tier, so a newer grant overrides an older one of the same shape.
+   3. **By `id` ascending** as a final tie-breaker.
+
+   `EphemeralGrant`s are never matched here — they are verified directly against their `rootDecisionId` by the routing contract (see §5).
+
 4. **Evaluate conditions** declared on the matched grant. Any failed condition demotes the decision to deny.
 5. **Emit audit record** for every outcome, allow or deny, before returning.
 
