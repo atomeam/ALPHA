@@ -10,10 +10,11 @@ PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 ICON_SRC="$PROJECT_ROOT/assets/alpha-icon-256.png"
 ICON_SVG="$PROJECT_ROOT/assets/alpha-icon.svg"
 LAUNCH_SCRIPT="$PROJECT_ROOT/scripts/alpha-launch.sh"
-DESKTOP_FILE="$HOME/Desktop/alpha.desktop"
+DESKTOP_DIR="$(xdg-user-dir DESKTOP 2>/dev/null || echo "$HOME/Desktop")"
+DESKTOP_FILE="$DESKTOP_DIR/alpha.desktop"
 
 # Ensure Desktop directory exists
-mkdir -p "$HOME/Desktop"
+mkdir -p "$DESKTOP_DIR"
 
 # Pick best icon (prefer PNG, fall back to SVG)
 if [ -f "$ICON_SRC" ]; then
@@ -32,7 +33,7 @@ Version=1.0
 Type=Application
 Name=ALPHA
 Comment=Launch the ALPHA AtoMind ecosystem (backend :8080, frontend :5173)
-Exec=bash $LAUNCH_SCRIPT
+Exec=bash "$LAUNCH_SCRIPT"
 Icon=$ICON_PATH
 Terminal=false
 Categories=Development;

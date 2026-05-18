@@ -22,7 +22,7 @@ cd "$PROJECT_ROOT"
 # Ensure dependencies are installed
 if [ ! -d "node_modules" ]; then
   echo "[ALPHA] Installing dependencies..."
-  pnpm install 2>&1 || true
+  pnpm install
 fi
 
 # Launch dev servers
@@ -50,10 +50,15 @@ else
   pnpm dev &
 fi
 
-# Wait briefly then open the frontend in the default browser
-sleep 3
-if command -v xdg-open &>/dev/null; then
-  xdg-open "http://localhost:5173" 2>/dev/null || true
-elif command -v google-chrome &>/dev/null; then
-  google-chrome "http://localhost:5173" 2>/dev/null || true
-fi
+# Poll until the frontend is reachable (timeout after 30s)
+for i in $(seq 1 30); do
+  if curl -s -o /dev/null --max-time 1 http://localhost:5173 2>/dev/null; then
+    if command -v xdg-open &>/dev/null; then
+      xdg-open "http://localhost:5173" 2>/dev/null || true
+    elif command -v google-chrome &>/dev/null; then
+      google-chrome "http://localhost:5173" 2>/dev/null || true
+    fi
+    break
+  fi
+  sleep 1
+done
