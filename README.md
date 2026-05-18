@@ -78,7 +78,7 @@ No background pollers, schedulers, scrapers, or `while`-loops in this repo. Ever
 
 1. Frontend pinging its own backend `/api/health` (no external data).
 2. Webhook receivers reacting to provider-initiated events.
-3. User-clicked "Refresh" / "Run Cycle" / "Sync Now" buttons.
+3. User-clicked "Refresh" / "Run Cycle" / "Sync Now" / "Queue Command" buttons.
 
 See [docs/TRUST.md](docs/TRUST.md).
 
