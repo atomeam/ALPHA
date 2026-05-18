@@ -91,17 +91,25 @@ function getFlappingStatus() {
 // Incident tracking for Notion write-back
 let lastIncidentWritten = null; // timestamp of last incident
 let lastIncidentSignature = null; // deduplication signature
+let lastNotionPageId = null; // Page ID of last created incident
 
-function shouldWriteIncident(currentData, isFlapping) {
-  // Rate limit: at most 1 incident per unique failure signature per 30 minutes
-  const signature = JSON.stringify({
-    ok: currentData.ok,
+// Map of open incidents by signature (for recovery resolution)
+const openIncidents = new Map(); // signature -> { pageId, openedAt, title }
+
+function getSignature(data, isFlapping) {
+  return JSON.stringify({
+    ok: data.ok,
     isFlapping,
-    failedChecks: Object.entries(currentData.checks || {})
+    failedChecks: Object.entries(data.checks || {})
       .filter(([_, v]) => !v.ok)
       .map(([k]) => k)
       .sort(),
   });
+}
+
+function shouldWriteIncident(currentData, isFlapping) {
+  // Rate limit: at most 1 incident per unique failure signature per 30 minutes
+  const signature = getSignature(currentData, isFlapping);
   
   // If same signature, don't write again within 30 min
   if (signature === lastIncidentSignature && lastIncidentWritten) {
@@ -125,7 +133,7 @@ async function writeIncidentToNotion(incident) {
       return { written: false, reason: 'no-db' };
     }
     
-    await notion.pages.create({
+    const page = await notion.pages.create({
       parent: { database_id: dbId },
       properties: {
         'Kind': { select: { name: 'Incident' } },
@@ -137,15 +145,67 @@ async function writeIncidentToNotion(incident) {
     });
     
     console.log(`[incident] Written to Notion: ${incident.title}`);
-    return { written: true };
+    return { written: true, pageId: page.id };
   } catch (err) {
     console.error('[incident] Notion write failed:', err.message);
     return { written: false, error: err.message };
   }
 }
 
+async function resolveIncidentInNotion(signature) {
+  try {
+    const entry = openIncidents.get(signature);
+    if (!entry) {
+      console.log('[incident] No open incident to resolve for signature');
+      return { resolved: false, reason: 'not-found' };
+    }
+    
+    const { Client } = await import('@notionhq/client');
+    const notion = new Client({ apiKey: process.env.NOTION_API_KEY });
+    
+    const resolveTime = new Date().toISOString();
+    const detailUpdate = `Resolved at ${resolveTime}`;
+    
+    await notion.pages.update({
+      page_id: entry.pageId,
+      properties: {
+        'Status': { select: { name: 'Resolved' } },
+        // Append resolution time to Detail (if field exists)
+        'Detail': { rich_text: [{ text: { content: `${entry.detail || ''} | ${detailUpdate}` } }] },
+      },
+    });
+    
+    console.log(`[incident] Resolved incident: ${entry.pageId}`);
+    openIncidents.delete(signature);
+    return { resolved: true };
+  } catch (err) {
+    console.error('[incident] Resolve failed:', err.message);
+    return { resolved: false, error: err.message };
+  }
+}
+
 async function handleHealthTransition(bridgeData, flappingStatus) {
   const isFlapping = flappingStatus === 'flapping';
+  const signature = getSignature(bridgeData, isFlapping);
+  
+  // Recovery: ok flips false → true AND we have an open incident
+  const isRecovery = lastHealthOk === false && bridgeData.ok === true;
+  
+  if (isRecovery) {
+    // Try to resolve the matching incident
+    if (process.env.NOTION_INCIDENT_LOG_ENABLED === 'true') {
+      const result = await resolveIncidentInNotion(signature);
+      if (result.resolved) {
+        // Clear tracking
+        lastIncidentSignature = null;
+        lastIncidentWritten = null;
+        lastNotionPageId = null;
+      }
+    }
+    return;
+  }
+  
+  // New failure: ok flips true → false, or flapping starts
   const isTransitionToBad = lastHealthOk === true && bridgeData.ok === false;
   const isFlappingStart = !lastIncidentSignature && isFlapping;
   
@@ -157,7 +217,7 @@ async function handleHealthTransition(bridgeData, flappingStatus) {
     return;
   }
   
-  const { should, signature, reason } = shouldWriteIncident(bridgeData, isFlapping);
+  const { should, reason } = shouldWriteIncident(bridgeData, isFlapping);
   if (!should) {
     console.log(`[incident] Skipping: ${reason}`);
     return;
@@ -187,6 +247,15 @@ async function handleHealthTransition(bridgeData, flappingStatus) {
   if (result.written) {
     lastIncidentWritten = incident.timestamp;
     lastIncidentSignature = signature;
+    lastNotionPageId = result.pageId;
+    
+    // Track open incident for resolution
+    openIncidents.set(signature, {
+      pageId: result.pageId,
+      openedAt: incident.timestamp,
+      title: incident.title,
+      detail: incident.detail,
+    });
   }
 }
 

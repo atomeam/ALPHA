@@ -113,3 +113,15 @@ If using the Logs DB, ensure it has these properties:
 - **Status**: Select (e.g., "Open", "Resolved")
 - **Detail**: Rich Text
 - **Source**: Rich Text (e.g., "HomeBase Telemetry")
+
+### Automated Resolution
+
+When the system recovers (health transitions from `ok: false` → `ok: true`), the most recent incident is automatically resolved:
+
+1. System detects: `ok` flips false → true
+2. Looks up open incident by signature (same failed checks)
+3. Updates Status: "Open" → "Resolved"
+4. Appends: `Resolved at <timestamp>` to Detail
+5. Clears tracking so next failure creates a fresh incident
+
+This ensures you never have stale "Open" incidents after temporary blips.
