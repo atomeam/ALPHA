@@ -1,41 +1,21 @@
 {
-  "name": "react-example",
+  "name": "aether",
+  "version": "1.0.0",
   "private": true,
-  "version": "0.0.0",
-  "type": "module",
+  "workspaces": [
+    "apps/backend",
+    "apps/frontend",
+    "apps/bridge"
+  ],
   "scripts": {
-    "dev": "tsx server.ts",
-    "build": "vite build && esbuild server.ts --bundle --platform=node --format=cjs --packages=external --sourcemap --outfile=dist/server.cjs",
-    "start": "node dist/server.cjs",
-    "lint": "tsc --noEmit",
-    "test": "vitest run",
-    "test:watch": "vitest"
+    "dev": "npm run dev --workspaces --parallel",
+    "dev:backend": "npm run dev -w @aether/backend",
+    "dev:frontend": "npm run dev -w @aether/frontend",
+    "dev:bridge": "npm run dev -w @aether/bridge",
+    "build": "npm run build -w @aether/backend && npm run build -w @aether/frontend",
+    "start": "npm run start -w @aether/backend"
   },
-  "dependencies": {
-    "@google/genai": "^1.29.0",
-    "@tailwindcss/vite": "^4.1.14",
-    "@vitejs/plugin-react": "^5.0.4",
-    "clsx": "^2.1.1",
-    "dotenv": "^17.2.3",
-    "express": "^4.21.2",
-    "lucide-react": "^0.546.0",
-    "motion": "^12.23.24",
-    "react": "^19.0.1",
-    "react-dom": "^19.0.1",
-    "recharts": "^3.8.1",
-    "tailwind-merge": "^3.6.0",
-    "vite": "^6.2.3"
-  },
-  "devDependencies": {
-    "@types/express": "^4.17.21",
-    "@types/node": "^22.14.0",
-    "@vitest/coverage-v8": "^4.1.6",
-    "autoprefixer": "^10.4.21",
-    "esbuild": "^0.25.0",
-    "tailwindcss": "^4.1.14",
-    "tsx": "^4.21.0",
-    "typescript": "~5.8.2",
-    "vite": "^6.2.3",
-    "vitest": "^4.1.6"
+  "engines": {
+    "node": ">=18.0.0"
   }
 }

@@ -1,20 +1,25 @@
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
-</div>
+# Aether - ALPHA Stack Monorepo
 
-# Run and deploy your AI Studio app
+This is the ALPHA Stack monorepo with npm workspaces.
 
-This contains everything you need to run your app locally.
+## Quick Start
 
-View your app in AI Studio: https://ai.studio/apps/2f08be05-c588-41ac-9ca8-1b42aded3c26
+```powershell
+# Windows PowerShell
+# Navigate to your project folder first:
+cd C:\Path\To\Aether
 
-## Run Locally
+# Then run:
+npm run dev
+```
 
-**Prerequisites:**  Node.js
+## Project Structure
 
-
-1. Install dependencies:
-   `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
-   `npm run dev`
+```
+aether/
+├── apps/
+│   ├── backend/    # @aether/backend (port 3000)
+│   ├── frontend/   # @aether/frontend (port 5173)
+│   └── bridge/    # @aether/bridge
+├── package.json   # Root with workspaces config
+```
