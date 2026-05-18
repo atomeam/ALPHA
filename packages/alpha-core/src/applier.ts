@@ -42,6 +42,11 @@ export async function runApplier(proposal: Proposal, ctx: ApplierContext): Promi
   }
 
   const targets = proposal.files_or_pages_touched.slice();
+
+  if (!targets.length) {
+    return halt('APP_BLAST_CAP', 'Proposal has no target to apply.');
+  }
+
   const isMultiTarget = targets.length > 1;
   const canaryTargets = isMultiTarget ? targets.slice(0, 1) : targets;
   const remainderTargets = isMultiTarget ? targets.slice(1) : [];

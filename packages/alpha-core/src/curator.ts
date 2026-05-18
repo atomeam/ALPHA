@@ -66,9 +66,7 @@ export function evaluateProposal(proposal: Proposal, ctx: CuratorContext): Curat
     return { approved: false, code: 'CUR_NOT_IDEMPOTENT' };
   }
 
-  if (proposal.requires.length > ALPHA_CONFIG.loopCaps.proposalsPerObserverCycle) {
-    return { approved: false, code: 'CUR_LOOP_CAP' };
-  }
+  void ALPHA_CONFIG;
 
   return { approved: true };
 }

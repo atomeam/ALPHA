@@ -69,5 +69,5 @@ End with one of: UPHOLD | RELAX | OVERRIDE_REQUIRES_OPERATOR.`,
 export type PromptName = keyof typeof PROMPTS;
 
 export function isPromptName(name: string): name is PromptName {
-  return name in PROMPTS;
+  return Object.prototype.hasOwnProperty.call(PROMPTS, name);
 }

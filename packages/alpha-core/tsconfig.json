@@ -1,17 +1,8 @@
 {
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
-    "allowImportingTsExtensions": false,
-    "allowJs": false,
-    "declaration": true,
-    "declarationMap": true,
-    "emitDeclarationOnly": false,
-    "moduleResolution": "Bundler",
-    "noEmit": false,
-    "outDir": "dist",
-    "rootDir": "src",
-    "types": ["node"]
+    "rootDir": ".",
+    "types": ["node", "vitest/globals"]
   },
-  "include": ["src/**/*.ts"],
-  "exclude": ["src/**/*.test.ts", "dist", "node_modules"]
+  "include": ["src", "tests"]
 }
