@@ -14,6 +14,7 @@ app.use(cors());
 app.use(express.json());
 
 // Key validation at startup
+const FAIL_FAST = process.env.FAIL_FAST === '1';
 const KEYS = {
   GEMINI: process.env.GEMINI_API_KEY,
   NOTION: process.env.NOTION_API_KEY
@@ -22,10 +23,19 @@ const KEYS = {
 const KEY_STATUS = {
   GEMINI: KEYS.GEMINI ? 'loaded' : 'missing',
   NOTION: KEYS.NOTION ? 'loaded' : 'missing',
+  FAIL_FAST,
   checkedAt: new Date().toISOString()
 };
 
-console.log(`[Keys] GEMINI: ${KEY_STATUS.GEMINI}, NOTION: ${KEY_STATUS.NOTION}`);
+// Fail fast check
+if (FAIL_FAST && (!KEYS.GEMINI || !KEYS.NOTION)) {
+  const missing = [];
+  if (!KEYS.GEMINI) missing.push('GEMINI_API_KEY');
+  if (!KEYS.NOTION) missing.push('NOTION_API_KEY');
+  throw new Error(`❌ FATAL: Missing required keys: ${missing.join(', ')}`);
+}
+
+console.log(FAIL_FAST ? "[Keys] FAIL_FAST mode - keys required" : `[Keys] GEMINI: ${KEY_STATUS.GEMINI}, NOTION: ${KEY_STATUS.NOTION}`);
 
 // Endpoint: Check key status
 app.get('/api/keys', (req, res) => {
