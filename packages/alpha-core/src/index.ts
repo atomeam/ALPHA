@@ -1,5 +1,21 @@
-// Alpha v0 — public entry point.
-export * from './types';
-export * from './config';
-export { evaluateProposal } from './curator';
-export { runApplier, nextNeighborhoodState } from './applier';
+export { ALPHA_CONFIG, type AlphaConfig } from './config';
+export { evaluateProposal, type CuratorContext } from './curator';
+export {
+  nextNeighborhoodState,
+  runApplier,
+  type ApplierContext,
+  type ApplierHooks,
+} from './applier';
+export type {
+  ApplierResult,
+  Citation,
+  CuratorDecision,
+  DenialCode,
+  HaltCode,
+  Lesson,
+  NeighborhoodState,
+  Proposal,
+  ProposalClassification,
+  ProposalRequires,
+  RiskClass,
+} from './types';

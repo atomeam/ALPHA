@@ -1,12 +1,8 @@
-// Alpha v0 — Applier with the 9 stability-resilience hardening rules.
-// Pure orchestration: takes a Proposal + ctx, returns an ApplierResult.
-// Real side effects (file writes, Notion writes) come from the injected hooks.
-
 import { ALPHA_CONFIG } from './config';
 import type { ApplierResult, HaltCode, NeighborhoodState, Proposal } from './types';
 
 export interface ApplierHooks {
-  snapshot: (targets: string[]) => Promise<string>; // returns snapshot id
+  snapshot: (targets: string[]) => Promise<string>;
   dryRun: (proposal: Proposal) => Promise<{ predictedDelta: number }>;
   applyLive: (proposal: Proposal, targets: string[]) => Promise<void>;
   applyShadow: (proposal: Proposal) => Promise<void>;
@@ -23,7 +19,7 @@ export interface ApplierContext {
 function blastWithinCap(proposal: Proposal): boolean {
   const cap = ALPHA_CONFIG.blastRadius;
   const targets = proposal.files_or_pages_touched;
-  // Conservative: treat the union as ≤ max of any category.
+
   return targets.length <= cap.maxFiles && targets.length <= cap.maxNotionPages;
 }
 
@@ -32,50 +28,46 @@ function halt(code: HaltCode, message: string): ApplierResult {
 }
 
 export async function runApplier(proposal: Proposal, ctx: ApplierContext): Promise<ApplierResult> {
-  // Rule 1 — blast-radius cap
   if (!blastWithinCap(proposal)) {
     return halt('APP_BLAST_CAP', 'Proposal exceeded blast-radius cap.');
   }
 
-  // Rule 9 — shadow apply for new neighborhoods
   if (!ctx.neighborhood.seen_before) {
     await ctx.hooks.applyShadow(proposal);
+
     return {
       status: 'shadowed',
       message: 'First sighting of inputs_hash neighborhood; shadow only.',
     };
   }
 
-  // Rule 3 — canary first when touching > 1 target
   const targets = proposal.files_or_pages_touched.slice();
+
   if (!targets.length) {
     return halt('APP_BLAST_CAP', 'Proposal has no target to apply.');
   }
 
-  const isMulti = targets.length > 1;
-  const canary = isMulti ? targets.slice(0, 1) : targets;
-  const remainder = isMulti ? targets.slice(1) : [];
-
+  const isMultiTarget = targets.length > 1;
+  const canaryTargets = isMultiTarget ? targets.slice(0, 1) : targets;
+  const remainderTargets = isMultiTarget ? targets.slice(1) : [];
   const snapshotId = await ctx.hooks.snapshot(targets);
   const { predictedDelta } = await ctx.hooks.dryRun(proposal);
 
-  // Apply canary live
   try {
-    await ctx.hooks.applyLive(proposal, canary);
-  } catch (err) {
+    await ctx.hooks.applyLive(proposal, canaryTargets);
+  } catch (error) {
     await ctx.hooks.restoreSnapshot(snapshotId);
-    return halt('APP_CANARY_FAIL', `Canary apply failed: ${(err as Error).message}`);
+
+    return halt('APP_CANARY_FAIL', `Canary apply failed: ${errorMessage(error)}`);
   }
 
-  // Measure delta after canary
   const actual = await ctx.hooks.measureActual(proposal);
-  const tolerance = proposal.expected_effect.tolerance;
-  const driftLimit = tolerance * ALPHA_CONFIG.autoRevert.triggerMultiplier;
+  const driftLimit = proposal.expected_effect.tolerance * ALPHA_CONFIG.autoRevert.triggerMultiplier;
   const drift = Math.abs(actual - predictedDelta);
 
-  // Rule 4 — auto-revert circuit breaker
   if (drift > driftLimit) {
     await ctx.hooks.restoreSnapshot(snapshotId);
+
     return {
       status: 'reverted',
       code: 'APP_AUTOREVERT',
@@ -85,14 +77,13 @@ export async function runApplier(proposal: Proposal, ctx: ApplierContext): Promi
     };
   }
 
-  // Defer the rest by `waitCycles` — caller is responsible for scheduling.
-  if (remainder.length) {
+  if (remainderTargets.length) {
     return {
       status: 'applied',
       snapshot_id: snapshotId,
       delta_observed: actual,
       message:
-        `Canary applied to ${canary.join(', ')}; ${remainder.length} target(s) deferred by ` +
+        `Canary applied to ${canaryTargets[0]}; ${remainderTargets.length} target(s) deferred by ` +
         `${ALPHA_CONFIG.canary.waitCycles} cycle(s).`,
     };
   }
@@ -104,8 +95,6 @@ export async function runApplier(proposal: Proposal, ctx: ApplierContext): Promi
   };
 }
 
-// Rules 5 & 6 — halt-backoff + quarantine. Caller updates NeighborhoodState
-// after each Applier run using this helper.
 export function nextNeighborhoodState(
   prev: NeighborhoodState,
   result: ApplierResult,
@@ -120,10 +109,9 @@ export function nextNeighborhoodState(
       ALPHA_CONFIG.cooldown.baseHours;
 
     if (next.consecutive_halts_24h >= ALPHA_CONFIG.cooldown.quarantineThresholdHalts24h) {
-      const until = new Date(
+      next.quarantined_until = new Date(
         now.getTime() + ALPHA_CONFIG.cooldown.quarantineDays * 24 * 60 * 60 * 1000,
-      );
-      next.quarantined_until = until.toISOString();
+      ).toISOString();
     }
   } else if (result.status === 'applied') {
     next.last_apply_at = now.toISOString();
@@ -132,4 +120,8 @@ export function nextNeighborhoodState(
   }
 
   return next;
+}
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
 }

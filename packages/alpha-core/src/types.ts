@@ -1,6 +1,3 @@
-// Alpha v0 — canonical Proposal contract.
-// Mirrors the schema documented in ALPHA.md.
-
 export type RiskClass = 'low' | 'medium' | 'high';
 
 export type ProposalClassification = 'config-change' | 'lesson' | 'runbook-prune';
@@ -20,10 +17,10 @@ export interface Proposal {
   change_summary: string;
   files_or_pages_touched: string[];
   expected_effect: {
-    metric: string; // must exist in Amplitude v1
+    metric: string;
     direction: 'increase' | 'decrease' | 'hold';
-    magnitude: number; // expected delta
-    tolerance: number; // ± window before auto-revert triggers (rule 4)
+    magnitude: number;
+    tolerance: number;
   };
   rollback_steps: string[];
   risk_class: RiskClass;
@@ -31,10 +28,10 @@ export interface Proposal {
   citations: Citation[];
   classification: ProposalClassification;
   idempotent: boolean;
-  idempotency_guard?: string; // required when idempotent === false
+  idempotency_guard?: string;
   operator_cosign?: {
     user: string;
-    at: string; // ISO timestamp
+    at: string;
   };
 }
 
@@ -61,7 +58,7 @@ export interface CuratorDecision {
   approved: boolean;
   code?: DenialCode;
   message?: string;
-  cooldown_until?: string; // ISO timestamp
+  cooldown_until?: string;
 }
 
 export interface ApplierResult {
@@ -73,8 +70,8 @@ export interface ApplierResult {
 }
 
 export interface Lesson {
-  id: string; // L-001, L-002, ...
-  signature: string; // inputs_hash
+  id: string;
+  signature: string;
   outcome: 'success' | 'partial' | 'failure';
   delta_predicted: number;
   delta_actual: number;
@@ -89,5 +86,5 @@ export interface NeighborhoodState {
   current_cooldown_hours: number;
   consecutive_halts_24h: number;
   quarantined_until?: string;
-  seen_before: boolean; // false → shadow apply required
+  seen_before: boolean;
 }
