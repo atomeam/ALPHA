@@ -444,6 +444,118 @@ End with one of: UPHOLD | RELAX | OVERRIDE_REQUIRES_OPERATOR.`,
 const app = express();
 app.use(express.json({ limit: '1mb' }));
 
+// ════════════════════════════════════════════════════════════════════
+// LOXA ROUTING LAYER (v0) ───────────────────────────────────────────────
+// ════════════════════════════════════════════════════════════════════
+
+// Telemetry route patterns
+const TELEMETRY_PATTERNS = [
+  'health', 'incident', 'correlation', 'export', 'bridge', 'notion', 'ollama'
+];
+
+// Lore route patterns  
+const LORE_PATTERNS = [
+  'lore', 'memory', 'profile', 'identity', 'kb', 'knowledge', 'curator'
+];
+
+// Kraken (execute) route patterns - HIGH RISK
+const KRAKEN_PATTERNS = [
+  'run', 'execute', 'apply', 'mutate', 'deploy', 'powershell', 'write', 
+  'delete', 'create file', 'install', 'remove file', 'shell'
+];
+
+// Generate traceId
+function generateTraceId() {
+  return `trace_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
+}
+
+// Route classifier (deterministic, no LLM)
+function classifyRequest(body, query) {
+  const text = JSON.stringify(body || {}).toLowerCase() + 
+             JSON.stringify(query || {}).toLowerCase();
+  
+  // Check telemetry
+  for (const p of TELEMETRY_PATTERNS) {
+    if (text.includes(p)) return 'telemetry';
+  }
+  
+  // Check lore  
+  for (const p of LORE_PATTERNS) {
+    if (text.includes(p)) return 'lore';
+  }
+  
+  // Check kraken (execute) - dangerous
+  for (const p of KRAKEN_PATTERNS) {
+    if (text.includes(p)) return 'kraken';
+  }
+  
+  return 'unknown';
+}
+
+// Route decision with guardrails
+function decideRoute(route, body, query) {
+  const ALLOWED_ROUTES = ['telemetry', 'lore']; // kraken is DENIED by default
+  const isAllowed = ALLOWED_ROUTES.includes(route);
+  
+  let decision = 'deny';
+  let reason = 'default-deny';
+  let next = null;
+  
+  if (route === 'telemetry') {
+    decision = 'allow';
+    reason = 'telemetry routes are safe';
+    next = { endpoint: '/api/bridge/incidents/correlation', method: 'GET' };
+  } else if (route === 'lore') {
+    decision = 'allow';
+    reason = 'lore routes are safe';
+    next = { endpoint: '/api/lore/*', method: 'POST' };
+  } else if (route === 'kraken') {
+    decision = 'deny';
+    reason = 'kraken routes are locked - requires human approval';
+  } else if (route === 'unknown') {
+    decision = 'needs_human';
+    reason = 'unrecognized request - human review required';
+  }
+  
+  return { decision, reason, next };
+}
+
+// POST /api/route - Loxa routing entrypoint
+app.post('/api/route', (req, res) => {
+  const traceId = generateTraceId();
+  const { body, query } = req;
+  
+  // Classify request
+  const route = classifyRequest(body, query);
+  
+  // Decide with guardrails
+  const { decision, reason, next } = decideRoute(route, body, query);
+  
+  // Build response
+  const response = {
+    traceId,
+    route,
+    confidence: route === 'unknown' ? 0.0 : 1.0,
+    decision,
+    reason,
+    next,
+    timestamp: new Date().toISOString(),
+    homeBaseSha: GIT_SHA,
+  };
+  
+  // Emit routing event (for telemetry)
+  const eventType = decision === 'allow' ? 'route_allowed' 
+               : decision === 'deny' ? 'route_denied' 
+               : 'route_needs_human';
+               
+  console.log(`[loxa] ${eventType}: traceId=${traceId} route=${route} decision=${decision}`);
+  
+  // Always return decision (no silent fails)
+  res.json(response);
+});
+
+// ════════════════════════════════════════════════════════════════════════════
+
 app.get('/api/health', (_req, res) => {
   res.json({
     status: 'ok',
