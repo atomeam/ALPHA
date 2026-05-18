@@ -38,3 +38,158 @@ npm run test:watch # watch mode
 ```
 
 Covers all Curator denial codes and all 9 Applier hardening rules.
+
+## Bridge Health Monitoring
+
+HomeBase polls the AtomArcade Bridge every 15 seconds to check:
+
+- **env** — required environment variables loaded
+- **notion** — Notion API connectivity (`/users/me`)
+- **ollama** — local Ollama runtime (`/api/tags`)
+- **gemini** — Gemini API key valid (if configured)
+
+### Health Telemetry
+
+The `/api/bridge/health` endpoint returns:
+
+```json
+{
+  "ok": true,
+  "checks": { "env": { "ok": true, ... }, ... },
+  "telemetry": {
+    "historyLength": 5,
+    "isFlapping": false,
+    "firstFailureTime": null,
+    "lastSuccessTime": "2026-05-18T12:00:00Z"
+  }
+}
+```
+
+- `isFlapping`: true if 3+ failures in last 10 checks.
+- `firstFailureTime`: timestamp of first consecutive failure.
+
+### Alert Banner
+
+A red alert banner appears when:
+- Overall status flips from `ok: true` to `ok: false`
+- Flapping is detected (3+ failures in 10 checks)
+
+### History Persistence
+
+Health snapshots are stored in-memory (ring buffer of 50) and optionally persisted to JSONL:
+
+```bash
+HOMEBASE_HEALTH_HISTORY_PATH=C:\AtomArcade\health-history.jsonl
+```
+
+## Incident Logging (Optional)
+
+When bridge health fails, HomeBase can write incidents to Notion.
+
+### Requirements
+
+1. Enable the feature:
+```bash
+NOTION_INCIDENT_LOG_ENABLED=true
+```
+
+2. Configure Notion:
+```bash
+NOTION_API_KEY=secret_...
+ATOMARCADE_NOTION_LOG_DB_ID=your-log-db-id
+```
+
+### How It Works
+
+- Triggers on: `ok` flips true→false, OR flapping starts (false→true)
+- Rate limited: 1 incident per unique failure signature per 30 minutes
+- No secrets written: API keys never appear in Notion
+
+### Notion Schema
+
+If using the Logs DB, ensure it has these properties:
+- **Kind**: Select (e.g., "Incident", "Log")
+- **Timestamp**: Title or Rich Text
+- **Status**: Select (e.g., "Open", "Resolved")
+- **Detail**: Rich Text
+- **Source**: Rich Text (e.g., "HomeBase Telemetry")
+
+### Automated Resolution
+
+When the system recovers (health transitions from `ok: false` → `ok: true`), the most recent incident is automatically resolved:
+
+1. System detects: `ok` flips false → true
+2. Looks up open incident by signature (same failed checks)
+3. Updates Status: "Open" → "Resolved"
+4. Appends: `Resolved at <timestamp> (Duration: X min HomeBaseSHA=...)`
+5. Clears tracking so next failure creates a fresh incident
+
+This ensures you never have stale "Open" incidents after temporary blips.
+
+### Version Correlation
+
+Every incident now includes version information for deployment correlation:
+
+**On Open:**
+- `HomeBaseSHA`: Git SHA of HomeBase (from `GIT_SHA` env or `.git/HEAD`)
+- `BridgeVersion`: Version reported by Bridge (`bridge.version` or `bridge.gitSha`)
+- `BridgeURL`: The bridge endpoint being monitored
+
+Encoded in Detail: `HomeBaseSHA=<...> BridgeVersion=<...> BridgeURL=<...> | <failure detail>`
+
+**On Resolve:**
+- Appends: `Resolved at <timestamp> (Duration: X min HomeBaseSHA=<...>)`
+
+This enables correlating outages to specific deploys.
+
+### Deploy Correlation View
+
+Group incidents by version pair to identify regressions. Data is persisted to JSONL and survives restarts.
+
+**Endpoint:**
+
+```bash
+GET /api/bridge/incidents/correlation?window=24h|7d|all
+```
+
+**Query Params:**
+
+| Param | Default | Description |
+|-------|---------|-------------|
+| `window` | `24h` | Time window: `24h`, `7d`, or `all` |
+
+**Response:**
+
+```json
+{
+  "rows": [
+    {
+      "homeBaseSha": "abc1234",
+      "bridgeSha": "def5678",
+      "count": 5,
+      "openCount": 1,
+      "flappingCount": 0,
+      "lastSeen": "2026-05-18T12:34:56Z",
+      "avgDuration": "3 min",
+      "avgDurationMs": 180000
+    }
+  ],
+  "window": "24h",
+  "generatedAt": "2026-05-18T12:34:56Z",
+  "source": "disk+memory"
+}
+```
+
+**Features:**
+- Persists to `C:\AtomArcade\incident-log.jsonl` (configurable via `INCIDENT_LOG_PATH`)
+- In-memory cache for 30s (invalidated on new incident)
+- Numeric `avgDurationMs` available for programmatic sorting
+- 7d shows superset of 24h
+
+**Export:**
+
+```bash
+GET /api/bridge/incidents/correlation/export?window=24h
+```
+
+Returns CSV file for postmortems.
