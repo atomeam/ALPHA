@@ -48,7 +48,7 @@ Frontend ──POST /api/integrations/<provider>/<action>──▶ Backend
                               integrations/<provider>.<action>     deny status
                                             │
                                             ▼
-                                  logger.event('grant-denied', …)
+                                  logger.event('integration-call', …)
 ```
 
 Default-deny returns one of these deterministic deny responses and always emits `logger.event('grant-denied', { status, integration_id, scope, audit_id })`:
