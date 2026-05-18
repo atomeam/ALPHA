@@ -144,13 +144,21 @@ This enables correlating outages to specific deploys.
 
 ### Deploy Correlation View
 
-Group incidents by version pair to identify regressions:
+Group incidents by version pair to identify regressions. Data is persisted to JSONL and survives restarts.
+
+**Endpoint:**
 
 ```bash
-GET /api/bridge/incidents/correlation
+GET /api/bridge/incidents/correlation?window=24h|7d|all
 ```
 
-Response:
+**Query Params:**
+
+| Param | Default | Description |
+|-------|---------|-------------|
+| `window` | `24h` | Time window: `24h`, `7d`, or `all` |
+
+**Response:**
 
 ```json
 {
@@ -162,11 +170,18 @@ Response:
       "openCount": 1,
       "flappingCount": 0,
       "lastSeen": "2026-05-18T12:34:56Z",
-      "avgDuration": "3 min"
+      "avgDuration": "3 min",
+      "avgDurationMs": 180000
     }
   ],
-  "generatedAt": "2026-05-18T12:34:56Z"
+  "window": "24h",
+  "generatedAt": "2026-05-18T12:34:56Z",
+  "source": "disk+memory"
 }
 ```
 
-Use this to see "this deploy pair is noisy" at a glance.
+**Features:**
+- Persists to `C:\AtomArcade\incident-log.jsonl` (configurable via `INCIDENT_LOG_PATH`)
+- In-memory cache for 30s (invalidated on new incident)
+- Numeric `avgDurationMs` available for programmatic sorting
+- 7d shows superset of 24h

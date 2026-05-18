@@ -214,6 +214,19 @@ async function resolveIncidentInNotion(signature) {
       }
     }
     
+    // Persist resolved to JSONL (append new row)
+    appendIncidentLog({
+      homebaseSha: entry.homebaseSha || 'unknown',
+      bridgeVersion: entry.bridgeVersion || 'unknown',
+      status: 'Resolved',
+      openedAt: entry.openedAt,
+      resolvedAt: resolveTime,
+      duration,
+    });
+    
+    // Invalidate correlation cache
+    correlationCache.timestamp = 0;
+    
     return { resolved: true, duration };
   } catch (err) {
     console.error('[incident] Resolve failed:', err.message);
@@ -297,6 +310,8 @@ async function handleHealthTransition(bridgeData, flappingStatus) {
       openedAt: incident.timestamp,
       title: incident.title,
       detail: incident.detail,
+      homebaseSha: incident.homebaseSha,
+      bridgeVersion: incident.bridgeVersion,
     });
     
     // Track for correlation
@@ -308,6 +323,19 @@ async function handleHealthTransition(bridgeData, flappingStatus) {
       resolvedAt: null,
       duration: null,
     });
+    
+    // Persist to JSONL
+    appendIncidentLog({
+      homebaseSha: incident.homebaseSha || 'unknown',
+      bridgeVersion: incident.bridgeVersion || 'unknown',
+      status: 'Open',
+      openedAt: incident.timestamp,
+      title: incident.title,
+      isFlapping: isFlapping,
+    });
+    
+    // Invalidate correlation cache
+    correlationCache.timestamp = 0;
   }
 }
 
@@ -527,17 +555,84 @@ app.get('/api/bridge/health/history', (_req, res) => {
   });
 });
 
-// Deploy Correlation: group incidents by (HomeBaseSHA, BridgeSHA)
-app.get('/api/bridge/incidents/correlation', (_req, res) => {
-  // Group incidents by version pair
+// Incident log path for persistence
+const INCIDENT_LOG_PATH = process.env.INCIDENT_LOG_PATH || 'C:\\AtomArcade\\incident-log.jsonl';
+
+// Ensure incident log directory exists
+function ensureIncidentLogDir() {
+  try {
+    const dir = dirname(INCIDENT_LOG_PATH);
+    if (!existsSync(dir)) {
+      mkdirSync(dir, { recursive: true });
+    }
+  } catch {}
+}
+
+// Append to incident log (JSONL format)
+function appendIncidentLog(incident) {
+  try {
+    ensureIncidentLogDir();
+    const line = JSON.stringify({
+      ...incident,
+      timestamp: incident.timestamp || new Date().toISOString(),
+    }) + '\n';
+    appendFileSync(INCIDENT_LOG_PATH, line);
+  } catch (e) {
+    console.error('[incident] Failed to write log:', e.message);
+  }
+}
+
+// Read incidents from JSONL
+function readIncidentLog() {
+  const incidents = [];
+  try {
+    if (!existsSync(INCIDENT_LOG_PATH)) {
+      return incidents;
+    }
+    const content = readFileSync(INCIDENT_LOG_PATH, 'utf8');
+    const lines = content.split('\n').filter(line => line.trim());
+    for (const line of lines) {
+      try {
+        const inc = JSON.parse(line);
+        // Parse durationMs if present
+        if (inc.resolvedAt && inc.openedAt) {
+          inc.durationMs = new Date(inc.resolvedAt).getTime() - new Date(inc.openedAt).getTime();
+        }
+        incidents.push(inc);
+      } catch {
+        // Skip malformed lines
+      }
+    }
+  } catch (e) {
+    console.error('[incident] Failed to read log:', e.message);
+  }
+  return incidents;
+}
+
+// Cache for correlation results
+let correlationCache = { data: null, timestamp: 0 };
+const CACHE_TTL_MS = 30000; // 30 seconds
+
+// Build correlation from incidents with window filter
+function buildCorrelation(incidents, window) {
+  const now = Date.now();
+  const windowMs = {
+    '24h': 24 * 60 * 60 * 1000,
+    '7d': 7 * 24 * 60 * 60 * 1000,
+    'all': Infinity,
+  }[window] || (24 * 60 * 60 * 1000);
+  
   const groups = new Map();
   
-  for (const inc of allIncidents) {
-    const key = `${inc.homebaseSha || 'unknown'}|${inc.bridgeVersion || 'unknown'}`;
+  for (const inc of incidents) {
+    const incTime = new Date(inc.openedAt || inc.timestamp).getTime();
+    if (now - incTime > windowMs) continue;
+    
+    const key = `${inc.homebaseSha || inc.homeBaseSha || 'unknown'}|${inc.bridgeVersion || inc.bridgeSha || 'unknown'}`;
     if (!groups.has(key)) {
       groups.set(key, {
-        homeBaseSha: inc.homebaseSha || 'unknown',
-        bridgeSha: inc.bridgeVersion || 'unknown',
+        homeBaseSha: inc.homebaseSha || inc.homeBaseSha || 'unknown',
+        bridgeSha: inc.bridgeVersion || inc.bridgeSha || 'unknown',
         count: 0,
         openCount: 0,
         flappingCount: 0,
@@ -548,25 +643,31 @@ app.get('/api/bridge/incidents/correlation', (_req, res) => {
     const g = groups.get(key);
     g.count++;
     if (inc.status === 'Open') g.openCount++;
+    if (inc.isFlapping) g.flappingCount++;
     if (inc.status === 'Resolved' && inc.resolvedAt) {
       g.durations.push({ openedAt: inc.openedAt, resolvedAt: inc.resolvedAt });
     }
-    if (!g.lastSeen || inc.openedAt > g.lastSeen) {
-      g.lastSeen = inc.openedAt;
+    const incTs = inc.openedAt || inc.timestamp;
+    if (!g.lastSeen || incTs > g.lastSeen) {
+      g.lastSeen = incTs;
     }
   }
   
   // Calculate avg duration
-  const rows = Array.from(groups.values()).map(g => {
+  return Array.from(groups.values()).map(g => {
     let avgDuration = 'N/A';
+    let avgDurationMs = null;
     if (g.durations.length > 0) {
-      let totalMins = 0;
+      let totalMs = 0;
       for (const d of g.durations) {
         try {
-          totalMins += (new Date(d.resolvedAt).getTime() - new Date(d.openedAt).getTime()) / 60000;
+          totalMs += new Date(d.resolvedAt).getTime() - new Date(d.openedAt).getTime();
         } catch {}
       }
-      avgDuration = `${Math.round(totalMins / g.durations.length)} min`;
+      avgDurationMs = Math.round(totalMs / g.durations.length);
+      avgDuration = avgDurationMs < 60000 
+        ? '<1 min' 
+        : `${Math.round(avgDurationMs / 60000)} min`;
     }
     return {
       homeBaseSha: g.homeBaseSha,
@@ -576,15 +677,60 @@ app.get('/api/bridge/incidents/correlation', (_req, res) => {
       flappingCount: g.flappingCount,
       lastSeen: g.lastSeen,
       avgDuration,
+      avgDurationMs, // numeric for sorting if needed
     };
-  });
+  }).sort((a, b) => (b.lastSeen || '').localeCompare(a.lastSeen || ''));
+}
+
+// Deploy Correlation: group incidents by (HomeBaseSHA, BridgeSHA) - persistent
+app.get('/api/bridge/incidents/correlation', (req, res) => {
+  const window = req.query.window || '24h';
+  const now = Date.now();
   
-  // Sort by lastSeen desc
-  rows.sort((a, b) => (b.lastSeen || '').localeCompare(a.lastSeen || ''));
+  // Check cache
+  if (correlationCache.data && now - correlationCache.timestamp < CACHE_TTL_MS) {
+    const cached = correlationCache.data;
+    // Filter by window if needed (simple approach: rebuild)
+    const rows = buildCorrelation(cached.incidents, window);
+    return res.json({
+      rows,
+      window,
+      generatedAt: cached.generatedAt,
+      source: 'cache',
+    });
+  }
+  
+  // Read from JSONL + in-memory
+  const diskIncidents = readIncidentLog();
+  const memIncidents = allIncidents.map(inc => ({
+    homebaseSha: inc.homebaseSha,
+    bridgeVersion: inc.bridgeVersion,
+    status: inc.status,
+    openedAt: inc.openedAt,
+    resolvedAt: inc.resolvedAt,
+    isFlapping: false, // not tracked in memory
+    timestamp: inc.openedAt,
+  }));
+  
+  // Merge (disk first, then memory for newer entries)
+  const all = [...diskIncidents];
+  for (const inc of memIncidents) {
+    const exists = all.some(a => a.openedAt === inc.openedAt && a.homebaseSha === inc.homebaseSha);
+    if (!exists) all.push(inc);
+  }
+  
+  // Build result
+  const rows = buildCorrelation(all, window);
+  const generatedAt = new Date().toISOString();
+  
+  // Update cache
+  correlationCache = { data: { incidents: all, generatedAt }, timestamp: now };
   
   res.json({
     rows,
-    generatedAt: new Date().toISOString(),
+    window,
+    generatedAt,
+    source: 'disk+memory',
   });
 });
 
