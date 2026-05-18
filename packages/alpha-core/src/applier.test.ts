@@ -4,8 +4,8 @@ import {
   runApplier,
   type ApplierContext,
   type ApplierHooks,
-} from '@alpha/alpha-core';
-import type { NeighborhoodState, Proposal } from '@alpha/alpha-core';
+} from './applier.ts';
+import type { NeighborhoodState, Proposal } from './types.ts';
 
 function makeHooks(overrides: Partial<ApplierHooks> = {}): ApplierHooks {
   return {

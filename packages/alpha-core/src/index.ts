@@ -1,6 +1,10 @@
 // Alpha v0 — public entry point.
-export * from './types';
-export * from './config';
-export * from './curator';
-export * from './applier';
-export { ALPHA_PROMPTS } from './prompts';
+export * from './types.ts';
+export * from './config.ts';
+export { evaluateProposal, type CuratorContext } from './curator.ts';
+export {
+  runApplier,
+  nextNeighborhoodState,
+  type ApplierContext,
+  type ApplierHooks,
+} from './applier.ts';

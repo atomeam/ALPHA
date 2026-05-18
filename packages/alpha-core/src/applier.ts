@@ -2,8 +2,8 @@
 // Pure orchestration: takes a Proposal + ctx, returns an ApplierResult.
 // Real side effects (file writes, Notion writes) come from the injected hooks.
 
-import { ALPHA_CONFIG } from './config';
-import type { ApplierResult, HaltCode, NeighborhoodState, Proposal } from './types';
+import { ALPHA_CONFIG } from './config.ts';
+import type { ApplierResult, HaltCode, NeighborhoodState, Proposal } from './types.ts';
 
 export interface ApplierHooks {
   snapshot: (targets: string[]) => Promise<string>; // returns snapshot id
@@ -49,7 +49,11 @@ export async function runApplier(proposal: Proposal, ctx: ApplierContext): Promi
   // Rule 3 — canary first when touching > 1 target
   const targets = proposal.files_or_pages_touched.slice();
   const isMulti = targets.length > 1;
-  const canary = isMulti ? targets.slice(0, 1) : targets;
+  const firstTarget = targets[0];
+  if (!firstTarget) {
+    return halt('APP_BLAST_CAP', 'Proposal has no targets.');
+  }
+  const canary = isMulti ? [firstTarget] : targets;
   const remainder = isMulti ? targets.slice(1) : [];
 
   const snapshotId = await ctx.hooks.snapshot(targets);
@@ -88,7 +92,7 @@ export async function runApplier(proposal: Proposal, ctx: ApplierContext): Promi
       snapshot_id: snapshotId,
       delta_observed: actual,
       message:
-        `Canary applied to ${canary.join(', ') || 'target'}; ${remainder.length} target(s) deferred by ` +
+        `Canary applied to ${firstTarget}; ${remainder.length} target(s) deferred by ` +
         `${ALPHA_CONFIG.canary.waitCycles} cycle(s).`,
     };
   }

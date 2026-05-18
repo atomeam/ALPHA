@@ -20,7 +20,7 @@ Source repos:
 | `Aether/.env.example`                         | merged into root `.env.example`                                              |
 | `HomeBase-/server.js`                         | rewritten to TS in `apps/backend/src/server.ts`                              |
 | `HomeBase-/src/alpha/*`                       | `packages/alpha-core/src/*`                                                  |
-| `HomeBase-/src/alpha/*.test.ts`               | `apps/backend/tests/alpha/*.test.ts`                                         |
+| `HomeBase-/src/alpha/*.test.ts`               | `packages/alpha-core/src/*.test.ts`                                          |
 | `HomeBase-/src/App.tsx`                       | `apps/frontend/src/home/`                                                    |
 | `HomeBase-/ALPHA.md` + `docs/`                | `docs/`                                                                      |
 | `HomeBase-/mini/`                             | **retired** (frontend stays clean)                                           |
@@ -40,20 +40,20 @@ Source repos:
 
 ## Phase plan
 
-| Phase | Scope                                                                                                        | Status                    |
-| ----- | ------------------------------------------------------------------------------------------------------------ | ------------------------- |
-| 0     | Skeleton: workspace + tooling + CI + hooks. No app code.                                                     | PR #1                     |
-| 1     | Backend cutover: HomeBase `server.js` → `apps/backend/src/server.ts`; alpha modules → `packages/alpha-core`. | **in progress (this PR)** |
-| 2     | Frontend cutover: HomeBase `App.tsx` → `apps/frontend/src/home/` on `:5173`.                                 | pending                   |
-| 3     | Aether merge: Nexus/MCP/Neural-Bridge → `apps/backend`; `App.tsx` → `apps/frontend/src/operator/`.           | pending                   |
-| 4     | Trust kernel: `packages/permissions` + Grant management UI.                                                  | pending                   |
-| 5     | Integrations scaffold: typed clients + scopes for all 10 providers.                                          | pending                   |
-| 6     | Bridge refactor: port to `:8090`; webhook receiver + "Sync Now" button ship **alongside** existing poller.   | pending                   |
-| 6a    | Poller flipped off by default.                                                                               | pending                   |
-| 6b    | Poller deleted after one operator review cycle.                                                              | pending                   |
-| 7     | Curator hardening: extend with bridge policy table; wire cosign UI + snapshot store.                         | pending                   |
-| 8     | Game side-car: `Crypto-Cryptids/*` → `apps/crypto-cryptids/`.                                                | pending                   |
-| 9     | Archive + retire: `Broke` → `archive/`; old repos read-only.                                                 | pending                   |
+| Phase | Scope                                                                                                        | Status                        |
+| ----- | ------------------------------------------------------------------------------------------------------------ | ----------------------------- |
+| 0     | Skeleton: workspace + tooling + CI + hooks. No app code.                                                     | PR #1                         |
+| 1     | Backend cutover: HomeBase `server.js` → `apps/backend/src/server.ts`; alpha modules → `packages/alpha-core`. | **in progress (stacked PRs)** |
+| 2     | Frontend cutover: HomeBase `App.tsx` → `apps/frontend/src/home/` on `:5173`.                                 | pending                       |
+| 3     | Aether merge: Nexus/MCP/Neural-Bridge → `apps/backend`; `App.tsx` → `apps/frontend/src/operator/`.           | pending                       |
+| 4     | Trust kernel: `packages/permissions` + Grant management UI.                                                  | pending                       |
+| 5     | Integrations scaffold: typed clients + scopes for all 10 providers.                                          | pending                       |
+| 6     | Bridge refactor: port to `:8090`; webhook receiver + "Sync Now" button ship **alongside** existing poller.   | pending                       |
+| 6a    | Poller flipped off by default.                                                                               | pending                       |
+| 6b    | Poller deleted after one operator review cycle.                                                              | pending                       |
+| 7     | Curator hardening: extend with bridge policy table; wire cosign UI + snapshot store.                         | pending                       |
+| 8     | Game side-car: `Crypto-Cryptids/*` → `apps/crypto-cryptids/`.                                                | pending                       |
+| 9     | Archive + retire: `Broke` → `archive/`; old repos read-only.                                                 | pending                       |
 
 ## Port map
 

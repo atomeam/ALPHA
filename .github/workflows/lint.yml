@@ -2,7 +2,7 @@ name: lint
 
 on:
   pull_request:
-    branches: [main]
+    branches: [main, 'devin/**']
   push:
     branches: [main]
 

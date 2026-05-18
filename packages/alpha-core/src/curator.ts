@@ -1,9 +1,9 @@
 // Alpha v0 — Curator default-deny gate.
-// Enforces the 5 base conditions in ALPHA.md plus cooldown + idempotency.
+// Enforces the 5 base conditions in docs/ALPHA.md plus cooldown + idempotency.
 // Pure functions: no side effects, no network.
 
-import { ALPHA_CONFIG } from './config';
-import type { CuratorDecision, Lesson, NeighborhoodState, Proposal } from './types';
+import { ALPHA_CONFIG } from './config.ts';
+import type { CuratorDecision, Lesson, NeighborhoodState, Proposal } from './types.ts';
 
 export interface CuratorContext {
   lessons: Lesson[];

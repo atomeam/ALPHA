@@ -70,7 +70,7 @@ pnpm build           # Turbo build pipeline
 pnpm dev             # All `dev` scripts in parallel
 ```
 
-Turbo will skip any package that doesn't declare the corresponding script, so Phase 0 runs are no-ops by design — they only validate that the workspace bootstraps cleanly.
+Turbo skips packages that do not declare a given script; Phase 1 now runs real backend, logger, and alpha-core checks.
 
 ## Trust rule
 

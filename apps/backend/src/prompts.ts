@@ -1,4 +1,7 @@
-export const ALPHA_PROMPTS: Record<string, string> = {
+// The 6 Alpha prompts + 2 utility prompts. Server-side only — never sent to the client.
+// Ported verbatim from HomeBase- server.js (PROMPTS object).
+
+export const PROMPTS: Record<string, string> = {
   observer: `You are Alpha's Observer. Read the last 24h of:
 - Nucleus Routing Log v0
 - Atomind Bridge Logs

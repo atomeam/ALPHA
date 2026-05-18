@@ -1,27 +1,31 @@
 {
   "name": "@alpha/backend",
-  "version": "0.1.0",
+  "version": "0.0.0",
   "private": true,
   "type": "module",
-  "description": "Alpha backend service on :8080.",
+  "description": "Alpha backend — Express on :8080, owns /api/health and /api/prompt/:name.",
+  "main": "./src/server.ts",
   "scripts": {
-    "build": "tsc --project tsconfig.json --noEmit",
-    "dev": "tsx src/server.ts",
+    "build": "tsc --noEmit",
+    "dev": "tsx watch src/server.ts",
     "start": "tsx src/server.ts",
-    "lint": "eslint .",
-    "typecheck": "tsc --project tsconfig.json --noEmit",
+    "lint": "eslint src tests --max-warnings=0",
+    "typecheck": "tsc --noEmit",
     "test": "vitest run"
   },
   "dependencies": {
-    "@alpha/alpha-core": "workspace:*",
+    "@alpha/core": "workspace:*",
+    "@alpha/logger": "workspace:*",
     "@google/genai": "^1.29.0",
     "dotenv": "^17.2.3",
     "express": "^4.21.2"
   },
   "devDependencies": {
     "@types/express": "^4.17.21",
+    "@types/node": "^22.14.0",
+    "@types/supertest": "^6.0.2",
+    "supertest": "^7.0.0",
     "tsx": "^4.21.0",
-    "typescript": "~5.8.2",
     "vitest": "^2.1.9"
   }
 }

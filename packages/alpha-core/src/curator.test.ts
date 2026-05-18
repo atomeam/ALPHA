@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { evaluateProposal, type CuratorContext } from '@alpha/alpha-core';
-import type { Lesson, Proposal } from '@alpha/alpha-core';
+import { evaluateProposal, type CuratorContext } from './curator.ts';
+import type { Lesson, Proposal } from './types.ts';
 
 const baseProposal: Proposal = {
   id: 'P-test',
