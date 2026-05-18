@@ -5,6 +5,10 @@ import { fileURLToPath } from 'url';
 import { join } from 'path';
 import { readFileSync, appendFileSync, existsSync, statSync } from 'fs';
 import { spawn } from 'child_process';
+import dotenv from 'dotenv';
+
+// Load local .env
+dotenv.config({ path: join(fileURLToPath(new URL('.', import.meta.url)), '.env') });
 
 const __dirname = fileURLToPath(new URL('.', import.meta.url));
 const app = express();
