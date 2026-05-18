@@ -1,0 +1,24 @@
+{
+  "name": "alpha",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Alpha — consolidated AtoMind ecosystem (backend :8080, frontend :5173, trust-first integration routing).",
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "packageManager": "pnpm@9.15.1",
+  "scripts": {
+    "build": "turbo run build",
+    "dev": "turbo run dev --parallel",
+    "lint": "turbo run lint",
+    "typecheck": "turbo run typecheck",
+    "test": "turbo run test",
+    "clean": "turbo run clean && rm -rf node_modules .turbo"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.5",
+    "turbo": "^2.3.3",
+    "typescript": "~5.8.2"
+  }
+}
