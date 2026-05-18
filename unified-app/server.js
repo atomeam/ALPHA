@@ -8,8 +8,19 @@ import { spawn } from 'child_process';
 import dotenv from 'dotenv';
 import { pingNotion, appendLogEntry } from './modules/notion-sync.js';
 
-// Load local .env
-dotenv.config({ path: join(fileURLToPath(new URL('.', import.meta.url)), '.env') });
+// Load local .env - try multiple paths
+const envPaths = [
+  join(fileURLToPath(new URL('.', import.meta.url)),  // unified-app/
+  join(fileURLToPath(new URL('.', import.meta.url)), '..'), // parent dir
+];
+for (const envPath of envPaths) {
+  const p = join(envPath, '.env');
+  if (existsSync(p)) {
+    dotenv.config({ path: p });
+    console.log('[Env] Loaded from:', p);
+    break;
+  }
+}
 
 const __dirname = fileURLToPath(new URL('.', import.meta.url));
 const app = express();
