@@ -78,6 +78,14 @@ function grantMatches(grant: Grant, request: TrustRequest): boolean {
   );
 }
 
+function grantExpired(grant: Grant, now: Date): boolean {
+  return Boolean(grant.expiresAt && new Date(grant.expiresAt).getTime() <= now.getTime());
+}
+
+function grantActive(grant: Grant, now: Date): boolean {
+  return !grant.revokedAt && !grantExpired(grant, now);
+}
+
 export function checkTrust(
   value: unknown,
   registry: GrantRegistry,
@@ -91,17 +99,24 @@ export function checkTrust(
     return { outcome: 'deny', reason: 'unknown_subject', decisionId: decisionId(value, 'unknown') };
   }
 
-  const grant = registry.grants.find((candidate) => grantMatches(candidate, value));
+  const matchingGrants = registry.grants.filter((candidate) => grantMatches(candidate, value));
+  const grant = matchingGrants.find((candidate) => grantActive(candidate, now));
   if (!grant) {
-    return { outcome: 'deny', reason: 'missing_grant', decisionId: decisionId(value, 'missing') };
-  }
-
-  if (grant.revokedAt) {
-    return { outcome: 'deny', reason: 'revoked_grant', decisionId: decisionId(value, 'revoked') };
-  }
-
-  if (grant.expiresAt && new Date(grant.expiresAt).getTime() <= now.getTime()) {
-    return { outcome: 'deny', reason: 'expired_grant', decisionId: decisionId(value, 'expired') };
+    const unavailableGrant = matchingGrants[0];
+    if (!unavailableGrant) {
+      return { outcome: 'deny', reason: 'missing_grant', decisionId: decisionId(value, 'missing') };
+    }
+    if (unavailableGrant.revokedAt) {
+      return { outcome: 'deny', reason: 'revoked_grant', decisionId: decisionId(value, 'revoked') };
+    }
+    if (grantExpired(unavailableGrant, now)) {
+      return { outcome: 'deny', reason: 'expired_grant', decisionId: decisionId(value, 'expired') };
+    }
+    return {
+      outcome: 'deny',
+      reason: 'condition_failed',
+      decisionId: decisionId(value, 'condition'),
+    };
   }
 
   return {
