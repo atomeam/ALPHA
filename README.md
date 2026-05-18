@@ -38,3 +38,78 @@ npm run test:watch # watch mode
 ```
 
 Covers all Curator denial codes and all 9 Applier hardening rules.
+
+## Bridge Health Monitoring
+
+HomeBase polls the AtomArcade Bridge every 15 seconds to check:
+
+- **env** — required environment variables loaded
+- **notion** — Notion API connectivity (`/users/me`)
+- **ollama** — local Ollama runtime (`/api/tags`)
+- **gemini** — Gemini API key valid (if configured)
+
+### Health Telemetry
+
+The `/api/bridge/health` endpoint returns:
+
+```json
+{
+  "ok": true,
+  "checks": { "env": { "ok": true, ... }, ... },
+  "telemetry": {
+    "historyLength": 5,
+    "isFlapping": false,
+    "firstFailureTime": null,
+    "lastSuccessTime": "2026-05-18T12:00:00Z"
+  }
+}
+```
+
+- `isFlapping`: true if 3+ failures in last 10 checks.
+- `firstFailureTime`: timestamp of first consecutive failure.
+
+### Alert Banner
+
+A red alert banner appears when:
+- Overall status flips from `ok: true` to `ok: false`
+- Flapping is detected (3+ failures in 10 checks)
+
+### History Persistence
+
+Health snapshots are stored in-memory (ring buffer of 50) and optionally persisted to JSONL:
+
+```bash
+HOMEBASE_HEALTH_HISTORY_PATH=C:\AtomArcade\health-history.jsonl
+```
+
+## Incident Logging (Optional)
+
+When bridge health fails, HomeBase can write incidents to Notion.
+
+### Requirements
+
+1. Enable the feature:
+```bash
+NOTION_INCIDENT_LOG_ENABLED=true
+```
+
+2. Configure Notion:
+```bash
+NOTION_API_KEY=secret_...
+ATOMARCADE_NOTION_LOG_DB_ID=your-log-db-id
+```
+
+### How It Works
+
+- Triggers on: `ok` flips true→false, OR flapping starts (false→true)
+- Rate limited: 1 incident per unique failure signature per 30 minutes
+- No secrets written: API keys never appear in Notion
+
+### Notion Schema
+
+If using the Logs DB, ensure it has these properties:
+- **Kind**: Select (e.g., "Incident", "Log")
+- **Timestamp**: Title or Rich Text
+- **Status**: Select (e.g., "Open", "Resolved")
+- **Detail**: Rich Text
+- **Source**: Rich Text (e.g., "HomeBase Telemetry")

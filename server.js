@@ -88,6 +88,108 @@ function getFlappingStatus() {
   };
 }
 
+// Incident tracking for Notion write-back
+let lastIncidentWritten = null; // timestamp of last incident
+let lastIncidentSignature = null; // deduplication signature
+
+function shouldWriteIncident(currentData, isFlapping) {
+  // Rate limit: at most 1 incident per unique failure signature per 30 minutes
+  const signature = JSON.stringify({
+    ok: currentData.ok,
+    isFlapping,
+    failedChecks: Object.entries(currentData.checks || {})
+      .filter(([_, v]) => !v.ok)
+      .map(([k]) => k)
+      .sort(),
+  });
+  
+  // If same signature, don't write again within 30 min
+  if (signature === lastIncidentSignature && lastIncidentWritten) {
+    const timeSinceLast = Date.now() - new Date(lastIncidentWritten).getTime();
+    if (timeSinceLast < 30 * 60 * 1000) {
+      return { should: false, reason: 'rate-limited' };
+    }
+  }
+  
+  return { should: true, signature };
+}
+
+async function writeIncidentToNotion(incident) {
+  try {
+    const { Client } = await import('@notionhq/client');
+    const notion = new Client({ apiKey: process.env.NOTION_API_KEY });
+    const dbId = process.env.ATOMARCADE_NOTION_LOG_DB_ID;
+    
+    if (!dbId) {
+      console.log('[incident] No ATOMARCADE_NOTION_LOG_DB_ID, skipping');
+      return { written: false, reason: 'no-db' };
+    }
+    
+    await notion.pages.create({
+      parent: { database_id: dbId },
+      properties: {
+        'Kind': { select: { name: 'Incident' } },
+        'Timestamp': { rich_text: [{ text: { content: incident.timestamp } }] },
+        'Status': { select: { name: incident.ok ? 'Resolved' : 'Open' } },
+        'Detail': { rich_text: [{ text: { content: incident.detail } }] },
+        'Source': { rich_text: [{ text: { content: 'HomeBase Telemetry' } }] },
+      },
+    });
+    
+    console.log(`[incident] Written to Notion: ${incident.title}`);
+    return { written: true };
+  } catch (err) {
+    console.error('[incident] Notion write failed:', err.message);
+    return { written: false, error: err.message };
+  }
+}
+
+async function handleHealthTransition(bridgeData, flappingStatus) {
+  const isFlapping = flappingStatus === 'flapping';
+  const isTransitionToBad = lastHealthOk === true && bridgeData.ok === false;
+  const isFlappingStart = !lastIncidentSignature && isFlapping;
+  
+  if (!isTransitionToBad && !isFlappingStart) return;
+  
+  // Check guard
+  if (process.env.NOTION_INCIDENT_LOG_ENABLED !== 'true') {
+    console.log('[incident] NOTION_INCIDENT_LOG_ENABLED not true, skipping write');
+    return;
+  }
+  
+  const { should, signature, reason } = shouldWriteIncident(bridgeData, isFlapping);
+  if (!should) {
+    console.log(`[incident] Skipping: ${reason}`);
+    return;
+  }
+  
+  // Build incident payload
+  const failedChecks = Object.entries(bridgeData.checks || {})
+    .filter(([_, v]) => !v.ok)
+    .map(([k, v]) => `${k}: ${v.detail} (${v.latencyMs}ms)`);
+  
+  const incident = {
+    timestamp: new Date().toISOString(),
+    title: isFlapping ? 'WARNING: Connection Flapping' : 'CRITICAL: System Outage',
+    detail: failedChecks.length > 0 ? failedChecks.join('; ') : 'Overall health check failed',
+    ok: bridgeData.ok,
+    source: 'bridge-health',
+    bridgeBaseUrl: process.env.BRIDGE_BASE_URL,
+    telemetry: {
+      isFlapping,
+      historyLength: healthHistory.length,
+    },
+  };
+  
+  // Write to Notion
+  const result = await writeIncidentToNotion(incident);
+  
+  if (result.written) {
+    lastIncidentWritten = incident.timestamp;
+    lastIncidentSignature = signature;
+  }
+}
+
 // Path to homebase-logs.jsonl on Victus
 const HOMEBASE_LOGS_PATH = process.env.HOMEBASE_LOGS_PATH || 'C:\\AtomArcade\\atomarcade-bridge\\homebase-logs.jsonl';
 
@@ -250,6 +352,11 @@ app.get('/api/bridge/health', async (_req, res) => {
     addHealthSnapshot(data);
     const flapping = getFlappingStatus();
     
+    // Handle incident detection (non-blocking)
+    handleHealthTransition(data, flapping).catch(err => 
+      console.error('[incident] Handler error:', err.message)
+    );
+    
     // Attach telemetry metadata to response
     const telemetry = {
       historyLength: healthHistory.length,
@@ -273,6 +380,11 @@ app.get('/api/bridge/health', async (_req, res) => {
     // Still record the failure
     addHealthSnapshot(errorData);
     const flapping = getFlappingStatus();
+    
+    // Handle incident detection (non-blocking)
+    handleHealthTransition(errorData, flapping).catch(err => 
+      console.error('[incident] Handler error:', err.message)
+    );
     
     return res.json({
       ...errorData,
