@@ -301,7 +301,17 @@ async function callGemini(prompt) {
       })
     });
     const data = await res.json();
-    return { provider: 'gemini', output: data.candidates?.[0]?.content?.parts?.[0]?.text || 'No response' };
+    
+    // Handle API errors
+    if (data.error) {
+      return { provider: 'gemini', error: data.error.message, code: data.error.code };
+    }
+    if (!res.ok) {
+      return { provider: 'gemini', error: `HTTP ${res.status}`, details: data };
+    }
+    
+    const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
+    return { provider: 'gemini', output: text || 'No response' };
   } catch (e) {
     return { provider: 'gemini', error: e.message };
   }
