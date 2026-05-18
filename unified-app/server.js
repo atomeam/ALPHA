@@ -6,6 +6,7 @@ import { join } from 'path';
 import { readFileSync, appendFileSync, existsSync, statSync } from 'fs';
 import { spawn } from 'child_process';
 import dotenv from 'dotenv';
+import { pingNotion, appendLogEntry } from './modules/notion-sync.js';
 
 // Load local .env
 dotenv.config({ path: join(fileURLToPath(new URL('.', import.meta.url)), '.env') });
@@ -64,16 +65,8 @@ app.get('/api/keys/gemini/test', async (req, res) => {
 
 // Endpoint: Test Notion (ping)
 app.get('/api/keys/notion/test', async (req, res) => {
-  if (!KEYS.NOTION) {
-    return res.json({ error: 'NOTION_API_KEY not set', success: false });
-  }
-  try {
-    const notion = new Client({ auth: KEYS.NOTION });
-    await notion.users.me();
-    res.json({ success: true });
-  } catch (e) {
-    res.json({ success: false, error: e.message });
-  }
+  const result = await pingNotion();
+  res.json(result);
 });
 
 // Notion config (for actual API calls)
@@ -165,10 +158,17 @@ app.get('/api/status', (req, res) => {
       totalTools: CONFIG.tools.length
     },
     notion: {
-      connected: !!notion,
+      connected: !!KEYS.NOTION,
       db: LOGS_DB_ID
     }
   });
+});
+
+// Write to Notion log
+app.post('/api/notion/log', async (req, res) => {
+  const { message, level = 'info', source = 'api' } = req.body;
+  const result = await appendLogEntry(LOGS_DB_ID, { message, level, source });
+  res.json(result);
 });
 
 app.get('/api/repos', (req, res) => {
