@@ -4,7 +4,9 @@
  *
  * HomeBase server. Runs alongside the Vite client.
  * - GET  /api/health           — service + bridge status, real version + git sha + building info
+ * - GET  /api/logs             — recent activity from homebase-logs.jsonl
  * - POST /api/prompt/:name     — dispatches one of the 6 Alpha prompts to Gemini, server-side only
+ * - POST /api/run/:script      — execute HomeBase scripts (observer, evaluator, proposer, etc.)
  *
  * The GEMINI_API_KEY never reaches the client bundle.
  */
@@ -19,6 +21,9 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const PORT = Number(process.env.PORT || 8080);
 const STARTED_AT = new Date().toISOString();
 const VERSION = '0.1.0';
+
+// Path to homebase-logs.jsonl on Victus
+const HOMEBASE_LOGS_PATH = process.env.HOMEBASE_LOGS_PATH || 'C:\\AtomArcade\\atomarcade-bridge\\homebase-logs.jsonl';
 
 function readGitSha() {
   const fromEnv =
@@ -139,6 +144,43 @@ app.get('/api/health', (_req, res) => {
   });
 });
 
+// Read homebase-logs.jsonl from Victus and return recent entries
+app.get('/api/logs', (_req, res) => {
+  try {
+    if (!existsSync(HOMEBASE_LOGS_PATH)) {
+      return res.json({ entries: [], error: 'Log file not found', path: HOMEBASE_LOGS_PATH });
+    }
+    
+    const content = readFileSync(HOMEBASE_LOGS_PATH, 'utf8');
+    const lines = content.split('\n').filter(line => line.trim());
+    
+    // Parse JSONL and get last 50 entries
+    const entries = [];
+    for (const line of lines) {
+      try {
+        const entry = JSON.parse(line);
+        entries.push(entry);
+      } catch {
+        // Skip malformed lines
+      }
+    }
+    
+    const recent = entries.slice(-50).reverse(); // Last 50, newest first
+    
+    res.json({
+      entries: recent,
+      total: entries.length,
+      path: HOMEBASE_LOGS_PATH,
+    });
+  } catch (err) {
+    res.status(500).json({
+      error: 'Failed to read logs',
+      detail: err?.message || String(err),
+      path: HOMEBASE_LOGS_PATH,
+    });
+  }
+});
+
 app.post('/api/prompt/:name', async (req, res) => {
   const name = req.params.name;
   const prompt = PROMPTS[name];
@@ -167,6 +209,32 @@ app.post('/api/prompt/:name', async (req, res) => {
   }
 });
 
+// Run a HomeBase script (placeholder for now)
+app.post('/api/run/:script', async (req, res) => {
+  const script = req.params.script;
+  const validScripts = ['observer', 'evaluator', 'proposer', 'curator', 'applier', 'reflector'];
+  
+  if (!validScripts.includes(script)) {
+    return res.status(400).json({ error: 'unknown script', script });
+  }
+  
+  try {
+    // TODO: Execute the actual script on Victus
+    // For now, just return a placeholder response
+    res.json({
+      script,
+      status: 'running',
+      message: `${script} script initiated`,
+      timestamp: new Date().toISOString(),
+    });
+  } catch (err) {
+    res.status(500).json({
+      error: 'script execution failed',
+      detail: err?.message || String(err),
+    });
+  }
+});
+
 if (process.env.SERVE_STATIC === 'true') {
   const distDir = join(__dirname, 'dist');
   if (existsSync(distDir)) {
@@ -176,4 +244,5 @@ if (process.env.SERVE_STATIC === 'true') {
 
 app.listen(PORT, () => {
   console.log(`[homebase] listening on :${PORT} sha=${GIT_SHA} v${VERSION} building=${BUILDING.branch}→${BUILDING.base} PR#${BUILDING.pr_number}`);
+  console.log(`[homebase] reading logs from: ${HOMEBASE_LOGS_PATH}`);
 });
