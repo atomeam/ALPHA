@@ -78,6 +78,16 @@ function grantMatches(grant: Grant, request: TrustRequest): boolean {
   );
 }
 
+function isExpired(grant: Grant, now: Date): boolean {
+  return Boolean(grant.expiresAt && new Date(grant.expiresAt).getTime() <= now.getTime());
+}
+
+function isActive(grant: Grant, now: Date): boolean {
+  if (grant.revokedAt) return false;
+  if (isExpired(grant, now)) return false;
+  return true;
+}
+
 export function checkTrust(
   value: unknown,
   registry: GrantRegistry,
@@ -91,25 +101,27 @@ export function checkTrust(
     return { outcome: 'deny', reason: 'unknown_subject', decisionId: decisionId(value, 'unknown') };
   }
 
-  const grant = registry.grants.find((candidate) => grantMatches(candidate, value));
-  if (!grant) {
+  const matches = registry.grants.filter((candidate) => grantMatches(candidate, value));
+  if (matches.length === 0) {
     return { outcome: 'deny', reason: 'missing_grant', decisionId: decisionId(value, 'missing') };
   }
 
-  if (grant.revokedAt) {
-    return { outcome: 'deny', reason: 'revoked_grant', decisionId: decisionId(value, 'revoked') };
+  const active = matches.find((grant) => isActive(grant, now));
+  if (active) {
+    return {
+      outcome: 'allow',
+      grantId: active.id,
+      decisionId: decisionId(value, 'allow'),
+      expiresAt: active.expiresAt,
+    };
   }
 
-  if (grant.expiresAt && new Date(grant.expiresAt).getTime() <= now.getTime()) {
+  const expiredOnly = matches.find((grant) => !grant.revokedAt && isExpired(grant, now));
+  if (expiredOnly) {
     return { outcome: 'deny', reason: 'expired_grant', decisionId: decisionId(value, 'expired') };
   }
 
-  return {
-    outcome: 'allow',
-    grantId: grant.id,
-    decisionId: decisionId(value, 'allow'),
-    expiresAt: grant.expiresAt,
-  };
+  return { outcome: 'deny', reason: 'revoked_grant', decisionId: decisionId(value, 'revoked') };
 }
 
 export function bootstrapGrantRegistry(): GrantRegistry {
