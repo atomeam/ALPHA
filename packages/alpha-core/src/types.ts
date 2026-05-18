@@ -1,3 +1,6 @@
+// Alpha v0 — canonical Proposal contract.
+// Mirrors the schema documented in ALPHA.md.
+
 export type RiskClass = 'low' | 'medium' | 'high';
 
 export type ProposalClassification = 'config-change' | 'lesson' | 'runbook-prune';
@@ -17,10 +20,10 @@ export interface Proposal {
   change_summary: string;
   files_or_pages_touched: string[];
   expected_effect: {
-    metric: string;
+    metric: string; // must exist in Amplitude v1
     direction: 'increase' | 'decrease' | 'hold';
-    magnitude: number;
-    tolerance: number;
+    magnitude: number; // expected delta
+    tolerance: number; // ± window before auto-revert triggers (rule 4)
   };
   rollback_steps: string[];
   risk_class: RiskClass;
@@ -28,10 +31,10 @@ export interface Proposal {
   citations: Citation[];
   classification: ProposalClassification;
   idempotent: boolean;
-  idempotency_guard?: string;
+  idempotency_guard?: string; // required when idempotent === false
   operator_cosign?: {
     user: string;
-    at: string;
+    at: string; // ISO timestamp
   };
 }
 
@@ -51,14 +54,26 @@ export type HaltCode =
   | 'APP_CANARY_FAIL'
   | 'APP_AUTOREVERT'
   | 'APP_QUARANTINE'
-  | 'APPLY_HALT_DIFF_DRIFT'
-  | 'APPLY_HALT_SNAPSHOT_FAIL';
+  | 'APP_DIFF_DRIFT'
+  | 'APP_SNAPSHOT_FAIL'
+  | 'APP_SHADOW_FAIL'
+  | 'APP_DRY_RUN_FAIL'
+  | 'APP_MEASURE_FAIL'
+  | 'APP_RESTORE_FAIL';
+
+export type ApplierHookName =
+  | 'snapshot'
+  | 'dryRun'
+  | 'applyLive'
+  | 'applyShadow'
+  | 'restoreSnapshot'
+  | 'measureActual';
 
 export interface CuratorDecision {
   approved: boolean;
   code?: DenialCode;
   message?: string;
-  cooldown_until?: string;
+  cooldown_until?: string; // ISO timestamp
 }
 
 export interface ApplierResult {
@@ -67,11 +82,13 @@ export interface ApplierResult {
   snapshot_id?: string;
   delta_observed?: number;
   message?: string;
+  hook?: ApplierHookName;
+  error?: string;
 }
 
 export interface Lesson {
-  id: string;
-  signature: string;
+  id: string; // L-001, L-002, ...
+  signature: string; // inputs_hash
   outcome: 'success' | 'partial' | 'failure';
   delta_predicted: number;
   delta_actual: number;
@@ -86,5 +103,5 @@ export interface NeighborhoodState {
   current_cooldown_hours: number;
   consecutive_halts_24h: number;
   quarantined_until?: string;
-  seen_before: boolean;
+  seen_before: boolean; // false → shadow apply required
 }

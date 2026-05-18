@@ -14,7 +14,7 @@ Every step is wrapped by Curator default-deny. Nothing applies without a citatio
 - **Evaluator** — classifies anomalies as `no-op | propose-config-change | propose-lesson | propose-runbook-prune`. Must cite a Lesson, runbook, or Decision log entry. No citation → no-op.
 - **Proposer** — emits a Proposal record.
 - **Curator** — default-deny gate. Approves only when all 5 base conditions hold. Implemented in `packages/alpha-core/src/curator.ts`.
-- **Applier** — snapshot → dry-run → diff → apply, with `APPLY_HALT_<code>` on any deviation, plus the 9 stability-resilience rules in §Hardening. Implemented in `packages/alpha-core/src/applier.ts`.
+- **Applier** — snapshot → dry-run → diff → apply, with `APP_<code>` halt codes on any deviation, plus the 9 stability-resilience rules in §Hardening. Implemented in `packages/alpha-core/src/applier.ts`.
 - **Reflector** — writes a Lesson row comparing predicted vs. actual effect from the Amplitude schema v1.
 
 ## Proposal record (canonical fields)

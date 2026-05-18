@@ -52,26 +52,24 @@ function ctx(
 }
 
 describe('runApplier', () => {
-  it('halts on blast-radius cap', async () => {
-    const proposal = { ...baseProposal, files_or_pages_touched: ['a', 'b', 'c', 'd'] };
-    const result = await runApplier(proposal, ctx());
-
-    expect(result.status).toBe('halted');
-    expect(result.code).toBe('APP_BLAST_CAP');
+  it('halts on blast-radius cap (APP_BLAST_CAP)', async () => {
+    const p = { ...baseProposal, files_or_pages_touched: ['a', 'b', 'c', 'd'] };
+    const r = await runApplier(p, ctx());
+    expect(r.status).toBe('halted');
+    expect(r.code).toBe('APP_BLAST_CAP');
   });
 
-  it('shadows on new neighborhoods', async () => {
-    const context = ctx({ seen_before: false });
-    const result = await runApplier(baseProposal, context);
-
-    expect(result.status).toBe('shadowed');
-    expect(context.hooks.applyShadow).toHaveBeenCalledTimes(1);
-    expect(context.hooks.applyLive).not.toHaveBeenCalled();
+  it('shadows on new neighborhood', async () => {
+    const c = ctx({ seen_before: false });
+    const r = await runApplier(baseProposal, c);
+    expect(r.status).toBe('shadowed');
+    expect(c.hooks.applyShadow).toHaveBeenCalledTimes(1);
+    expect(c.hooks.applyLive).not.toHaveBeenCalled();
   });
 
-  it('halts on canary failure and restores the snapshot', async () => {
-    const proposal = { ...baseProposal, files_or_pages_touched: ['a', 'b'] };
-    const context = ctx(
+  it('halts on canary failure (APP_CANARY_FAIL) and restores snapshot', async () => {
+    const p = { ...baseProposal, files_or_pages_touched: ['a', 'b'] };
+    const c = ctx(
       {},
       {
         applyLive: vi.fn(async () => {
@@ -79,31 +77,65 @@ describe('runApplier', () => {
         }),
       },
     );
-    const result = await runApplier(proposal, context);
-
-    expect(result.code).toBe('APP_CANARY_FAIL');
-    expect(context.hooks.restoreSnapshot).toHaveBeenCalledTimes(1);
+    const r = await runApplier(p, c);
+    expect(r.code).toBe('APP_CANARY_FAIL');
+    expect(r.hook).toBe('applyLive');
+    expect(c.hooks.restoreSnapshot).toHaveBeenCalledTimes(1);
   });
 
-  it('auto-reverts when actual delta drifts past tolerance', async () => {
-    const context = ctx(
+  it('halts when dry-run hook fails and records the hook', async () => {
+    const c = ctx(
+      {},
+      {
+        dryRun: vi.fn(async () => {
+          throw new Error('dry run boom');
+        }),
+      },
+    );
+    const r = await runApplier(baseProposal, c);
+    expect(r.status).toBe('halted');
+    expect(r.code).toBe('APP_DRY_RUN_FAIL');
+    expect(r.hook).toBe('dryRun');
+    expect(r.error).toBe('dry run boom');
+    expect(c.hooks.restoreSnapshot).toHaveBeenCalledTimes(1);
+  });
+
+  it('halts on restore failure when recovering from hook failure', async () => {
+    const c = ctx(
+      {},
+      {
+        applyLive: vi.fn(async () => {
+          throw new Error('apply boom');
+        }),
+        restoreSnapshot: vi.fn(async () => {
+          throw new Error('restore boom');
+        }),
+      },
+    );
+    const r = await runApplier(baseProposal, c);
+    expect(r.status).toBe('halted');
+    expect(r.code).toBe('APP_RESTORE_FAIL');
+    expect(r.hook).toBe('restoreSnapshot');
+    expect(r.error).toBe('restore boom');
+  });
+
+  it('auto-reverts on drift > 2× tolerance (APP_AUTOREVERT)', async () => {
+    const c = ctx(
       {},
       {
         dryRun: vi.fn(async () => ({ predictedDelta: 0.05 })),
         measureActual: vi.fn(async () => 0.2),
       },
     );
-    const result = await runApplier(baseProposal, context);
-
-    expect(result.status).toBe('reverted');
-    expect(result.code).toBe('APP_AUTOREVERT');
-    expect(context.hooks.restoreSnapshot).toHaveBeenCalledTimes(1);
+    const r = await runApplier(baseProposal, c);
+    expect(r.status).toBe('reverted');
+    expect(r.code).toBe('APP_AUTOREVERT');
+    expect(c.hooks.restoreSnapshot).toHaveBeenCalledTimes(1);
   });
 
   it('applies cleanly when within tolerance', async () => {
-    const result = await runApplier(baseProposal, ctx());
-
-    expect(result.status).toBe('applied');
+    const r = await runApplier(baseProposal, ctx());
+    expect(r.status).toBe('applied');
   });
 });
 
@@ -116,37 +148,29 @@ describe('nextNeighborhoodState', () => {
     seen_before: true,
   };
 
-  it('doubles cooldown on halted results', () => {
+  it('doubles cooldown on halt (rule 5)', () => {
     const next = nextNeighborhoodState(base, { status: 'halted', code: 'APP_BLAST_CAP' }, now);
-
     expect(next.current_cooldown_hours).toBe(12);
     expect(next.consecutive_halts_24h).toBe(1);
   });
 
-  it('quarantines after three halt-equivalent results in 24 hours', () => {
-    const afterTwo = { ...base, consecutive_halts_24h: 2, current_cooldown_hours: 24 };
-    const next = nextNeighborhoodState(
-      afterTwo,
-      { status: 'halted', code: 'APP_CANARY_FAIL' },
-      now,
-    );
-
+  it('quarantines after 3 halts in 24h (rule 6)', () => {
+    const after2 = { ...base, consecutive_halts_24h: 2, current_cooldown_hours: 24 };
+    const next = nextNeighborhoodState(after2, { status: 'halted', code: 'APP_CANARY_FAIL' }, now);
     expect(next.consecutive_halts_24h).toBe(3);
     expect(next.quarantined_until).toBeDefined();
   });
 
   it('resets cooldown and halt count on successful apply', () => {
-    const afterTwo = { ...base, consecutive_halts_24h: 2, current_cooldown_hours: 24 };
-    const next = nextNeighborhoodState(afterTwo, { status: 'applied' }, now);
-
+    const after2 = { ...base, consecutive_halts_24h: 2, current_cooldown_hours: 24 };
+    const next = nextNeighborhoodState(after2, { status: 'applied' }, now);
     expect(next.consecutive_halts_24h).toBe(0);
     expect(next.current_cooldown_hours).toBe(6);
     expect(next.last_apply_at).toBe(now.toISOString());
   });
 
-  it('treats reverted status as halt-equivalent for backoff', () => {
+  it('reverted status also counts as a halt for backoff', () => {
     const next = nextNeighborhoodState(base, { status: 'reverted', code: 'APP_AUTOREVERT' }, now);
-
     expect(next.consecutive_halts_24h).toBe(1);
     expect(next.current_cooldown_hours).toBe(12);
   });

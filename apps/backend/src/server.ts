@@ -2,25 +2,29 @@ import 'dotenv/config';
 
 import { GoogleGenAI } from '@google/genai';
 import { ALPHA_CONFIG } from '@alpha/alpha-core';
+import { createLogger, type Logger } from '@alpha/logger';
+import { handleMcpRequest, listMcpTools } from '@alpha/mcp-core';
+import { findProvider } from '@alpha/nexus-core';
+import { bootstrapGrantRegistry, checkTrust, type GrantRegistry } from '@alpha/permissions';
 import express from 'express';
 import { existsSync, readFileSync } from 'node:fs';
+import type { Server } from 'node:http';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { PROMPTS, isPromptName } from './prompts';
+import { createStackSnapshot, type StackSnapshot } from './stack';
 
 const moduleDir = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(moduleDir, '../../..');
-const defaultPort = 8080;
 const startedAt = new Date().toISOString();
 const version = '0.1.0';
+const shaPattern = /^[0-9a-f]{7,40}$/i;
 
 interface CreateAppOptions {
   env?: NodeJS.ProcessEnv;
-}
-
-interface PromptRequestBody {
-  input?: unknown;
+  logger?: Logger;
+  registry?: GrantRegistry;
 }
 
 interface BuildingMetadata {
@@ -34,94 +38,161 @@ interface BuildingMetadata {
 
 interface HealthPayload {
   status: 'ok';
-  service: 'homebase';
+  service: 'alpha-backend';
   version: string;
   git_sha: string;
   started_at: string;
-  bridge: { configured: boolean };
+  bridge: { configured: boolean; port: number };
   gemini: { configured: boolean; model: string };
+  stack: { repos: number; providers: number; configuredProviders: number };
   building: BuildingMetadata;
   alpha: { amplitude_schema_version: string };
   prompts: string[];
 }
 
-export function readGitSha(root = repoRoot, env: NodeJS.ProcessEnv = process.env): string {
-  const fromEnv = env.GIT_SHA || env.K_REVISION || env.GITHUB_SHA;
-  if (fromEnv) {
-    return String(fromEnv).slice(0, 7);
+function unknownToMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
+function shortSha(value: string | undefined): string {
+  const trimmed = value?.trim();
+  return trimmed && shaPattern.test(trimmed) ? trimmed.slice(0, 7) : 'unknown';
+}
+
+function findGitRoot(start: string): string | undefined {
+  let current = start;
+  for (let depth = 0; depth < 6; depth += 1) {
+    if (existsSync(join(current, '.git', 'HEAD'))) return current;
+    const parent = dirname(current);
+    if (parent === current) return undefined;
+    current = parent;
   }
+  return undefined;
+}
+
+export function readGitSha(root = repoRoot, env: NodeJS.ProcessEnv = process.env): string {
+  const fromEnv = shortSha(env.GIT_SHA || env.K_REVISION || env.GITHUB_SHA);
+  if (fromEnv !== 'unknown') return fromEnv;
+
+  const gitRoot = findGitRoot(root) || findGitRoot(process.cwd()) || findGitRoot(moduleDir);
+  if (!gitRoot) return 'unknown';
 
   try {
-    const headPath = join(root, '.git', 'HEAD');
-    if (!existsSync(headPath)) {
-      return 'unknown';
-    }
-
-    const head = readFileSync(headPath, 'utf8').trim();
+    const head = readFileSync(join(gitRoot, '.git', 'HEAD'), 'utf8').trim();
     if (head.startsWith('ref: ')) {
-      const refPath = join(root, '.git', head.slice(5).trim());
-      if (existsSync(refPath)) {
-        return readFileSync(refPath, 'utf8').trim().slice(0, 7);
-      }
+      const refPath = join(gitRoot, '.git', head.slice(5).trim());
+      return existsSync(refPath) ? shortSha(readFileSync(refPath, 'utf8')) : 'unknown';
     }
-
-    return head.slice(0, 7);
+    return shortSha(head);
   } catch {
     return 'unknown';
   }
 }
 
-function buildingMetadata(env: NodeJS.ProcessEnv): BuildingMetadata {
+function buildingInfo(env: NodeJS.ProcessEnv): BuildingMetadata {
   return {
-    label: env.HOMEBASE_BUILDING_LABEL || 'Tier 1 — server + health + tests',
-    branch: env.HOMEBASE_BUILDING_BRANCH || 'alpha',
+    label: env.HOMEBASE_BUILDING_LABEL || 'ALPHA stack connection',
+    branch: env.HOMEBASE_BUILDING_BRANCH || 'devin/connect-available-stack',
     base: env.HOMEBASE_BUILDING_BASE || 'main',
-    pr_number: Number(env.HOMEBASE_BUILDING_PR || 1),
-    pr_url: env.HOMEBASE_BUILDING_PR_URL || 'https://github.com/atomeam/HomeBase-/pull/1',
-    repo_url: 'https://github.com/atomeam/HomeBase-',
+    pr_number: Number(env.HOMEBASE_BUILDING_PR || 0),
+    pr_url: env.HOMEBASE_BUILDING_PR_URL || 'https://github.com/atomeam/ALPHA',
+    repo_url: 'https://github.com/atomeam/ALPHA',
   };
 }
 
-function coercePromptInput(body: PromptRequestBody): string {
-  const input = body.input;
-  return typeof input === 'string' ? input : (JSON.stringify(input ?? {}) ?? '{}');
-}
-
-function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
+function stackSummary(stack: StackSnapshot): HealthPayload['stack'] {
+  return {
+    repos: stack.sourceRepos.length,
+    providers: stack.providers.length,
+    configuredProviders: stack.providers.filter((provider) => provider.status === 'configured')
+      .length,
+  };
 }
 
 export function healthPayload(env: NodeJS.ProcessEnv = process.env): HealthPayload {
+  const stack = createStackSnapshot(env);
   return {
     status: 'ok',
-    service: 'homebase',
+    service: 'alpha-backend',
     version,
     git_sha: readGitSha(repoRoot, env),
     started_at: startedAt,
-    bridge: { configured: Boolean(env.ATOMARCADE_NOTION_LOG_DB_ID) },
+    bridge: { configured: Boolean(env.NOTION_LOG_DB_ID), port: stack.ports.bridge },
     gemini: {
       configured: Boolean(env.GEMINI_API_KEY),
       model: env.GEMINI_MODEL || 'gemini-2.5-flash',
     },
-    building: buildingMetadata(env),
+    stack: stackSummary(stack),
+    building: buildingInfo(env),
     alpha: { amplitude_schema_version: ALPHA_CONFIG.amplitudeSchemaVersion },
     prompts: Object.keys(PROMPTS),
   };
 }
 
+function coercePromptInput(body: { input?: unknown }): string {
+  const input = body.input;
+  return typeof input === 'string' ? input : (JSON.stringify(input ?? {}) ?? '{}');
+}
+
 export function createApp(options: CreateAppOptions = {}): express.Express {
   const env = options.env ?? process.env;
+  const processLogger = options.logger ?? createLogger('alpha-backend');
+  const registry = options.registry ?? bootstrapGrantRegistry();
   const app = express();
 
   app.use(express.json({ limit: '1mb' }));
+  app.use((_req, res, next) => {
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+    res.setHeader('Access-Control-Allow-Methods', 'GET,POST,OPTIONS');
+    next();
+  });
+
+  app.options('*', (_req, res) => res.sendStatus(204));
 
   app.get('/api/health', (_req, res) => {
     res.json(healthPayload(env));
   });
 
-  app.post<{ name: string }, unknown, PromptRequestBody>('/api/prompt/:name', async (req, res) => {
-    const { name } = req.params;
-    if (!isPromptName(name)) {
+  app.get('/api/stack', (_req, res) => {
+    res.json(createStackSnapshot(env));
+  });
+
+  app.get('/api/nexus/registry', (_req, res) => {
+    res.json(createStackSnapshot(env).providers);
+  });
+
+  app.get('/api/integrations/:provider/status', (req, res) => {
+    const providerId = req.params.provider;
+    if (!providerId) return res.status(400).json({ error: 'provider is required' });
+
+    const provider = findProvider(providerId);
+    if (!provider) return res.status(404).json({ error: 'unknown provider', provider: providerId });
+
+    const runtime = createStackSnapshot(env).providers.find((entry) => entry.id === provider.id);
+    return res.json(runtime);
+  });
+
+  app.post('/api/trust/check', (req, res) => {
+    const decision = checkTrust(req.body, registry);
+    processLogger.event('trust-decision', {
+      outcome: decision.outcome,
+      decisionId: decision.decisionId,
+    });
+    res.status(decision.outcome === 'allow' ? 200 : 403).json(decision);
+  });
+
+  app.get('/api/mcp/tools', (_req, res) => {
+    res.json({ tools: listMcpTools() });
+  });
+
+  app.post('/api/mcp/rpc', (req, res) => {
+    res.json(handleMcpRequest(req.body));
+  });
+
+  app.post('/api/prompt/:name', async (req, res) => {
+    const name = req.params.name;
+    if (!name || !isPromptName(name)) {
       return res.status(404).json({ error: 'unknown prompt', name });
     }
 
@@ -132,45 +203,47 @@ export function createApp(options: CreateAppOptions = {}): express.Express {
     try {
       const ai = new GoogleGenAI({ apiKey: env.GEMINI_API_KEY });
       const model = env.GEMINI_MODEL || 'gemini-2.5-flash';
-      const result = await ai.models.generateContent({
+      const response = await ai.models.generateContent({
         model,
         contents: `${PROMPTS[name]}\n\n---\nInput:\n${coercePromptInput(req.body)}`,
       });
-      return res.json({ name, model, output: result.text ?? '' });
+      return res.json({ name, model, output: response.text ?? '' });
     } catch (error) {
-      return res.status(500).json({ error: 'gemini call failed', detail: errorMessage(error) });
+      processLogger.error('gemini-call-failed', { detail: unknownToMessage(error) });
+      return res.status(500).json({ error: 'gemini call failed' });
     }
   });
 
   if (env.SERVE_STATIC === 'true') {
-    const distDir = env.FRONTEND_DIST_DIR || join(repoRoot, 'apps/frontend/dist');
-    if (existsSync(distDir)) {
+    const distDir = env.FRONTEND_DIST_DIR
+      ? resolve(repoRoot, env.FRONTEND_DIST_DIR)
+      : join(repoRoot, 'apps/frontend/dist');
+    const indexPath = join(distDir, 'index.html');
+    if (existsSync(indexPath)) {
       app.use(express.static(distDir));
+      app.get('*', (req, res, next) => {
+        if (req.path.startsWith('/api/')) {
+          next();
+          return;
+        }
+        res.sendFile(indexPath);
+      });
     }
   }
 
   return app;
 }
 
-export function startServer(
-  port = Number(process.env.PORT || defaultPort),
-): ReturnType<express.Express['listen']> {
-  const app = createApp();
-  return app.listen(port, () => {
-    const payload = healthPayload();
-    console.log(
-      `[homebase] listening on :${port} sha=${payload.git_sha} v=${payload.version} ` +
-        `building=${payload.building.branch}→${payload.building.base} ` +
-        `PR#${payload.building.pr_number}`,
-    );
+export function startServer(env: NodeJS.ProcessEnv = process.env): Server {
+  const port = Number(env.PORT || 8080);
+  const logger = createLogger('alpha-backend');
+  const server = createApp({ env, logger }).listen(port, '0.0.0.0', () => {
+    logger.event('server-started', { port, version, gitSha: readGitSha(repoRoot, env) });
   });
+  return server;
 }
 
-function isDirectRun(metaUrl: string): boolean {
-  const entrypoint = process.argv[1];
-  return Boolean(entrypoint && resolve(entrypoint) === fileURLToPath(metaUrl));
-}
-
-if (isDirectRun(import.meta.url)) {
+const executedPath = process.argv[1] ? resolve(process.argv[1]) : undefined;
+if (executedPath === fileURLToPath(import.meta.url)) {
   startServer();
 }

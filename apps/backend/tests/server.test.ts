@@ -43,7 +43,7 @@ describe('backend HTTP surface', () => {
 
     expect(response.status).toBe(200);
     expect(body.status).toBe('ok');
-    expect(body.service).toBe('homebase');
+    expect(body.service).toBe('alpha-backend');
     expect(body.git_sha).toBe('abcdef1');
     expect(body.gemini.configured).toBe(false);
     expect(body.alpha.amplitude_schema_version).toBe('v1');

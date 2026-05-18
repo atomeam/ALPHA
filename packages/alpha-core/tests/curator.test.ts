@@ -42,7 +42,7 @@ describe('evaluateProposal', () => {
     expect(evaluateProposal(baseProposal, baseCtx()).approved).toBe(true);
   });
 
-  it('denies do-not-repeat lessons', () => {
+  it('denies do-not-repeat (CUR_DO_NOT_REPEAT)', () => {
     const lesson: Lesson = {
       id: 'L-001',
       signature: 'hash-a',
@@ -53,44 +53,38 @@ describe('evaluateProposal', () => {
       tag: 'do-not-repeat',
       created_at: '2026-05-13T00:00:00Z',
     };
-
-    const decision = evaluateProposal(baseProposal, baseCtx({ lessons: [lesson] }));
-
-    expect(decision.approved).toBe(false);
-    expect(decision.code).toBe('CUR_DO_NOT_REPEAT');
+    const d = evaluateProposal(baseProposal, baseCtx({ lessons: [lesson] }));
+    expect(d.approved).toBe(false);
+    expect(d.code).toBe('CUR_DO_NOT_REPEAT');
   });
 
-  it('denies missing citations', () => {
-    const decision = evaluateProposal({ ...baseProposal, citations: [] }, baseCtx());
-
-    expect(decision.code).toBe('CUR_BAD_CITATION');
+  it('denies missing citations (CUR_BAD_CITATION)', () => {
+    const d = evaluateProposal({ ...baseProposal, citations: [] }, baseCtx());
+    expect(d.code).toBe('CUR_BAD_CITATION');
   });
 
-  it('denies missing rollback steps', () => {
-    const decision = evaluateProposal({ ...baseProposal, rollback_steps: [] }, baseCtx());
-
-    expect(decision.code).toBe('CUR_NO_ROLLBACK');
+  it('denies missing rollback (CUR_NO_ROLLBACK)', () => {
+    const d = evaluateProposal({ ...baseProposal, rollback_steps: [] }, baseCtx());
+    expect(d.code).toBe('CUR_NO_ROLLBACK');
   });
 
-  it('denies unmeasurable metrics', () => {
-    const decision = evaluateProposal(
-      baseProposal,
-      baseCtx({ amplitudeMetricsAvailable: new Set() }),
-    );
-
-    expect(decision.code).toBe('CUR_UNMEASURABLE');
+  it('denies unmeasurable metric (CUR_UNMEASURABLE)', () => {
+    const d = evaluateProposal(baseProposal, baseCtx({ amplitudeMetricsAvailable: new Set() }));
+    expect(d.code).toBe('CUR_UNMEASURABLE');
   });
 
-  it('denies medium and high risk without operator co-sign', () => {
-    const medium = evaluateProposal({ ...baseProposal, risk_class: 'medium' }, baseCtx());
-    const high = evaluateProposal({ ...baseProposal, risk_class: 'high' }, baseCtx());
-
-    expect(medium.code).toBe('CUR_NEEDS_OPERATOR');
-    expect(high.code).toBe('CUR_NEEDS_OPERATOR');
+  it('denies high risk without operator co-sign (CUR_NEEDS_OPERATOR)', () => {
+    const d = evaluateProposal({ ...baseProposal, risk_class: 'high' }, baseCtx());
+    expect(d.code).toBe('CUR_NEEDS_OPERATOR');
   });
 
-  it('approves elevated risk with operator co-sign at Curator level', () => {
-    const decision = evaluateProposal(
+  it('denies medium risk without operator co-sign (CUR_NEEDS_OPERATOR)', () => {
+    const d = evaluateProposal({ ...baseProposal, risk_class: 'medium' }, baseCtx());
+    expect(d.code).toBe('CUR_NEEDS_OPERATOR');
+  });
+
+  it('approves medium risk with operator co-sign', () => {
+    const d = evaluateProposal(
       {
         ...baseProposal,
         risk_class: 'medium',
@@ -98,12 +92,23 @@ describe('evaluateProposal', () => {
       },
       baseCtx(),
     );
-
-    expect(decision.approved).toBe(true);
+    expect(d.approved).toBe(true);
   });
 
-  it('denies active cooldown and quarantine windows', () => {
-    const cooldown = evaluateProposal(
+  it('approves high risk with operator co-sign (Curator level)', () => {
+    const d = evaluateProposal(
+      {
+        ...baseProposal,
+        risk_class: 'high',
+        operator_cosign: { user: 'user-40', at: '2026-05-14T11:59:00Z' },
+      },
+      baseCtx(),
+    );
+    expect(d.approved).toBe(true);
+  });
+
+  it('denies during active cooldown (CUR_COOLDOWN)', () => {
+    const d = evaluateProposal(
       baseProposal,
       baseCtx({
         neighborhood: {
@@ -115,7 +120,29 @@ describe('evaluateProposal', () => {
         },
       }),
     );
-    const quarantine = evaluateProposal(
+    expect(d.code).toBe('CUR_COOLDOWN');
+    expect(d.cooldown_until).toBeDefined();
+  });
+
+  it('denies invalid cooldown timestamps fail-closed', () => {
+    const d = evaluateProposal(
+      baseProposal,
+      baseCtx({
+        neighborhood: {
+          inputs_hash: 'hash-a',
+          last_apply_at: 'not-a-date',
+          current_cooldown_hours: 6,
+          consecutive_halts_24h: 0,
+          seen_before: true,
+        },
+      }),
+    );
+    expect(d.code).toBe('CUR_COOLDOWN');
+    expect(d.message).toBe('Invalid cooldown timestamp.');
+  });
+
+  it('denies during active quarantine (CUR_COOLDOWN)', () => {
+    const d = evaluateProposal(
       baseProposal,
       baseCtx({
         neighborhood: {
@@ -127,20 +154,36 @@ describe('evaluateProposal', () => {
         },
       }),
     );
-
-    expect(cooldown.code).toBe('CUR_COOLDOWN');
-    expect(cooldown.cooldown_until).toBeDefined();
-    expect(quarantine.code).toBe('CUR_COOLDOWN');
+    expect(d.code).toBe('CUR_COOLDOWN');
   });
 
-  it('requires an idempotency guard for non-idempotent proposals', () => {
-    const denied = evaluateProposal({ ...baseProposal, idempotent: false }, baseCtx());
-    const approved = evaluateProposal(
+  it('denies invalid quarantine timestamps fail-closed', () => {
+    const d = evaluateProposal(
+      baseProposal,
+      baseCtx({
+        neighborhood: {
+          inputs_hash: 'hash-a',
+          current_cooldown_hours: 24,
+          consecutive_halts_24h: 3,
+          quarantined_until: 'not-a-date',
+          seen_before: true,
+        },
+      }),
+    );
+    expect(d.code).toBe('CUR_COOLDOWN');
+    expect(d.message).toBe('Invalid quarantine timestamp.');
+  });
+
+  it('denies non-idempotent without guard (CUR_NOT_IDEMPOTENT)', () => {
+    const d = evaluateProposal({ ...baseProposal, idempotent: false }, baseCtx());
+    expect(d.code).toBe('CUR_NOT_IDEMPOTENT');
+  });
+
+  it('approves non-idempotent when guard provided', () => {
+    const d = evaluateProposal(
       { ...baseProposal, idempotent: false, idempotency_guard: 'check current threshold first' },
       baseCtx(),
     );
-
-    expect(denied.code).toBe('CUR_NOT_IDEMPOTENT');
-    expect(approved.approved).toBe(true);
+    expect(d.approved).toBe(true);
   });
 });

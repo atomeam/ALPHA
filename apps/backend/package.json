@@ -3,17 +3,21 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "Alpha backend HTTP surface on :8080.",
+  "main": "./dist/server.js",
   "scripts": {
-    "build": "tsc --noEmit",
+    "build": "tsc -p tsconfig.build.json",
     "dev": "tsx watch src/server.ts",
-    "lint": "eslint .",
-    "start": "tsx src/server.ts",
-    "typecheck": "tsc --noEmit",
+    "lint": "eslint src tests",
+    "start": "node dist/server.js",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run"
   },
   "dependencies": {
-    "@alpha/alpha-core": "workspace:^",
+    "@alpha/alpha-core": "workspace:*",
+    "@alpha/logger": "workspace:*",
+    "@alpha/mcp-core": "workspace:*",
+    "@alpha/nexus-core": "workspace:*",
+    "@alpha/permissions": "workspace:*",
     "@google/genai": "^1.29.0",
     "dotenv": "^17.2.3",
     "express": "^4.21.2"
