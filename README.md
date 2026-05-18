@@ -9,7 +9,7 @@ trust-first integration routing).
 
 ## Layout
 
-```
+```text
 .
 ├── apps/                # Deployable applications
 │   ├── backend/         # API + trust kernel host (port 8080)

@@ -94,8 +94,16 @@ For each `TrustRequest`, the kernel runs the same five-stage pipeline:
 2. **Resolve subject** against the grants registry. Unknown subjects are
    denied with `reason: "unknown_subject"`.
 3. **Match grants** whose `(subject, action, resource)` triple covers the
-   request. The first non-expired, non-revoked match wins.
-4. **Evaluate conditions** declared on the matched grant (see §3.4). Any
+   request. The first non-expired, non-revoked match wins. Candidate
+   grants are evaluated in a fixed order so the result is deterministic:
+   1. **By specificity of the resource match:**
+      `DirectGrant` (exact resource) → `ScopeGrant` (longest matching
+      `resourcePrefix` first) → `DelegationGrant` (longest matching
+      `resourcePrefix` first).
+   2. **By `issuedAt` descending** within the same specificity tier, so
+      a newer grant overrides an older one of the same shape.
+   3. **By `id` ascending** as a final tie-breaker for determinism.
+4. **Evaluate conditions** declared on the matched grant (see §3.5). Any
    failed condition demotes the decision to deny.
 5. **Emit audit record** for every outcome (allow or deny) before returning.
 
@@ -168,9 +176,9 @@ interface DelegationGrant {
   onBehalfOf: SubjectId;      // whose authority is being used
   actions: Action[];
   resourcePrefix: ResourceUrn;
-  conditions?: Condition[];   // must include at least one time bound
+  conditions?: Condition[];   // see expiresAt below; no additional Condition required
   issuedAt: string;
-  expiresAt: string;          // required, not optional
+  expiresAt: string;          // required time bound on the grant itself (not optional)
   issuer: SubjectId;
   signature: string;
 }
@@ -216,6 +224,17 @@ pipeline stage 4. The Phase 0 set is intentionally small:
 | `context_equals`  | Allow only if `request.context[k]` equals a fixed value.   |
 | `context_one_of`  | Allow only if `request.context[k]` is in a fixed set.      |
 | `requires_mfa`    | Allow only if `context.mfa === true`.                      |
+
+The corresponding TypeScript type is:
+
+```ts
+type Condition =
+  | { type: "time_window"; start: string; end: string }
+  | { type: "rate_limit"; maxDecisions: number; windowSeconds: number }
+  | { type: "context_equals"; key: string; value: unknown }
+  | { type: "context_one_of"; key: string; values: unknown[] }
+  | { type: "requires_mfa" };
+```
 
 New conditions require a docs change here *before* implementation.
 
