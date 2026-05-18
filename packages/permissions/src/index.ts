@@ -78,6 +78,37 @@ function grantMatches(grant: Grant, request: TrustRequest): boolean {
   );
 }
 
+function isExpired(grant: Grant, now: Date): boolean {
+  return !!grant.expiresAt && new Date(grant.expiresAt).getTime() <= now.getTime();
+}
+
+/**
+ * Sort key implementing docs/TRUST.md §3.3 stage 3 ordering. Smaller sort values
+ * sort first. Tiers:
+ *   tier 0: DirectGrant (exact resource match — most specific)
+ *   tier 1: ScopeGrant, ordered by descending resourcePrefix length so the
+ *           longest matching prefix wins within the tier.
+ * DelegationGrant is not yet present in the implementation; once added it
+ * becomes tier 2 with the same prefix-length ordering as ScopeGrant.
+ */
+function specificity(grant: Grant): [number, number] {
+  if (grant.kind === 'direct') return [0, 0];
+  return [1, -grant.resourcePrefix.length];
+}
+
+function compareGrants(a: Grant, b: Grant): number {
+  const [aTier, aSub] = specificity(a);
+  const [bTier, bSub] = specificity(b);
+  if (aTier !== bTier) return aTier - bTier;
+  if (aSub !== bSub) return aSub - bSub;
+  // issuedAt descending: newer grant of the same shape overrides older.
+  if (a.issuedAt !== b.issuedAt) return a.issuedAt < b.issuedAt ? 1 : -1;
+  // id ascending as final tie-breaker.
+  if (a.id < b.id) return -1;
+  if (a.id > b.id) return 1;
+  return 0;
+}
+
 export function checkTrust(
   value: unknown,
   registry: GrantRegistry,
@@ -91,25 +122,34 @@ export function checkTrust(
     return { outcome: 'deny', reason: 'unknown_subject', decisionId: decisionId(value, 'unknown') };
   }
 
-  const grant = registry.grants.find((candidate) => grantMatches(candidate, value));
-  if (!grant) {
-    return { outcome: 'deny', reason: 'missing_grant', decisionId: decisionId(value, 'missing') };
+  // Per docs/TRUST.md §3.3 stage 3: filter expired/revoked grants out before
+  // matching, then evaluate surviving candidates in the deterministic order
+  // (specificity tier → issuedAt desc → id asc) and take the first match.
+  const liveMatches = registry.grants
+    .filter((candidate) => !candidate.revokedAt && !isExpired(candidate, now))
+    .filter((candidate) => grantMatches(candidate, value))
+    .sort(compareGrants);
+
+  const [winner] = liveMatches;
+  if (winner) {
+    return {
+      outcome: 'allow',
+      grantId: winner.id,
+      decisionId: decisionId(value, 'allow'),
+      expiresAt: winner.expiresAt,
+    };
   }
 
-  if (grant.revokedAt) {
+  // No live match. Surface the most specific deny reason by re-checking the
+  // unfiltered candidate set: revoked outranks expired outranks missing.
+  const anyMatches = registry.grants.filter((candidate) => grantMatches(candidate, value));
+  if (anyMatches.some((candidate) => !!candidate.revokedAt)) {
     return { outcome: 'deny', reason: 'revoked_grant', decisionId: decisionId(value, 'revoked') };
   }
-
-  if (grant.expiresAt && new Date(grant.expiresAt).getTime() <= now.getTime()) {
+  if (anyMatches.some((candidate) => isExpired(candidate, now))) {
     return { outcome: 'deny', reason: 'expired_grant', decisionId: decisionId(value, 'expired') };
   }
-
-  return {
-    outcome: 'allow',
-    grantId: grant.id,
-    decisionId: decisionId(value, 'allow'),
-    expiresAt: grant.expiresAt,
-  };
+  return { outcome: 'deny', reason: 'missing_grant', decisionId: decisionId(value, 'missing') };
 }
 
 export function bootstrapGrantRegistry(): GrantRegistry {
