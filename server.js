@@ -508,7 +508,7 @@ function decideRoute(route, body, query) {
   } else if (route === 'lore') {
     decision = 'allow';
     reason = 'lore routes are safe';
-    next = { endpoint: '/api/lore/*', method: 'POST' };
+    next = { endpoint: '/api/lore/profile', method: 'GET' };
   } else if (route === 'kraken') {
     decision = 'deny';
     reason = 'kraken routes are locked - requires human approval';
@@ -555,6 +555,93 @@ app.post('/api/route', (req, res) => {
 });
 
 // ════════════════════════════════════════════════════════════════════════════
+// LORE INTEGRATION (v0) ───────────────────────────────────────────────────────
+// Read-only knowledge surface
+// ════════════════════════════════════════════════════════════════════
+
+const LORE_DIR = process.env.LORE_DIR || path.join(process.cwd(), 'lore');
+const PROFILE_PATH = path.join(LORE_DIR, 'profile.json');
+const INDEX_PATH = path.join(LORE_DIR, 'index.jsonl');
+
+// Load profile (cached)
+let profileCache = null;
+function loadProfile() {
+  if (profileCache) return profileCache;
+  try {
+    if (existsSync(PROFILE_PATH)) {
+      profileCache = JSON.parse(readFileSync(PROFILE_PATH, 'utf8'));
+    }
+  } catch (e) {
+    // ignore
+  }
+  return profileCache;
+}
+
+// Load index (cached)
+let indexCache = null;
+function loadIndex() {
+  if (indexCache) return indexCache;
+  try {
+    if (existsSync(INDEX_PATH)) {
+      const content = readFileSync(INDEX_PATH, 'utf8');
+      indexCache = content.split('\n').filter(l => l.trim()).map(l => JSON.parse(l));
+    }
+  } catch (e) {
+    // ignore
+  }
+  return indexCache || [];
+}
+
+// GET /api/lore/profile - returns operator profile
+app.get('/api/lore/profile', (req, res) => {
+  const profile = loadProfile();
+  const traceId = req.headers['x-trace-id'] || 'no-trace';
+  
+  if (!profile) {
+    console.log(`[lore] profile_not_found: traceId=${traceId}`);
+    return res.json({ ok: false, detail: 'profile not configured' });
+  }
+  
+  console.log(`[lore] profile_read: traceId=${traceId} name=${profile.name}`);
+  res.json({ ok: true, profile, traceId });
+});
+
+// GET /api/lore/search?q=... - search lore index
+app.get('/api/lore/search', (req, res) => {
+  const q = (req.query.q || '').toLowerCase();
+  const index = loadIndex();
+  const traceId = req.headers['x-trace-id'] || 'no-trace';
+  
+  const results = q 
+    ? index.filter(e => 
+        e.title.toLowerCase().includes(q) || 
+        e.tags.some(t => t.includes(q)) ||
+        e.summary.toLowerCase().includes(q)
+      )
+    : index.slice(0, 10);
+  
+  console.log(`[lore] search: traceId=${traceId} q="${q}" results=${results.length}`);
+  res.json({ ok: true, query: q, count: results.length, entries: results, traceId });
+});
+
+// GET /api/lore/entry/:id - get single entry
+app.get('/api/lore/entry/:id', (req, res) => {
+  const id = req.params.id;
+  const index = loadIndex();
+  const traceId = req.headers['x-trace-id'] || 'no-trace';
+  
+  const entry = index.find(e => e.id === id);
+  
+  if (!entry) {
+    console.log(`[lore] entry_not_found: traceId=${traceId} id=${id}`);
+    return res.json({ ok: false, detail: 'entry not found' });
+  }
+  
+  console.log(`[lore] entry_read: traceId=${traceId} id=${id}`);
+  res.json({ ok: true, entry, traceId });
+});
+
+// ════════════════════════════════════════════════════════════════════
 
 app.get('/api/health', (_req, res) => {
   res.json({

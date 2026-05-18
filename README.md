@@ -236,3 +236,42 @@ Single routing entrypoint with classification and guardrails.
 ```bash
 node loxa-test.js
 ```
+
+---
+
+## Lore Integration (v0)
+
+Read-only knowledge surface behind Loxa router.
+
+### Files
+
+- `lore/profile.json` — Operator profile
+- `lore/index.jsonl` — Searchable lore entries
+
+### GET /api/lore/profile
+
+Returns the operator profile:
+
+```json
+{
+  "ok": true,
+  "profile": { "name": "Loxa", ... },
+  "traceId": "trace_..."
+}
+```
+
+### GET /api/lore/search?q=...
+
+Search lore entries:
+
+```bash
+GET /api/lore/search?q=telemetry
+```
+
+### GET /api/lore/entry/:id
+
+Get single entry:
+
+```bash
+GET /api/lore/entry/lore-001
+```
