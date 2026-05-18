@@ -24,6 +24,70 @@ const PORT = Number(process.env.PORT || 8080);
 const STARTED_AT = new Date().toISOString();
 const VERSION = '0.1.0';
 
+// Health history ring buffer (in-memory)
+const HEALTH_HISTORY_MAX = 50;
+const healthHistory = [];
+let lastHealthOk = null; // Track status transitions for alerting
+
+// Health history persistence (optional JSONL file)
+const HEALTH_HISTORY_PATH = process.env.HOMEBASE_HEALTH_HISTORY_PATH || 'C:\\AtomArcade\\health-history.jsonl';
+
+function addHealthSnapshot(snapshot) {
+  const entry = {
+    timestamp: snapshot.timestamp || new Date().toISOString(),
+    ok: snapshot.ok,
+    version: snapshot.version,
+    checks: snapshot.checks,
+  };
+  
+  // Check for status transition (alerting)
+  if (lastHealthOk !== null && lastHealthOk !== snapshot.ok) {
+    entry.statusTransition = {
+      from: lastHealthOk,
+      to: snapshot.ok,
+      at: entry.timestamp,
+    };
+  }
+  lastHealthOk = snapshot.ok;
+  
+  // Add to ring buffer
+  healthHistory.push(entry);
+  if (healthHistory.length > HEALTH_HISTORY_MAX) {
+    healthHistory.shift();
+  }
+  
+  // Persist to JSONL (sync, fire-and-forget)
+  try {
+    if (HEALTH_HISTORY_PATH) {
+      const fs = require('node:fs');
+      const line = JSON.stringify(entry) + '\n';
+      fs.appendFileSync(HEALTH_HISTORY_PATH, line);
+    }
+  } catch {
+    // Ignore persistence errors silently
+  }
+  
+  return entry;
+}
+
+function getFlappingStatus() {
+  const recent = healthHistory.slice(-10);
+  if (recent.length < 3) return null;
+  
+  const failures = recent.filter(h => !h.ok).length;
+  if (failures >= 3) return 'flapping';
+  
+  const firstFail = recent.find(h => !h.ok);
+  const lastSuccess = [...recent].reverse().find(h => h.ok);
+  
+  return {
+    firstFailureAt: firstFail?.timestamp || null,
+    lastSuccessAt: lastSuccess?.timestamp || null,
+    recentFailures: failures,
+    totalInWindow: recent.length,
+  };
+}
+
 // Path to homebase-logs.jsonl on Victus
 const HOMEBASE_LOGS_PATH = process.env.HOMEBASE_LOGS_PATH || 'C:\\AtomArcade\\atomarcade-bridge\\homebase-logs.jsonl';
 
@@ -171,24 +235,63 @@ app.get('/api/bridge/health', async (_req, res) => {
     
     clearTimeout(timeoutId);
     
+    let data;
     if (response.ok) {
-      const data = await response.json();
-      return res.json(data);
+      data = await response.json();
     } else {
-      return res.json({
+      data = {
         ok: false,
         detail: `Bridge HTTP ${response.status}`,
         timestamp: new Date().toISOString(),
-      });
+      };
     }
+    
+    // Store in history and get telemetry
+    addHealthSnapshot(data);
+    const flapping = getFlappingStatus();
+    
+    // Attach telemetry metadata to response
+    const telemetry = {
+      historyLength: healthHistory.length,
+      isFlapping: flapping === 'flapping',
+      firstFailureTime: flapping?.firstFailureAt || null,
+      lastSuccessTime: flapping?.lastSuccessAt || null,
+    };
+    
+    return res.json({
+      ...data,
+      telemetry,
+    });
   } catch (error) {
     // Catch network errors, timeouts, etc.
-    return res.json({
+    const errorData = {
       ok: false,
       detail: error instanceof Error ? error.message : 'Bridge unreachable',
       timestamp: new Date().toISOString(),
+    };
+    
+    // Still record the failure
+    addHealthSnapshot(errorData);
+    const flapping = getFlappingStatus();
+    
+    return res.json({
+      ...errorData,
+      telemetry: {
+        historyLength: healthHistory.length,
+        isFlapping: flapping === 'flapping',
+        firstFailureTime: flapping?.firstFailureAt || null,
+        lastSuccessTime: flapping?.lastSuccessAt || null,
+      },
     });
   }
+});
+
+// Endpoint to get health history
+app.get('/api/bridge/health/history', (_req, res) => {
+  res.json({
+    history: healthHistory,
+    flapping: getFlappingStatus(),
+  });
 });
 
 // Read homebase-logs.jsonl from Victus and return recent entries
