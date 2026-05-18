@@ -1,7 +1,11 @@
 import { Client } from "@notionhq/client";
 
-const NOTION_KEY = process.env.NOTION_API_KEY;
-const notion = NOTION_KEY ? new Client({ auth: NOTION_KEY }) : null;
+// Lazy-load the key at runtime
+function getNotionClient() {
+  const key = process.env.NOTION_API_KEY;
+  if (!key) return null;
+  return new Client({ auth: key });
+}
 
 /**
  * Append a log entry to Bridge Logs DB with exact schema.
@@ -20,6 +24,7 @@ export async function appendLogEntry(databaseId, {
   reason_code = null,
   latency_ms = null,
 }) {
+  const notion = getNotionClient();
   if (!notion) {
     return { ok: false, error: "No NOTION_API_KEY" };
   }
@@ -63,6 +68,7 @@ export async function appendLogEntry(databaseId, {
  * Ping Notion — test the connection.
  */
 export async function pingNotion() {
+  const notion = getNotionClient();
   if (!notion) {
     return { ok: false, error: "No NOTION_API_KEY" };
   }
@@ -78,6 +84,7 @@ export async function pingNotion() {
  * Fetch a page by ID.
  */
 export async function fetchPage(pageId) {
+  const notion = getNotionClient();
   if (!notion) {
     return { ok: false, error: "No NOTION_API_KEY" };
   }

@@ -6,21 +6,21 @@ import { join } from 'path';
 import { readFileSync, appendFileSync, existsSync, statSync } from 'fs';
 import { spawn } from 'child_process';
 import dotenv from 'dotenv';
-import { pingNotion, appendLogEntry } from './modules/notion-sync.js';
 
-// Load local .env - try multiple paths
+// Load .env FIRST
 const envPaths = [
-  join(fileURLToPath(new URL('.', import.meta.url)),  // unified-app/
-  join(fileURLToPath(new URL('.', import.meta.url)), '..'), // parent dir
+  join(fileURLToPath(new URL('.', import.meta.url)),
+  join(fileURLToPath(new URL('.', import.meta.url)), '..'),
 ];
 for (const envPath of envPaths) {
   const p = join(envPath, '.env');
   if (existsSync(p)) {
     dotenv.config({ path: p });
-    console.log('[Env] Loaded from:', p);
     break;
   }
 }
+
+import { pingNotion, appendLogEntry } from './modules/notion-sync.js';
 
 const __dirname = fileURLToPath(new URL('.', import.meta.url));
 const app = express();
