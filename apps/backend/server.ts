@@ -1550,3 +1550,85 @@ app.get("/api/sandbox-escapes", async (req, res) => {
 });
 
 import { DEFAULT_PATH_POLICY, getSandboxRoot } from '@aether/sandbox';
+
+// Convene - Cross-assistant coordination layer
+app.post("/api/profile/:profileId/convene", async (req, res) => {
+  try {
+    const { deliberate } = await import('@aether/convene');
+    const { profileId } = req.params;
+    const { question, context } = req.body;
+    
+    const result = await deliberate({ profileId, question, context: context || {} });
+    res.json(result);
+  } catch (e: any) {
+    res.status(400).json({ error: e.message });
+  }
+});
+
+app.get("/api/convene/sessions", async (req, res) => {
+  try {
+    const { listSessions, getSession } = await import('@aether/convene');
+    const { profileId, sessionId } = req.query;
+    
+    if (sessionId) {
+      const session = getSession(sessionId as string);
+      res.json(session);
+    } else {
+      const sessions = listSessions(profileId as string);
+      res.json({ sessions, count: sessions.length });
+    }
+  } catch (e: any) {
+    res.json({ sessions: [], error: e.message });
+  }
+});
+
+app.post("/api/convene/sessions/:sessionId/vote", async (req, res) => {
+  try {
+    const { castVote } = await import('@aether/convene');
+    const { sessionId } = req.params;
+    const { assistantName, scope, vote, confidence, rationale } = req.body;
+    
+    const result = castVote(sessionId, { assistantName, scope, vote, confidence, rationale });
+    res.json(result);
+  } catch (e: any) {
+    res.status(400).json({ error: e.message });
+  }
+});
+
+app.post("/api/convene/sessions/:sessionId/resolve", async (req, res) => {
+  try {
+    const { resolveSession } = await import('@aether/convene');
+    const { sessionId } = req.params;
+    const { resolution } = req.body;
+    
+    const result = resolveSession(sessionId, resolution);
+    res.json(result);
+  } catch (e: any) {
+    res.status(400).json({ error: e.message });
+  }
+});
+
+app.get("/api/convene/assistants", async (req, res) => {
+  try {
+    const { listAssistants, getAssistantsByScope, SCOPES, registerAssistant } = await import('@aether/convene');
+    
+    const scope = req.query.scope as string;
+    const assistants = scope ? getAssistantsByScope(scope) : listAssistants();
+    
+    res.json({ assistants, scopes: SCOPES });
+  } catch (e: any) {
+    res.json({ assistants: [], error: e.message });
+  }
+});
+
+app.post("/api/convene/assistants", async (req, res) => {
+  try {
+    const { registerAssistant } = await import('@aether/convene');
+    const { name, scopes } = req.body;
+    
+    const assistant = registerAssistant({ name, scopes });
+    res.json(assistant);
+  } catch (e: any) {
+    res.status(400).json({ error: e.message });
+  }
+});
