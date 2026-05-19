@@ -7,20 +7,41 @@
  * 
  * Usage: node packages/chaos/src/proposals-watcher.ts
  * 
- * Environment:
+ * Environment (loaded from .env if present):
  *   NOTION_API_KEY - Notion integration token
  *   PROPOSALS_DB_ID - Database ID to poll
  *   POLL_INTERVAL_MS - Polling interval (default: 5000ms)
+ *   USE_MOCK - Set to 'true' for mock responses
  */
 
 import * as fs from 'fs';
+import * as path from 'path';
+
+// Load .env if present
+const ENV_FILE = '.env';
+if (fs.existsSync(ENV_FILE)) {
+  const envContent = fs.readFileSync(ENV_FILE, 'utf-8');
+  for (const line of envContent.split('\n')) {
+    const match = line.match(/^([^=]+)=(.*)$/);
+    if (match && !process.env[match[1]]) {
+      process.env[match[1]] = match[2].trim();
+    }
+  }
+  console.log('[Watcher] Loaded .env configuration');
+}
 
 const NOTION_API_KEY = process.env.NOTION_API_KEY;
 const PROPOSALS_DB_ID = process.env.PROPOSALS_DB_ID || process.env.ALPHA_PROPOSALS_DB_URL;
 const POLL_INTERVAL_MS = parseInt(process.env.POLL_INTERVAL_MS || '5000');
+const USE_MOCK = process.env.USE_MOCK === 'true';
 
-// Local fallback watcher (when Notion credentials unavailable)
+// Local fallback path
 const PROPOSALS_LOG = './logs/proposals.jsonl';
+
+// Mock responses for testing/fallback
+const MOCK_PROPOSALS = [
+  { id: 'mock_prop_001', title: 'Mock Proposal - Test', status: 'pending_review', summary: 'Mock response for testing' },
+];
 
 interface Proposal {
   id: string;
@@ -30,6 +51,11 @@ interface Proposal {
 }
 
 async function fetchFromNotion(): Promise<Proposal[]> {
+  if (USE_MOCK) {
+    console.log('[Watcher] Using mock responses');
+    return MOCK_PROPOSALS;
+  }
+  
   if (!NOTION_API_KEY || !PROPOSALS_DB_ID) {
     throw new Error('NOTION_API_KEY or PROPOSALS_DB_ID not set');
   }
