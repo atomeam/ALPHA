@@ -263,3 +263,35 @@ toolRegistry.list_workflows = {
     return { workflows: listWorkflows() };
   }
 } as Tool;
+
+// Chaos injection tool
+const chaosInjectTool: Tool = {
+  name: 'chaos_inject',
+  description: 'Inject a synthetic failure pattern to train the agent loop',
+  async execute(args) {
+    const { executeChaos } = await import('@aether/chaos');
+    
+    const scenario = args.scenario as 'broken_package_json' | 'corrupted_env_var' | 'invalid_syntax' | 'missing_dep' | 'network_timeout';
+    const targetPath = args.targetPath as string;
+    
+    if (!scenario) {
+      throw new Error('scenario required');
+    }
+    
+    return executeChaos(scenario, targetPath);
+  }
+};
+
+// List chaos scenarios tool
+const listChaosScenariosTool: Tool = {
+  name: 'list_chaos_scenarios',
+  description: 'List available chaos scenarios for immunity testing',
+  async execute() {
+    const { getScenarios } = await import('@aether/chaos');
+    return { scenarios: getScenarios() };
+  }
+};
+
+// Add to registry
+toolRegistry.chaos_inject = chaosInjectTool;
+toolRegistry.list_chaos_scenarios = listChaosScenariosTool;

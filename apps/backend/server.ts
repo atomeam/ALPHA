@@ -903,3 +903,24 @@ app.get("/api/workflows", async (req, res) => {
     res.json({ workflows: [], error: e.message });
   }
 });
+
+// Chaos injection endpoint
+app.post("/api/agents/chaos", async (req, res) => {
+  try {
+    const { executeChaos } = await import('@aether/chaos');
+    const { scenario, targetPath } = req.body;
+    
+    const result = executeChaos(scenario, targetPath);
+    res.json({ meta: 'Chaos injected. Training loop engaged.', ...result });
+  } catch (e: any) {
+    res.status(400).json({ error: e.message });
+  }
+});
+app.get("/api/agents/chaos", async (req, res) => {
+  try {
+    const { getScenarios } = await import('@aether/chaos');
+    res.json({ scenarios: getScenarios() });
+  } catch (e: any) {
+    res.json({ scenarios: [], error: e.message });
+  }
+});
