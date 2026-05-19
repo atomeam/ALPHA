@@ -1,0 +1,15 @@
+{
+  "id": "lesson_001",
+  "proposalId": "prop_001",
+  "outcome": "success",
+  "errorType": null,
+  "filesAffected": ["packages/curator-audit/src/index.ts"],
+  "timestamp": 1750000000000
+}
+{"id": "lesson_002",
+  "proposalId": "prop_002", 
+  "outcome": "pending_operator_cosign",
+  "errorType": "APP_OPERATOR_COSIGN_PENDING",
+  "filesAffected": ["packages/governance/src/index.ts"],
+  "timestamp": 1750000000001
+}
