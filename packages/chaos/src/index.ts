@@ -3,10 +3,65 @@
  * 
  * Synthetic chaos injection for immunity testing.
  * Safely injects failure patterns to train the agent loop.
+ * 
+ * Also includes Alpha Loop Hardening modules:
+ * - BlastRadiusCap: Per-cycle limits
+ * - Quarantine: Holding state for failed validations
+ * - Canary: Low-stakes testing surface
+ * - AutoRevert: Rollback signals and mechanism
  */
 
 import fs from 'fs';
 import path from 'path';
+
+// Re-export hardening modules
+export {
+  checkBlastRadius,
+  recordCycle,
+  resetCycleState,
+  getCapStatus,
+  DEFAULT_CAPS,
+  type BlastRadiusCaps,
+  type CapCheckResult,
+} from './blast-radius.js';
+
+export {
+  quarantineItem,
+  getQuarantinedItems,
+  getQuarantinedItem,
+  releaseItem,
+  deleteQuarantinedItem,
+  cleanupExpired,
+  type QuarantinedItem,
+  type QuarantineStatus,
+  type FailedStage,
+} from './quarantine.js';
+
+export {
+  initCanary,
+  startCanaryRun,
+  checkCanaryPromotion,
+  triggerCanaryAlert,
+  getPendingCanaryRuns,
+  getCanaryStatus,
+  DEFAULT_CANARY_CONFIG,
+  type CanaryRun,
+  type CanaryStatus,
+} from './canary.js';
+
+export {
+  recordCycleSuccess,
+  recordCycleError,
+  recordCuratorDenial,
+  checkRevertSignals,
+  getErrorRate,
+  getRevertStatus,
+  createCheckpoint,
+  revertToCheckpoint,
+  DEFAULT_REVERT_THRESHOLDS,
+  type RevertSignal,
+  type RevertSignalType,
+} from './auto-revert.js';
 
 // Valid sandbox directories
 const SANDBOX_PATHS = [
