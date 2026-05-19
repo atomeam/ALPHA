@@ -43,7 +43,7 @@ export function generateMockStripeVote(context: Record<string, unknown>): MockSt
   return {
     assistantName: 'stripe-mcp',
     scope: 'payments',
-    vote,
+    vote: vote as string,
     confidence,
     rationale,
     timestamp: Math.floor(Date.now() / 1000),
@@ -57,11 +57,20 @@ export function generateMockStripeVote(context: Record<string, unknown>): MockSt
 export function injectMockStripeVoteIfNeeded(
   votes: Array<{ scope: string }>,
   context: Record<string, unknown>
-): MockStripeVote[] {
+): Array<{ assistantName: string; scope: string; vote: string; confidence: number; rationale: string; timestamp: number }> {
   const hasPaymentVote = votes.some(v => v.scope === 'payments');
   
   if (!hasPaymentVote) {
-    return [generateMockStripeVote(context)];
+    const mock = generateMockStripeVote(context);
+    // Convert to string type for ConveneResponse compatibility
+    return [{
+      assistantName: mock.assistantName,
+      scope: mock.scope,
+      vote: mock.vote,
+      confidence: mock.confidence,
+      rationale: mock.rationale,
+      timestamp: mock.timestamp,
+    }];
   }
   
   return [];
