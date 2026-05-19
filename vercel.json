@@ -1,21 +1,9 @@
 {
   "version": 2,
   "framework": "express",
-  "builds": [
-    {
-      "src": "apps/backend/dist/server.cjs",
-      "use": "@vercel/node"
-    }
-  ],
-  "install": "npm install --include=devDependencies",
+  "builds": [{ "src": "apps/backend/server.ts", "use": "@vercel/node" }],
   "routes": [
-    {
-      "src": "/api/(.*)",
-      "dest": "apps/backend/dist/server.cjs"
-    },
-    {
-      "src": "/(.*)",
-      "dest": "apps/backend/dist/server.cjs"
-    }
+    { "src": "/api/(.*)", "dest": "/apps/backend/server.ts" },
+    { "src": "/(.*)", "dest": "/apps/backend/server.ts" }
   ]
 }
