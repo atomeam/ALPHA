@@ -5,12 +5,14 @@
  * - System health monitoring
  * - Error queue scanning
  * - Autonomous Convene triggering
- * - Outreach pre-staging
+ * - Outbound queue processing with jitter
  * 
  * Usage: npm run dev -w @loxa/daemon
  */
 
 import { z } from 'zod';
+import { ThrottleProvider, ThrottleConfigSchema } from '@aether/throttle';
+import { OutboundQueueProcessor } from './queue/processor.js';
 
 // Types for system interfaces
 interface NetworkHealth {
@@ -54,6 +56,8 @@ interface DaemonState {
 // Main daemon class
 export class LoxaDaemon {
   private state: DaemonState;
+  private throttle: ThrottleProvider;
+  private outboundQueue: OutboundQueueProcessor;
   
   constructor(private config: DaemonConfig) {
     this.state = {
@@ -63,6 +67,13 @@ export class LoxaDaemon {
       lastTickAt: null,
       tickCount: 0,
     };
+    
+    // Initialize throttle and queue
+    this.throttle = new ThrottleProvider({
+      linkedin: { maxPerDay: 8, maxPerHour: 2, minIntervalMinutes: 45 },
+      email: { maxPerDay: 25, maxPerHour: 10, minIntervalMinutes: 15 },
+    });
+    this.outboundQueue = new OutboundQueueProcessor();
   }
 
   /**
@@ -107,6 +118,11 @@ export class LoxaDaemon {
     tickCount: number;
     lastTickAt: number | null;
     config: DaemonConfig;
+    throttle: ReturnType<ThrottleProvider['getStatus']>;
+    queue: {
+      pending: number;
+      processedToday: number;
+    };
   } {
     return {
       isRunning: this.state.isRunning,
@@ -117,7 +133,23 @@ export class LoxaDaemon {
       tickCount: this.state.tickCount,
       lastTickAt: this.state.lastTickAt,
       config: this.config,
+      throttle: this.throttle.getStatus(),
+      queue: {
+        pending: this.outboundQueue.getStatus().queueLength,
+        processedToday: this.outboundQueue.getStatus().processedToday,
+      },
     };
+  }
+
+  /**
+   * Enqueue an outbound outreach action
+   */
+  enqueueOutreach(channel: 'linkedin' | 'email', targetId: string, payload: Record<string, unknown> = {}): string {
+    return this.outboundQueue.enqueue({
+      channel,
+      targetId,
+      payload,
+    });
   }
 
   /**
