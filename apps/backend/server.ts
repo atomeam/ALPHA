@@ -876,3 +876,30 @@ async function startServer() {
 }
 
 startServer();
+
+// Workflow webhook endpoints
+app.post("/api/workflows/trigger", async (req, res) => {
+  try {
+    const { runWorkflow, getWorkflow } = await import('@aether/workflow');
+    const { workflow: workflowName, context } = req.body;
+    
+    const workflow = getWorkflow(workflowName);
+    if (!workflow) {
+      return res.status(404).json({ error: `Unknown workflow: ${workflowName}` });
+    }
+    
+    const result = await runWorkflow(workflow, context || {});
+    res.json(result);
+  } catch (e: any) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.get("/api/workflows", async (req, res) => {
+  try {
+    const { listWorkflows } = await import('@aether/workflow');
+    res.json({ workflows: listWorkflows() });
+  } catch (e: any) {
+    res.json({ workflows: [], error: e.message });
+  }
+});

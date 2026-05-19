@@ -229,3 +229,37 @@ const getAgentStateTool: Tool = {
 
 // Add to registry
 toolRegistry.get_agent_state = getAgentStateTool;
+
+// Workflow trigger tool
+const triggerWorkflowTool: Tool = {
+  name: 'trigger_workflow',
+  description: 'Trigger a predefined workflow',
+  async execute(args) {
+    const { runWorkflow, getWorkflow } = await import('@aether/workflow');
+    
+    const workflowName = args.workflow as string;
+    const context = args.context as Record<string, unknown> || {};
+    
+    if (!workflowName) {
+      throw new Error('workflow name required');
+    }
+    
+    const workflow = getWorkflow(workflowName);
+    if (!workflow) {
+      throw new Error(`Unknown workflow: ${workflowName}`);
+    }
+    
+    const result = await runWorkflow(workflow, context);
+    return result;
+  }
+};
+
+toolRegistry.trigger_workflow = triggerWorkflowTool;
+toolRegistry.list_workflows = {
+  name: 'list_workflows',
+  description: 'List available workflows',
+  execute: async () => {
+    const { listWorkflows } = await import('@aether/workflow');
+    return { workflows: listWorkflows() };
+  }
+} as Tool;
