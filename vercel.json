@@ -1,9 +1,14 @@
 {
   "version": 2,
   "framework": "express",
-  "builds": [{ "src": "apps/backend/server.ts", "use": "@vercel/node" }],
+  "builds": [
+    {
+      "src": "apps/backend/server.ts",
+      "use": "@vercel/node"
+    }
+  ],
+  "install": "npm install --ignore-scripts --no-audit --prefer-offline",
   "routes": [
-    { "src": "/api/(.*)", "dest": "/apps/backend/server.ts" },
-    { "src": "/(.*)", "dest": "/apps/backend/server.ts" }
+    { "src": "/api/(.*)", "dest": "/apps/backend/server.ts" }
   ]
 }
