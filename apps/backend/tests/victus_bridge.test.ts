@@ -10,7 +10,7 @@ import {
   VictusCommand,
   VictusResponse,
   HealthStatus,
-} from '../src/core/victus_bridge';
+} from '@aether/backend';
 
 // Mock logger for testing
 const mockLogger = {

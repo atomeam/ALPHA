@@ -1,17 +1,20 @@
-import express from "express";
-import path from "path";
-import os from "os";
-import fs from "fs";
-import { exec } from "child_process";
-import { EventEmitter } from "events";
-import { createServer as createViteServer } from "vite";
-import { GoogleGenAI, Type } from "@google/genai";
 import dotenv from "dotenv";
+import { parseEnv, BackendEnvSchema } from "@aether/env";
+import { createTraceLogger, commitToLedger } from "@aether/logger";
+import { manifestPromptFragment } from "./promptManifest";
+import crypto from "crypto";
+import express from "express";
 
 dotenv.config();
 
+// Validate env on boot — fail fast if required vars missing
+const env = parseEnv(BackendEnvSchema, process.env, "backend")
+
+// Component manifest fragment for Gemini prompts
+const COMPONENT_MANIFEST = manifestPromptFragment()
+
 const ai = new GoogleGenAI({
-  apiKey: process.env.GEMINI_API_KEY || "",
+  apiKey: env.GEMINI_API_KEY,
   httpOptions: {
     headers: {
       'User-Agent': 'aistudio-build',
@@ -166,7 +169,7 @@ async function handleMCPRequest(req: MCPRequest) {
 
 async function startServer() {
   const app = express();
-  const PORT = 3000;
+  const PORT = env.PORT;
 
   app.use(express.json());
 
@@ -261,6 +264,27 @@ async function startServer() {
     });
   });
 
+  // Agent System Health
+  app.get("/api/agents", (req, res) => {
+    res.json({
+      curator: 'active',
+      executor: 'ready',
+      mcpServer: 'active',
+      timestamp: new Date().toISOString()
+    });
+  });
+
+  // Evaluate ledger for patterns
+  app.get("/api/agents/evaluate", async (req, res) => {
+    try {
+      const { evaluateLedger } = await import('./src/agents/evaluator.js');
+      const suggestions = await evaluateLedger();
+      res.json({ suggestions });
+    } catch (e: any) {
+      res.json({ suggestions: [], error: e.message });
+    }
+  });
+
   // MCP JSON-RPC Endpoint
   app.post("/api/mcp/rpc", async (req, res) => {
     try {
@@ -273,7 +297,25 @@ async function startServer() {
 
   // API Endpoints
   app.post("/api/build", async (req, res) => {
-    const { prompt, currentComponents } = req.body;
+    // Extract or generate traceId for correlation
+    const incomingTraceId = req.headers["x-trace-id"]?.toString()
+    const traceId = incomingTraceId || `trace_${Date.now()}_${crypto.randomBytes(4).toString("hex")}`
+    
+    const txLog = createTraceLogger({ traceId })
+    txLog.info({ promptLength: req.body.prompt?.length }, "Inbound build request")
+
+    let validatedRequest;
+    try {
+      validatedRequest = parseBuildRequest(req.body);
+    } catch (err: any) {
+      txLog.warn({ error: err.message }, "Request validation failed")
+      return res.status(400).json({
+        error: "Invalid Request",
+        details: err.errors || err.message,
+      });
+    }
+
+    const { prompt, currentComponents } = validatedRequest;
 
     try {
       const response = await callGeminiWithRetry(
@@ -296,11 +338,81 @@ async function startServer() {
         { responseMimeType: "application/json" }
       );
 
-      res.json(JSON.parse(response.text));
+      // Parse LLM response - extract actions from the response
+      let generatedActions: any[] = [];
+      try {
+        const parsed = JSON.parse(response.text);
+        // Handle both array and {actions: [...]} response shapes
+        generatedActions = Array.isArray(parsed) ? parsed : (parsed.actions || []);
+      } catch {
+        generatedActions = [];
+      }
+
+      // Curator gate: validate after generation, before response
+      const verdict = curateActions(generatedActions);
+      logCuratorVerdict(verdict, prompt);
+
+      // Commit to ledger - fail-soft, never block response
+      const promptHash = crypto.createHash("md5").update(prompt).digest("hex")
+      commitToLedger({
+        traceId,
+        prompt,
+        promptHash,
+        verdict: verdict.approved ? "APPROVED" : "REJECTED",
+        reason: verdict.reason,
+        rejectedIds: verdict.rejectedActionIds,
+        rawActions: generatedActions,
+      }).catch((err) => txLog.error({ err }, "Ledger commit failed"))
+
+      // Fail-closed: deny any unauthorized actions
+      if (!verdict.approved) {
+        txLog.warn({ reason: verdict.reason }, "Curator denied")
+        return res.status(422).json({
+          error: "curator_denied",
+          reason: verdict.reason,
+          offendingActionIds: verdict.rejectedActionIds,
+          traceId,
+        });
+      }
+
+      // Success: approved actions
+      txLog.info({ actionCount: generatedActions.length }, "Generation approved")
+      res.setHeader("x-trace-id", traceId)
+      res.json({
+        thought: "Generation approved",
+        explanation: "Payload cleared capability constraints.",
+        actions: generatedActions,
+        isFallback: false,
+        traceId,
+      });
     } catch (error) {
-      console.error("Gemini Build Error:", error);
-      res.status(500).json({ error: "Build failed" });
+      txLog.error({ error }, "Build failed")
+      res.status(500).json({ error: "Build failed", traceId });
     }
+  });
+
+  // Test endpoint: Direct curator validation without LLM
+  // Used for e2e testing the Curator integration
+  app.post("/api/test/curator", async (req, res) => {
+    const { actions } = req.body;
+    
+    if (!actions) {
+      return res.status(400).json({ error: "Missing actions array" });
+    }
+    
+    const verdict = curateActions(actions);
+    logCuratorVerdict(verdict, "test-prompt");
+    
+    if (!verdict.approved) {
+      return res.status(422).json({
+        error: "curator_denied",
+        reason: verdict.reason,
+        offendingActionIds: verdict.rejectedActionIds,
+        traceId: `trace_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`
+      });
+    }
+    
+    res.json({ approved: true, actions });
   });
 
   app.post("/api/evolve", async (req, res) => {
@@ -457,7 +569,10 @@ async function startServer() {
         Available Actions:
         - ADD, MODIFY, REMOVE, MUTATE_THEME, PATCH, SOURCE_MUTATION, SET_DIRECTIVE, MCP_TOOL_CALL.
         
-        Note: For 'MCP_TOOL_CALL', include 'toolName' and 'toolArgs'.`;
+        Note: For 'MCP_TOOL_CALL', include 'toolName' and 'toolArgs'.
+
+        ${COMPONENT_MANIFEST}
+        `;
 
         const response = await callGeminiWithRetry(
           "gemini-3-flash-preview",

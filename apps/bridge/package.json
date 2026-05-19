@@ -5,7 +5,8 @@
   "main": "src/server.ts",
   "scripts": {
     "dev": "tsx src/server.ts",
-    "start": "node dist/server.cjs"
+    "start": "node dist/server.cjs",
+    "build": "tsc"
   },
   "dependencies": {
     "express": "^4.21.2"
@@ -15,6 +16,7 @@
     "@types/node": "^22.14.0",
     "esbuild": "^0.25.0",
     "tsx": "^4.21.0",
-    "typescript": "~5.8.2"
+    "typescript": "~5.8.2",
+    "vitest": "^4.1.6"
   }
 }

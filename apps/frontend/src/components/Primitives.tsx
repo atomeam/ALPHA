@@ -44,6 +44,8 @@ export interface ComponentSpec {
     color?: string;
     actionLabel?: string;
     command?: string;
+    // Extended properties from generative UI
+    discoveryHash?: string;
   };
 }
 

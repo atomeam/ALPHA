@@ -1123,7 +1123,7 @@ export default function App() {
               transition={{ duration: 2, repeat: Infinity }}
               className={cn("w-1.5 h-1.5 rounded-full", homeBaseSynced ? "bg-green-400" : "bg-white/20")} 
             />
-            <Network className={cn("w-3 h-3", homeBaseSynced ? "text-green-400" : "text-white/20")} title="HomeBase Console (Port 8080)" />
+            <Network className={cn("w-3 h-3", homeBaseSynced ? "text-green-400" : "text-white/20")} />
           </div>
         </div>
 

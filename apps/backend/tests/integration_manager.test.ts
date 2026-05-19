@@ -10,7 +10,7 @@ import {
   MCPClient,
   MCPJSONRPCRequest,
   MCPJSONRPCResponse,
-} from '../src/core/integration_manager';
+} from '@aether/backend';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';

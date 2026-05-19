@@ -11,7 +11,7 @@ import {
   OrchestratorResult,
   PlanResult,
   StepType,
-} from '../src/core/orchestrator';
+} from '@aether/backend';
 
 // Mock dependencies
 const createMockIntegrationManager = () => ({
