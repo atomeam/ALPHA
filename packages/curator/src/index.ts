@@ -109,3 +109,126 @@ export function logCuratorVerdict(verdict: CuratorVerdict, prompt: string): void
   };
   console.log(`[CURATOR] ${JSON.stringify(entry)}`);
 }
+
+// --- Pre-Flight + Post-Flight Checks ---
+
+import {
+  checkBlastRadius,
+  recordCycle,
+  checkRevertSignals,
+  recordCuratorDenial,
+  recordCycleSuccess,
+  recordCycleError,
+  getRevertStatus,
+  DEFAULT_CAPS,
+  DEFAULT_REVERT_THRESHOLDS,
+} from '@aether/chaos';
+
+export interface PreFlightResult {
+  passed: boolean;
+  reason: string;
+  checks: {
+    inputValid: boolean;
+    blastRadiusOk: boolean;
+    revertSignal: boolean;
+  };
+}
+
+/**
+ * Pre-flight checks before Alpha execution
+ * 
+ * Validates input and checks if execution is safe
+ */
+export function preFlightCheck(
+  filesToTouch: string[],
+  surfacesToWrite: string[]
+): PreFlightResult {
+  const checks = {
+    inputValid: filesToTouch.length > 0,
+    blastRadiusOk: false,
+    revertSignal: false,
+  };
+  
+  // Check blast radius
+  const blastCheck = checkBlastRadius(filesToTouch, surfacesToWrite);
+  checks.blastRadiusOk = blastCheck.allowed;
+  
+  // Check for revert signals
+  const revert = checkRevertSignals();
+  checks.revertSignal = revert === null;
+  
+  // All checks must pass
+  const passed = checks.inputValid && checks.blastRadiusOk && checks.revertSignal;
+  
+  const reasons: string[] = [];
+  if (!checks.inputValid) reasons.push('Input invalid');
+  if (!checks.blastRadiusOk) reasons.push(blastCheck.reason);
+  if (!checks.revertSignal) reasons.push(`Revert signal: ${revert?.type}`);
+  
+  return {
+    passed,
+    reason: passed ? 'All pre-flight checks passed' : reasons.join('; '),
+    checks,
+  };
+}
+
+export interface PostFlightResult {
+  passed: boolean;
+  reason: string;
+  curatorApproved: boolean;
+  filesModified: number;
+  cycleRecorded: boolean;
+}
+
+/**
+ * Post-flight checks after Alpha execution
+ * 
+ * Validates output and records cycle
+ */
+export function postFlightCheck(
+  actions: unknown,
+  filesModified: string[],
+  surfacesModified: string[]
+): PostFlightResult {
+  // 1. Curator gate - validate actions
+  const curatorVerdict = curateActions(actions);
+  const curatorApproved = curatorVerdict.approved;
+  
+  // 2. Record cycle outcome
+  let cycleRecorded = false;
+  if (curatorApproved) {
+    recordCycle(filesModified, surfacesModified);
+    recordCycleSuccess();
+    cycleRecorded = true;
+  } else {
+    recordCuratorDenial();
+    recordCycleError();
+  }
+  
+  return {
+    passed: curatorApproved,
+    reason: curatorVerdict.reason,
+    curatorApproved,
+    filesModified: filesModified.length,
+    cycleRecorded,
+  };
+}
+
+/**
+ * Get combined Curator + Hardening status
+ */
+export function getCuratorStatus(): {
+  curator: {
+    maxActions: number;
+  };
+  caps: typeof DEFAULT_CAPS;
+  revert: ReturnType<typeof getRevertStatus>;
+} {
+  return {
+    curator: {
+      maxActions: MAX_ACTIONS_PER_RESPONSE,
+    },
+    caps: DEFAULT_CAPS,
+    revert: getRevertStatus(),
+  };
+}
