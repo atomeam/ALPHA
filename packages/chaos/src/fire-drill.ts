@@ -50,7 +50,10 @@ async function triggerFireDrill(): Promise<void> {
   };
 
   console.log(`📋 Question: ${payload.question}`);
-  console.log(`📦 Context:`, payload.context);
+  console.log(`📦 Context:`);
+  Object.entries(payload.context).forEach(([key, value]) => {
+    console.log(`   ${key}: ${value}`);
+  });
   console.log(`🎯 Scopes: ${payload.requiredScopes?.join(', ')}\n`);
 
   try {
@@ -76,16 +79,22 @@ async function triggerFireDrill(): Promise<void> {
 
     console.log('📜 Votes Cast:');
     for (const vote of session.votes) {
-      console.log(`   • ${vote.assistantName} (${vote.scope}): ${vote.vote.toUpperCase()} (${(vote.confidence * 100).toFixed(0)}%)`);
-      console.log(`     └─ ${vote.rationale}\n`);
+      const scopeEmoji = vote.scope === 'payments' ? '💳' : vote.scope === 'infrastructure' ? '🧠' : '🎧';
+      console.log('─'.repeat(40));
+      console.log(`   ${scopeEmoji} ${vote.assistantName} (${vote.scope}): ${vote.vote.toUpperCase()}`);
+      console.log(`   Confidence: ${(vote.confidence * 100).toFixed(0)}%`);
+      console.log(`   └─ ${vote.rationale}\n`);
     }
+    console.log('─'.repeat(40));
 
     console.log(`📖 Narrative:`);
     console.log(`   "${session.narrative}"\n`);
 
     // Exit with appropriate code
     if (session.resolution === 'escalated_to_triage') {
-      console.log('⚠️  Escalated to human review - demo requires manual approval');
+      console.log('⚠️  ESCALATED — This case needs human review.');
+      console.log('   The council couldn\'t reach consensus. A human will review and decide.');
+      console.log('   This is actually the safety net working — nothing broke, someone just needs to weigh in.\n');
       process.exit(0);
     }
 
