@@ -924,3 +924,209 @@ app.get("/api/agents/chaos", async (req, res) => {
     res.json({ scenarios: [], error: e.message });
   }
 });
+
+// Dream state endpoint
+app.get("/api/dream", async (req, res) => {
+  try {
+    const { shouldDream, dream, getDreamStatus, touch } = await import('@aether/dream');
+    
+    // Touch on any activity
+    touch();
+    
+    const status = getDreamStatus();
+    status.shouldDream = shouldDream();
+    
+    if (req.query.trigger === 'true' && shouldDream()) {
+      const result = await dream();
+      return res.json({ ...status, triggered: result });
+    }
+    
+    res.json(status);
+  } catch (e: any) {
+    res.json({ error: e.message });
+  }
+});
+
+// Scheduler endpoints
+app.get("/api/scheduler", async (req, res) => {
+  try {
+    const { scheduler } = await import('@aether/scheduler');
+    res.json({ jobs: scheduler.listJobs() });
+  } catch (e: any) {
+    res.json({ jobs: [], error: e.message });
+  }
+});
+
+// Notifier channels
+app.get("/api/notifier", async (req, res) => {
+  try {
+    const { notifier } = await import('@aether/notifier');
+    res.json({ channels: notifier.listChannels() });
+  } catch (e: any) {
+    res.json({ channels: [], error: e.message });
+  }
+});
+
+app.post("/api/notifier", async (req, res) => {
+  try {
+    const { notifier } = await import('@aether/notifier');
+    const { channel, message, severity } = req.body;
+    const result = await notifier.notify({ channel, message, severity });
+    res.json(result);
+  } catch (e: any) {
+    res.status(400).json({ error: e.message });
+  }
+});
+
+// Secrets list (keys only)
+app.get("/api/secrets", async (req, res) => {
+  try {
+    const { listSecrets } = await import('@aether/secrets');
+    res.json({ keys: listSecrets() });
+  } catch (e: any) {
+    res.json({ keys: [], error: e.message });
+  }
+});
+
+// Rate limit status
+app.get("/api/rate-limits", async (req, res) => {
+  try {
+    const { DEFAULT_TOOL_LIMITS } = await import('@aether/rate-limiter');
+    res.json({ limits: DEFAULT_TOOL_LIMITS });
+  } catch (e: any) {
+    res.json({ limits: {}, error: e.message });
+  }
+});
+
+// Unified health dashboard
+app.get("/api/health", async (req, res) => {
+  try {
+    const { snapshot } = await import('@aether/metrics');
+    const { getStats } = await import('@aether/curator-audit');
+    const { listWorkflows } = await import('@aether/workflow');
+    const { getDreamStatus } = await import('@aether/dream');
+    const { scheduler } = await import('@aether/scheduler');
+    const { notifier } = await import('@aether/notifier');
+    const { DEFAULT_TOOL_LIMITS } = await import('@aether/rate-limiter');
+    
+    const metrics = snapshot();
+    const audit = await getStats();
+    
+    res.json({
+      status: 'healthy',
+      timestamp: new Date().toISOString(),
+      agents: {
+        curator: 'active',
+        executor: 'ready',
+        evaluator: 'ready',
+        reflector: 'ready',
+      },
+      metrics: {
+        counters: Object.keys(metrics.counters || {}).length,
+        gauges: Object.keys(metrics.gauges || {}).length,
+      },
+      audit: {
+        total: audit.total,
+        denial_rate: audit.denial_rate,
+      },
+      workflows: listWorkflows().length,
+      dream: getDreamStatus(),
+      scheduler: scheduler.listJobs().length,
+      notifier: notifier.listChannels().length,
+      rateLimits: Object.keys(DEFAULT_TOOL_LIMITS).length,
+    });
+  } catch (e: any) {
+    res.json({ status: 'degraded', error: e.message });
+  }
+});
+
+// Replay harness
+app.post("/api/replay", async (req, res) => {
+  try {
+    const { replayEvents, dryRun } = await import('@aether/replay');
+    const { since, limit } = req.body;
+    const result = await replayEvents({ since, limit });
+    res.json(result);
+  } catch (e: any) {
+    res.status(400).json({ error: e.message });
+  }
+});
+
+// Alerts
+app.get("/api/alerts", async (req, res) => {
+  try {
+    const { alertEngine } = await import('@aether/alerts');
+    const results = await alertEngine.evaluate();
+    const rules = alertEngine.listRules();
+    res.json({ rules, results });
+  } catch (e: any) {
+    res.json({ rules: [], results: [], error: e.message });
+  }
+});
+
+app.post("/api/alerts", async (req, res) => {
+  try {
+    const { alertEngine } = await import('@aether/alerts');
+    const { name, condition, threshold, severity, enabled } = req.body;
+    const id = alertEngine.addRule({ name, condition, threshold, severity, enabled });
+    res.json({ id });
+  } catch (e: any) {
+    res.status(400).json({ error: e.message });
+  }
+});
+
+// Human queue
+app.get("/api/human-queue", async (req, res) => {
+  try {
+    const { getPending, getStats } = await import('@aether/human-queue');
+    const items = getPending();
+    const stats = getStats();
+    res.json({ items, stats });
+  } catch (e: any) {
+    res.json({ items: [], stats: {}, error: e.message });
+  }
+});
+
+app.post("/api/human-queue", async (req, res) => {
+  try {
+    const { enqueue } = await import('@aether/human-queue');
+    const { type, request, priority } = req.body;
+    const item = enqueue({ type, request, priority: priority || 0 });
+    res.json(item);
+  } catch (e: any) {
+    res.status(400).json({ error: e.message });
+  }
+});
+
+app.post("/api/human-queue/:id/resolve", async (req, res) => {
+  try {
+    const { resolve } = await import('@aether/human-queue');
+    const { id } = req.params;
+    const { status } = req.body;
+    const result = resolve(id, status);
+    res.json(result);
+  } catch (e: any) {
+    res.status(400).json({ error: e.message });
+  }
+});
+
+// Telemetry export
+app.get("/api/telemetry", async (req, res) => {
+  try {
+    const { collectTelemetry, exportPrometheus, exportCSV } = await import('@aether/telemetry');
+    const format = req.query.format as string || 'json';
+    const { events, summary } = await collectTelemetry();
+    
+    if (format === 'prometheus') {
+      res.set('Content-Type', 'text/plain');
+      res.send(exportPrometheus(events));
+    } else if (format === 'csv') {
+      res.set('Content-Type', 'text/csv');
+      res.send(exportCSV(events));
+    } else {
+      res.json({ events, summary });
+    }
+  } catch (e: any) {
+    res.json({ events: [], summary: {}, error: e.message });
+  }
+});
