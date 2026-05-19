@@ -1483,3 +1483,70 @@ app.get("/api/audit-verify", async (req, res) => {
     res.json({ valid: false, error: e.message });
   }
 });
+
+// Sandbox Enforcement
+app.get("/api/sandbox/config", async (req, res) => {
+  try {
+    const { getConfig, getPathPolicy } = await import('@aether/sandbox');
+    res.json({ config: getConfig(), policies: DEFAULT_PATH_POLICY });
+  } catch (e: any) {
+    res.json({ error: e.message });
+  }
+});
+
+app.post("/api/sandbox/config", async (req, res) => {
+  try {
+    const { setConfig } = await import('@aether/sandbox');
+    const { basePath, perTenantNamespacing, allowSubprocess, allowedHosts } = req.body;
+    const config = setConfig({ basePath, perTenantNamespacing, allowSubprocess, allowedHosts });
+    res.json(config);
+  } catch (e: any) {
+    res.status(400).json({ error: e.message });
+  }
+});
+
+app.get("/api/sandbox/:profileId", async (req, res) => {
+  try {
+    const { createSandbox, deleteSandbox, listSandboxes, enforce } = await import('@aether/sandbox');
+    const { profileId } = req.params;
+    
+    if (req.query.create === 'true') {
+      res.json(createSandbox(profileId));
+    } else if (req.query.delete === 'true') {
+      res.json(deleteSandbox(profileId));
+    } else if (req.query.list === 'true') {
+      res.json({ sandboxes: listSandboxes() });
+    } else if (req.query.enforce) {
+      const { tool, args } = req.body;
+      res.json(enforce(tool, profileId, args));
+    } else {
+      res.json({ profileId, sandboxRoot: getSandboxRoot(profileId) });
+    }
+  } catch (e: any) {
+    res.json({ error: e.message });
+  }
+});
+
+app.post("/api/sandbox/:profileId/enforce", async (req, res) => {
+  try {
+    const { enforce } = await import('@aether/sandbox');
+    const { profileId } = req.params;
+    const { tool, args } = req.body;
+    res.json(enforce(tool, profileId, args || {}));
+  } catch (e: any) {
+    res.status(400).json({ error: e.message });
+  }
+});
+
+app.get("/api/sandbox-escapes", async (req, res) => {
+  try {
+    const ESCAPE_PATH = '../../logs/sandbox-escapes.jsonl';
+    const content = fs.readFileSync(ESCAPE_PATH, 'utf-8');
+    const escapes = content.trim().split('\n').filter(Boolean).map(l => JSON.parse(l));
+    res.json({ escapes, count: escapes.length });
+  } catch (e: any) {
+    res.json({ escapes: [], error: e.message });
+  }
+});
+
+import { DEFAULT_PATH_POLICY, getSandboxRoot } from '@aether/sandbox';
