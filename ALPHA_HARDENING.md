@@ -46,10 +46,10 @@ Per-cycle limits to contain the blast radius of any single Alpha execution:
 
 | Metric | Cap | Notes |
 |--------|-----|-------|
-| `MAX_FILES_TOUCHED_PER_CYCLE` | 5 | Hard limit |
+| `MAX_FILES_TOUCHED_PER_CYCLE` | 3 | Hard limit |
 | `MAX_SURFACES_WRITTEN_PER_CYCLE` | 3 | Files with write operations |
+| `MAX_CYCLES_PER_DAY` | 20 | Daily hard cap (resets midnight UTC) |
 | `MAX_CONCURRENT_PROPOSALS` | 2 | Proposals in flight |
-| `MAX_CYCLES_PER_DAY` | 20 | Hard daily limit |
 
 ### Implementation
 
@@ -82,10 +82,18 @@ const DEFAULT_CAPS: BlastRadiusCaps = {
 
 Low-stakes surfaces where Alpha applies before broader rollout:
 
-| Canary | Purpose | Location |
-|--------|---------|----------|
-| **Sandbox Doc** | Text-only validation | `/docs/sandbox/` |
-| **Test DB** | Faux data store for integration testing | `./logs/canary.db` |
+| Canary | Purpose | Location | Wait Time |
+|--------|---------|----------|----------|
+| **Sandbox Doc** | Text-only validation | `/docs/sandbox/` | 1h (low risk) |
+| **Test DB** | Faux data store for integration testing | `./logs/canary.db` | 24h (med+) |
+
+### Tiered Wait by Risk
+
+| Risk Level | Wait Time | Trigger |
+|------------|----------|----------|
+| Low (0-1) | 1 hour | Files touched ≤ 2 |
+| Medium (2) | 4 hours | Files touched = 3 |
+| High (3+) | 24 hours | Files touched > 3 or writes to db |
 
 ### Canary Flow
 
@@ -94,7 +102,9 @@ User Request → Alpha → [CANARY STAGE]
                      ↓
               Apply to sandbox surfaces
                      ↓
-              If 1 hour no alerts → Promote to production
+              Tiered wait (1h/4h/24h based on risk)
+                     ↓
+              If no alerts → Promote to production
                      ↓
               If alert → Quarantine + manual review
 ```
@@ -114,12 +124,15 @@ Rollback signals and mechanism:
 
 ### Signals Triggering Revert
 
+> **Decision**: Union — any signal from either threshold set fires revert
+
 | Signal | Threshold | Action |
 |--------|-----------|--------|
 | **Error Rate** | > 10% errors in last 10 cycles | Soft revert (last cycle) |
 | **Curator Denials** | > 5 consecutive denials | Hard stop + review |
 | **Lesson-DB Flags** | > 2 collision matches | Reject + quarantine |
 | **Canary Alerts** | Any critical alert | Immediate revert |
+| **Runtime Drift** | > 3 files differ from checkpoint | Quarantine |
 
 ### Revert Mechanism
 
