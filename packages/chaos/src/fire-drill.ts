@@ -7,6 +7,8 @@
  * Usage: npx tsx packages/chaos/src/fire-drill.ts
  */
 
+import { generateMockStripeVote, injectMockStripeVoteIfNeeded } from './mock-stripe-mcp';
+
 const CONVENE_URL = process.env.CONVENE_URL || 'http://localhost:8080';
 const PROFILE_ID = process.env.PROFILE_ID || 'prod-user';
 
@@ -70,6 +72,18 @@ async function triggerFireDrill(): Promise<void> {
     }
 
     const session: ConveneResponse = await response.json();
+
+    // Fallback: Inject mock Stripe vote if no payments scope vote exists
+    const mockVotes = injectMockStripeVoteIfNeeded(session.votes, payload.context);
+    for (const mock of mockVotes) {
+      session.votes.push(mock);
+      console.log(`   └─ Injected fallback: ${mock.vote.toUpperCase()} (${(mock.confidence * 100).toFixed(0)}%)`);
+    }
+    if (mockVotes.length > 0) {
+      // Recalculate consensus with injected votes
+      const approverCount = session.votes.filter(v => v.vote === 'approve').length;
+      session.consensus = approverCount / session.votes.length;
+    }
 
     console.log('🏛️  The Council Has Adjourned:\n');
     console.log(`   Session ID: ${session.sessionId}`);
