@@ -35,14 +35,16 @@ export const RiskLevel = {
   CRITICAL: { threshold: 3, reason: ReasonCode.CUR_THREE_KEY_ESCALATE },
 } as const;
 
-// --- Lessons DB Integration ---
+// --- Lessons DB Integration with Dual-Field Support ---
 
 const LESSONS_LOG = './logs/lessons.jsonl';
 
 interface Lesson {
   id: string;
   proposalId?: string;
-  outcome: 'success' | 'failure' | 'partial';
+  'Hash neighborhood'?: string;       // NEW: prefix matching
+  'Inputs hash neighborhood'?: string; // LEGACY: preserved for historical
+  outcome: 'success' | 'failure' | 'partial' | 'pending_operator_cosign';
   errorType?: string;
   filesAffected: string[];
   timestamp: number;
