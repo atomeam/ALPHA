@@ -1251,3 +1251,139 @@ app.post("/api-capsule", async (req, res) => {
     res.status(400).json({ error: e.message });
   }
 });
+
+// Profile API (read-only external)
+app.get("/api/profile", async (req, res) => {
+  try {
+    const { generateProfile } = await import('@aether/profile');
+    const profile = await generateProfile({
+      includePatterns: req.query.patterns !== 'false',
+      includeStats: req.query.stats !== 'false',
+    });
+    res.json(profile);
+  } catch (e: any) {
+    res.json({ error: e.message });
+  }
+});
+
+app.get("/api/profile/patterns", async (req, res) => {
+  try {
+    const { queryPatterns } = await import('@aether/profile');
+    const patterns = await queryPatterns({
+      minConfidence: parseFloat(req.query.minConfidence as string) || 0,
+      minSuccessRate: parseFloat(req.query.minSuccessRate as string) || 0,
+      limit: parseInt(req.query.limit as string) || 50,
+    });
+    res.json({ patterns });
+  } catch (e: any) {
+    res.json({ patterns: [], error: e.message });
+  }
+});
+
+// Goals / Intent layer
+app.get("/api/goals", async (req, res) => {
+  try {
+    const { getActiveGoals, getCurrentFocus, getFocusAreas } = await import('@aether/goals');
+    const goals = getActiveGoals();
+    const focus = getCurrentFocus();
+    const areas = getFocusAreas();
+    res.json({ goals, currentFocus: focus, focusAreas: areas });
+  } catch (e: any) {
+    res.json({ goals: [], error: e.message });
+  }
+});
+
+app.post("/api/goals", async (req, res) => {
+  try {
+    const { createGoal } = await import('@aether/goals');
+    const { title, description, priority, focus, outcomes } = req.body;
+    const goal = createGoal({ title, description, priority, focus, outcomes });
+    res.json(goal);
+  } catch (e: any) {
+    res.status(400).json({ error: e.message });
+  }
+});
+
+app.post("/api/goals/:id/complete", async (req, res) => {
+  try {
+    const { completeGoal } = await import('@aether/goals');
+    const result = completeGoal(req.params.id);
+    res.json(result);
+  } catch (e: any) {
+    res.status(400).json({ error: e.message });
+  }
+});
+
+app.get("/api/goals/align/:task", async (req, res) => {
+  try {
+    const { alignsWithGoals } = await import('@aether/goals');
+    const { aligned, goalId, reasoning } = alignsWithGoals(req.params.task);
+    res.json({ aligned, goalId, reasoning });
+  } catch (e: any) {
+    res.json({ aligned: false, error: e.message });
+  }
+});
+
+// Panic button
+app.get("/api/panic", async (req, res) => {
+  try {
+    const { getPanicState, getPolicyOverride, isPanicActive } = await import('@aether/panic');
+    res.json({ 
+      panic: getPanicState(), 
+      policyOverride: getPolicyOverride(),
+      isActive: isPanicActive(),
+    });
+  } catch (e: any) {
+    res.json({ error: e.message });
+  }
+});
+
+app.post("/api/panic", async (req, res) => {
+  try {
+    const { triggerPanic } = await import('@aether/panic');
+    const { reason, level, autoResumeMinutes } = req.body;
+    const state = triggerPanic({ reason, level, autoResumeMinutes });
+    res.json(state);
+  } catch (e: any) {
+    res.status(400).json({ error: e.message });
+  }
+});
+
+app.delete("/api/panic", async (req, res) => {
+  try {
+    const { releasePanic } = await import('@aether/panic');
+    const state = releasePanic();
+    res.json(state);
+  } catch (e: any) {
+    res.status(400).json({ error: e.message });
+  }
+});
+
+// Network Health Check
+app.get("/api/network-health", async (req, res) => {
+  try {
+    const { checkAllServices, getExternalStatus, gatekeepDiagnosis } = await import('@aether/network-health');
+    
+    if (req.query.diagnosis) {
+      const result = await gatekeepDiagnosis(req.query.diagnosis as string);
+      res.json(result);
+    } else {
+      const status = await getExternalStatus();
+      res.json(status);
+    }
+  } catch (e: any) {
+    res.json({ error: e.message });
+  }
+});
+
+// Context Truncation
+app.post("/api/truncate", async (req, res) => {
+  try {
+    const { truncateContext } = await import('@aether/context-truncate');
+    const { steps } = req.body;
+    const result = truncateContext(steps || []);
+    res.json(result);
+  } catch (e: any) {
+    res.status(400).json({ error: e.message });
+  }
+});
