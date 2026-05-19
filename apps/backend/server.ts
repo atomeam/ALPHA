@@ -285,6 +285,16 @@ async function startServer() {
     }
   });
 
+  // Metrics snapshot
+  app.get("/api/metrics", async (req, res) => {
+    try {
+      const { snapshot } = await import('@aether/metrics');
+      res.json(snapshot());
+    } catch (e: any) {
+      res.json({ error: e.message });
+    }
+  });
+
   // MCP JSON-RPC Endpoint
   app.post("/api/mcp/rpc", async (req, res) => {
     try {
