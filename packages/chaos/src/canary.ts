@@ -18,13 +18,21 @@ const DOCS_DIR = './docs/sandbox';
 
 export interface CanaryConfig {
   enabled: boolean;
-  promotionDelayMs: number;  // 1 hour default
+  tieredDelay: {
+    low: number;      // 1h for low risk (≤2 files)
+    medium: number; // 4h for medium (3 files)
+    high: number;    // 24h for high (>3 files or DB)
+  };
   alertOnFailure: boolean;
 }
 
 export const DEFAULT_CANARY_CONFIG: CanaryConfig = {
   enabled: true,
-  promotionDelayMs: 60 * 60 * 1000, // 1 hour
+  tieredDelay: {
+    low: 60 * 60 * 1000,       // 1 hour
+    medium: 4 * 60 * 60 * 1000, // 4 hours
+    high: 24 * 60 * 60 * 1000,  // 24 hours
+  },
   alertOnFailure: true,
 };
 
@@ -118,9 +126,10 @@ export function startCanaryRun(
  * Check if canary should promote (called after delay)
  * 
  * @param runId - The canary run ID
+ * @param fileCount - Number of files to determine tier
  * @returns Whether to promote to production
  */
-export function checkCanaryPromotion(runId: string): boolean {
+export function checkCanaryPromotion(runId: string, fileCount: number = 1): boolean {
   const runs = loadCanaryRuns();
   const run = runs.find(r => r.id === runId);
   
@@ -135,19 +144,30 @@ export function checkCanaryPromotion(runId: string): boolean {
   }
   
   const config = DEFAULT_CANARY_CONFIG;
+  
+  // Tiered delay based on file count
+  let delay: number;
+  if (fileCount <= 2) {
+    delay = config.tieredDelay.low;
+  } else if (fileCount === 3) {
+    delay = config.tieredDelay.medium;
+  } else {
+    delay = config.tieredDelay.high;
+  }
+  
   const elapsed = Date.now() - run.createdAt;
   
-  // Auto-promote after delay
-  if (elapsed >= config.promotionDelayMs) {
+  // Auto-promote after tiered delay
+  if (elapsed >= delay) {
     run.status = 'promoted';
     run.promotedAt = Date.now();
     saveCanaryRuns(runs);
     
-    console.log(`[Canary] Run ${runId} promoted to production`);
+    console.log(`[Canary] Run ${runId} promoted to production after ${delay / 3600000}h`);
     return true;
   }
   
-  console.log(`[Canary] Run ${runId} pending (${Math.round((config.promotionDelayMs - elapsed) / 1000 / 60)}min remaining)`);
+  console.log(`[Canary] Run ${runId} pending (${Math.round((delay - elapsed) / 1000 / 60)}min remaining)`);
   return false;
 }
 

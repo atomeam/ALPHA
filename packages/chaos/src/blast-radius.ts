@@ -22,7 +22,7 @@ export interface BlastRadiusCaps {
 }
 
 export const DEFAULT_CAPS: BlastRadiusCaps = {
-  maxFilesTouchedPerCycle: 5,
+  maxFilesTouchedPerCycle: 3,  // Strict cap per spec
   maxSurfacesWrittenPerCycle: 3,
   maxConcurrentProposals: 2,
   maxCyclesPerDay: 20,

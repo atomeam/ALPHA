@@ -16,7 +16,7 @@ const REVERT_LOG = `${LOG_DIR}/revert-log.jsonl`;
 
 // --- Types ---
 
-export type RevertSignalType = 'error_rate' | 'curator_denial' | 'lesson_db' | 'canary_alert' | 'manual';
+export type RevertSignalType = 'error_rate' | 'curator_denial' | 'lesson_db' | 'canary_alert' | 'runtime_drift' | 'manual';
 
 export interface RevertSignal {
   type: RevertSignalType;
@@ -40,12 +40,14 @@ export interface RevertThresholds {
   errorRateThreshold: number;        // > 10% errors triggers soft revert
   consecutiveDenialsThreshold: number;  // > 5 consecutive denials triggers hard stop
   lessonCollisionThreshold: number;  // > 2 collisions triggers quarantine
+  runtimeDriftThreshold: number;    // > 3 files differ from checkpoint triggers quarantine
 }
 
 export const DEFAULT_REVERT_THRESHOLDS: RevertThresholds = {
   errorRateThreshold: 0.10,       // 10%
   consecutiveDenialsThreshold: 5, // 5 denials
   lessonCollisionThreshold: 2,     // 2 collisions
+  runtimeDriftThreshold: 3,       // 3 files
 };
 
 // --- State ---
@@ -111,6 +113,52 @@ export function recordCuratorDenial(): void {
   state.totalCycles++;
   state.consecutiveDenials++;
   saveState(state);
+}
+
+/**
+ * Check for runtime drift (files that changed unexpectedly)
+ * 
+ * @param checkpointId - The checkpoint to compare against
+ * @returns Signal if drift exceeds threshold
+ */
+export function checkRuntimeDrift(checkpointId: string): RevertSignal | null {
+  const cpFile = `${CHECKPOINT_DIR}/${checkpointId}.json`;
+  if (!fs.existsSync(cpFile)) return null;
+  
+  const checkpoint: Checkpoint = JSON.parse(fs.readFileSync(cpFile, 'utf-8'));
+  const thresholds = DEFAULT_REVERT_THRESHOLDS;
+  
+  let driftCount = 0;
+  for (const [file, expectedHash] of Object.entries(checkpoint.files)) {
+    if (!fs.existsSync(file)) {
+      driftCount++;  // File deleted
+      continue;
+    }
+    
+    const content = fs.readFileSync(file, 'utf-8');
+    let hash = 0;
+    for (let i = 0; i < content.length; i++) {
+      hash = ((hash << 5) - hash) + content.charCodeAt(i);
+      hash = hash & hash;
+    }
+    const currentHash = Math.abs(hash).toString(16);
+    
+    if (currentHash !== expectedHash) {
+      driftCount++;
+    }
+  }
+  
+  if (driftCount > thresholds.runtimeDriftThreshold) {
+    return {
+      type: 'runtime_drift',
+      timestamp: Date.now(),
+      cycleId: checkpoint.cycleId,
+      context: { driftCount, checkpointId },
+      severity: 'hard',
+    };
+  }
+  
+  return null;
 }
 
 /**
