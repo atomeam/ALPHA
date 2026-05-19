@@ -3,12 +3,12 @@
   "framework": "express",
   "builds": [
     {
-      "src": "apps/backend/server.ts",
+      "src": "apps/backend/dist/server.cjs",
       "use": "@vercel/node"
     }
   ],
-  "install": "npm install --ignore-scripts --no-audit --prefer-offline",
+  "install": "npm install",
   "routes": [
-    { "src": "/api/(.*)", "dest": "/apps/backend/server.ts" }
+    { "src": "/api/(.*)", "dest": "/apps/backend/dist/server.cjs" }
   ]
 }
