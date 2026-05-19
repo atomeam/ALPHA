@@ -1130,3 +1130,124 @@ app.get("/api/telemetry", async (req, res) => {
     res.json({ events: [], summary: {}, error: e.message });
   }
 });
+
+// Council of Evaluators endpoint
+app.post("/api/council/evaluate", async (req, res) => {
+  try {
+    const { evaluateWithCouncil, isHighSignal } = await import('@aether/council');
+    const { tool, args } = req.body;
+    const vote = evaluateWithCouncil(tool, args || {});
+    res.json({ ...vote, highSignal: isHighSignal(vote) });
+  } catch (e: any) {
+    res.status(400).json({ error: e.message });
+  }
+});
+
+// Triage queue endpoints
+app.get("/api/triage", async (req, res) => {
+  try {
+    const { getPending, getStats } = await import('@aether/triage');
+    const items = getPending();
+    const stats = getStats();
+    res.json({ items, stats });
+  } catch (e: any) {
+    res.json({ items: [], stats: {}, error: e.message });
+  }
+});
+
+app.post("/api/triage", async (req, res) => {
+  try {
+    const { addToTriage } = await import('@aether/triage');
+    const { type, tool, args, reason, priority } = req.body;
+    const item = addToTriage({ type, tool, args, reason, priority: priority || 'medium', sla: 3600000 });
+    res.json(item);
+  } catch (e: any) {
+    res.status(400).json({ error: e.message });
+  }
+});
+
+// Lesson Compactor endpoint
+app.post("/api/compactor", async (req, res) => {
+  try {
+    const { compact, getContradictions, prune } = await import('@aether/compactor');
+    const action = req.query.action as string || 'compact';
+    if (action === 'compact') res.json(compact());
+    else if (action === 'contradictions') res.json({ contradictions: getContradictions() });
+    else if (action === 'prune') res.json({ removed: prune(parseInt(req.query.days as string) || 30) });
+    else res.status(400).json({ error: 'Unknown action' });
+  } catch (e: any) {
+    res.status(400).json({ error: e.message });
+  }
+});
+
+// Foresight endpoint
+app.get("/api/foresight", async (req, res) => {
+  try {
+    const { getPending, scorePredictions } = await import('@aether/foresight');
+    if (req.query.action === 'score') res.json(await scorePredictions(parseInt(req.query.days as string) || 7));
+    else res.json({ predictions: getPending() });
+  } catch (e: any) {
+    res.json({ predictions: [], error: e.message });
+  }
+});
+
+// Adversarial Twin endpoint
+app.post("/api/adversarial", async (req, res) => {
+  try {
+    const { evaluateAdversarial } = await import('@aether/adversarial');
+    const { tool, args, originalDecision } = req.body;
+    res.json(evaluateAdversarial(tool, args || {}, originalDecision || 'approve'));
+  } catch (e: any) {
+    res.status(400).json({ error: e.message });
+  }
+});
+
+// Storyteller journal endpoint
+app.get("/api/journal", async (req, res) => {
+  try {
+    const { readJournal } = await import('@aether/storyteller');
+    res.json({ entries: readJournal(parseInt(req.query.days as string) || 7) });
+  } catch (e: any) {
+    res.json({ entries: [], error: e.message });
+  }
+});
+
+app.post("/api/journal", async (req, res) => {
+  try {
+    const { generateAutoJournal } = await import('@aether/storyteller');
+    res.json(await generateAutoJournal());
+  } catch (e: any) {
+    res.status(400).json({ error: e.message });
+  }
+});
+
+// Vital Signs endpoint
+app.get("/api/vitals", async (req, res) => {
+  try {
+    const { checkVitals, getThrottleRecommendation } = await import('@aether/vitalsigns');
+    const vitals = await checkVitals();
+    const throttle = await getThrottleRecommendation();
+    res.json({ vitals, throttle });
+  } catch (e: any) {
+    res.json({ error: e.message });
+  }
+});
+
+// Time Capsule endpoint
+app.get("/api-capsule", async (req, res) => {
+  try {
+    const { getLatestCapsule, getCapsuleByDate } = await import('@aether/timecapsule');
+    res.json(req.query.date ? getCapsuleByDate(req.query.date as string) : getLatestCapsule());
+  } catch (e: any) {
+    res.json({ error: e.message });
+  }
+});
+
+app.post("/api-capsule", async (req, res) => {
+  try {
+    const { createCapsule } = await import('@aether/timecapsule');
+    res.json(await createCapsule());
+  } catch (e: any) {
+    res.status(400).json({ error: e.message });
+  }
+});
