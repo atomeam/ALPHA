@@ -270,6 +270,8 @@ async function startServer() {
       curator: 'active',
       executor: 'ready',
       mcpServer: 'active',
+      reflector: 'ready',
+      circuitBreaker: 'closed',
       timestamp: new Date().toISOString()
     });
   });
