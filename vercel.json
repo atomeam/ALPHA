@@ -6,6 +6,7 @@
       "use": "@vercel/node"
     }
   ],
+  "install": "npm install --include=devDependencies",
   "routes": [
     {
       "src": "/api/(.*)",
