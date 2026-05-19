@@ -272,8 +272,38 @@ async function startServer() {
       mcpServer: 'active',
       reflector: 'ready',
       circuitBreaker: 'closed',
+      curatorAudit: 'active',
       timestamp: new Date().toISOString()
     });
+  });
+
+  // Curator decisions (recent)
+  app.get("/api/agents/curator/decisions", async (req, res) => {
+    try {
+      const { getDecisions, getStats } = await import('@aether/curator-audit');
+      
+      const since = parseInt(req.query.since as string) || 3600000; // 1 hour
+      const decisions = await getDecisions({ since, limit: 50 });
+      const stats = await getStats();
+      
+      res.json({ decisions, stats });
+    } catch (e: any) {
+      res.json({ decisions: [], stats: {}, error: e.message });
+    }
+  });
+
+  // Curator policy (read-only)
+  app.get("/api/agents/curator/policy", async (req, res) => {
+    try {
+      const fs = await import('fs');
+      const policy = fs.readFileSync(
+        '../../packages/curator/policy.yaml',
+        'utf-8'
+      );
+      res.json({ policy, format: 'yaml' });
+    } catch (e: any) {
+      res.status(404).json({ error: e.message });
+    }
   });
 
   // Evaluate ledger for patterns

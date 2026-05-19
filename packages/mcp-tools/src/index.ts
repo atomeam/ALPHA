@@ -169,3 +169,63 @@ const lessonsWriteTool: Tool = {
 
 // Add to registry
 toolRegistry.lessons_write = lessonsWriteTool;
+
+// Get agent state tool (loop detection + rate limiting)
+const getAgentStateTool: Tool = {
+  name: 'get_agent_state',
+  description: 'Retrieve execution counts and failure rates for loop detection',
+  async execute(args) {
+    const metrics = await import('@aether/metrics');
+    
+    const runId = args.runId as string;
+    const targetPath = args.targetPath as string;
+    
+    if (!runId && !targetPath) {
+      throw new Error('runId or targetPath required');
+    }
+    
+    // Check run-specific metrics
+    const runKey = runId ? `runs.${runId}` : null;
+    const pathKey = targetPath ? `paths.${targetPath}` : null;
+    
+    const results: Record<string, unknown> = {};
+    
+    if (runKey) {
+      const total = metrics.getGauge(`${runKey}.total`) || 0;
+      const failures = metrics.getGauge(`${runKey}.failures`) || 0;
+      const success = metrics.getGauge(`${runKey}.success`) || 0;
+      
+      results.runId = {
+        total,
+        failures,
+        success,
+        consecutive_failures: failures,
+        last_action: total > 0 ? 'success' : 'idle',
+      };
+    }
+    
+    if (pathKey) {
+      const writes = metrics.getGauge(`${pathKey}.writes`) || 0;
+      const lastWrite = metrics.getGauge(`${pathKey}.last_write`) || 0;
+      const now = Date.now();
+      const writesPerMin = now - lastWrite < 60000 ? writes : 0;
+      
+      results.targetPath = {
+        writes,
+        writes_per_minute: writesPerMin,
+        last_write: lastWrite,
+      };
+    }
+    
+    // Check circuit breaker state
+    results.circuit_breaker = {
+      state: 'closed', // TODO: wire to @aether/operations
+      failure_threshold: 3,
+    };
+    
+    return results;
+  }
+};
+
+// Add to registry
+toolRegistry.get_agent_state = getAgentStateTool;

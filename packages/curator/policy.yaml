@@ -1,0 +1,59 @@
+# Curator Policy
+# 
+# Default-deny security rules for agent tool execution.
+# 
+
+# Default action when no rule matches
+default: deny
+
+# Tool-specific rules
+tools:
+  file_read:
+    allow: true
+    scope: workspace
+
+  file_write:
+    allow: true
+    scope: workspace
+    max_per_minute: 10
+
+  git_status:
+    allow: true
+
+  git_diff:
+    allow: true
+
+  git_commit:
+    allow: confidence >= 0.85
+    else: escalate
+
+  http_request:
+    allow: true
+    methods: [GET, HEAD]
+    max_per_minute: 30
+
+  lessons_write:
+    allow: true
+    append_only: true
+
+  get_agent_state:
+    allow: true
+
+# Rate limits per run
+rate_limits:
+  max_actions_per_run: 50
+  max_failures_consecutive: 3
+  cooldown_minutes: 5
+
+# Confidence thresholds
+confidence:
+  auto_approve_above: 0.85
+  escalate_below: 0.5
+
+# Escalation
+escalate_to: human_queue
+
+# Audit settings
+audit:
+  log_decisions: true
+  log_all_attempts: true
