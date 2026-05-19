@@ -14,17 +14,23 @@
 
 ---
 
-### 🤖 Two-Agent System (PLANNED)
+### 🤖 Two-Agent System (DONE)
 
 ```
 User Request → Curator (validates) → APPROVED → Executor (runs tools) → Ledger
                                       → REJECTED → 422 error
 ```
 
-**Components to build**:
-1. MCP Tool Registry (file read/write, git, http)
-2. Executor Agent (runs approved tools)
-3. Evaluator Loop (watches ledger patterns)
+**Implemented**:
+1. ✅ MCP Tool Registry (`packages/mcp-tools`)
+   - `file_read`, `file_write`
+   - `git_status`, `git_commit`
+   - `http_request` (GET/HEAD only)
+2. ✅ Executor Agent (`apps/backend/src/agents/executor.ts`)
+3. ✅ Evaluator Agent (`apps/backend/src/agents/evaluator.ts`)
+4. ✅ API endpoints:
+   - `GET /api/agents` — Agent health
+   - `GET /api/agents/evaluate` — Ledger pattern suggestions
 
 ## Quick Start
 
