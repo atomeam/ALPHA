@@ -295,6 +295,28 @@ async function startServer() {
     }
   });
 
+  // Reflect: write a lesson
+  app.post("/api/agents/reflect", async (req, res) => {
+    try {
+      const { reflect } = await import('./src/agents/reflector.js');
+      const result = await reflect(req.body);
+      res.json(result);
+    } catch (e: any) {
+      res.status(400).json({ error: e.message });
+    }
+  });
+
+  // Get pattern confidences
+  app.get("/api/agents/reflect", async (req, res) => {
+    try {
+      const { getLearnedPatterns } = await import('./src/agents/reflector.js');
+      const patterns = await getLearnedPatterns();
+      res.json(patterns);
+    } catch (e: any) {
+      res.json({ error: e.message });
+    }
+  });
+
   // MCP JSON-RPC Endpoint
   app.post("/api/mcp/rpc", async (req, res) => {
     try {

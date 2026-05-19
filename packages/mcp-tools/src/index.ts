@@ -85,6 +85,25 @@ const gitCommitTool: Tool = {
   }
 };
 
+// Git diff tool
+const gitDiffTool: Tool = {
+  name: 'git_diff',
+  description: 'Show uncommitted changes',
+  async execute(args) {
+    const { exec } = await import('child_process');
+    const { promisify } = await import('util');
+    const execAsync = promisify(exec.exec);
+    
+    const cwd = args.cwd as string || process.cwd();
+    const file = args.file as string || '';
+    
+    const cmd = file ? `git diff ${file}` : 'git diff';
+    const { stdout } = await execAsync(cmd, { cwd });
+    
+    return { diff: stdout || 'no changes', cwd, file: file || 'all' };
+  }
+};
+
 // HTTP request tool
 const httpRequestTool: Tool = {
   name: 'http_request',
@@ -116,6 +135,7 @@ export const toolRegistry: Record<string, Tool> = {
   file_write: fileWriteTool,
   git_status: gitStatusTool,
   git_commit: gitCommitTool,
+  git_diff: gitDiffTool,
   http_request: httpRequestTool
 };
 
@@ -130,3 +150,22 @@ export async function executeTool(name: string, args: Record<string, unknown>) {
   if (!tool) throw new Error(`Unknown tool: ${name}`);
   return tool.execute(args);
 }
+// Lessons write tool
+const lessonsWriteTool: Tool = {
+  name: 'lessons_write',
+  description: 'Write a lesson to the Lessons DB',
+  async execute(args) {
+    const { reflect } = await import('./src/agents/reflector.js');
+    const result = await reflect({
+      pattern: args.pattern as string,
+      suggestion: args.suggestion as string,
+      action: args.action as string,
+      outcome: args.outcome as 'success' | 'failure' | 'noop',
+      confidence: args.confidence as number,
+    });
+    return result;
+  }
+};
+
+// Add to registry
+toolRegistry.lessons_write = lessonsWriteTool;
