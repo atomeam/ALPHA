@@ -1,5 +1,29 @@
 # ALPHA Gate Specification
 
+## §4.5 Shadow Apply (Collision Check)
+
+For `Kind: Lesson` proposals, the "Shadow Apply" phase is defined as a **Collision Check**.
+
+### Procedure
+1. The Reflector queries the `Lessons DB` for high-semantic-similarity matches
+2. Check for existing `Inputs hash neighborhood` collisions
+3. Check for duplicate `Hash neighborhood` prefixes
+
+### Outcome
+| Condition | Result |
+|-----------|--------|
+| Collision detected | Reject with `CUR_DO_NOT_REPEAT` |
+| No collision | Approve `Applier` to proceed |
+
+### Reason Code
+```
+CUR_DO_NOT_REPEAT     // Lesson already exists (collision)
+```
+
+This effectively turns "Shadow Apply" into a Gatekeeper step within the existing `LessonsGate` flow.
+
+---
+
 ## §4.6 Dual-Field Lessons Matching
 
 ### Hash Neighborhood (Prefix Matching)
@@ -83,6 +107,9 @@ interface Proposal {
   requires: string[];
   reason?: string; // e.g., CUR_TWO_KEY_MISSING
   summary: string;
+  // Operator co-sign fields
+  operatorSignedAt?: number;   // timestamp when signed
+  operatorSignedBy?: string; // who signed
 }
 ```
 

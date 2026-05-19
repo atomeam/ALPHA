@@ -22,6 +22,7 @@ export const ReasonCode = {
   INVALID_SCOPE: 'INVALID_SCOPE',
   SECURITY_RISK: 'SECURITY_RISK',
   RATE_LIMIT: 'RATE_LIMIT',
+  CUR_DO_NOT_REPEAT: 'CUR_DO_NOT_REPEAT', // Lesson collision
 } as const;
 
 export type ReasonCode = typeof ReasonCode[keyof typeof ReasonCode];
