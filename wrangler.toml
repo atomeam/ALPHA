@@ -9,19 +9,19 @@ enabled = true
 # D1 Database bindings
 [[d1_databases]]
 binding = "GovernanceDB"
-database_name = "aether-governance"
-database_id = "aether-governance-id-placeholder"
+database_name = "council-routing-db"
+database_id = "218e0bc6-f955-45d1-b9bf-276d384917c7"
 
 # KV Namespaces
 [[kv_namespaces]]
 binding = "RATE_LIMIT"
-id = "rate-limit-ns-placeholder"
+id = "7319ee9195df4ccf8f4b2c8449dd7930"
 
-# Environment-specific config
+# Production environment
 [env.production]
 name = "aether-bridge-prod"
 
 [[d1_databases]]
 binding = "GovernanceDB"
-database_name = "aether-governance"
-database_id = "aether-governance-prod-id-placeholder"
+database_name = "council-routing-db"
+database_id = "218e0bc6-f955-45d1-b9bf-276d384917c7"
