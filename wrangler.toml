@@ -8,20 +8,36 @@ enabled = true
 
 # D1 Database bindings
 [[d1_databases]]
-binding = "GovernanceDB"
+binding = "DB"
 database_name = "council-routing-db"
 database_id = "218e0bc6-f955-45d1-b9bf-276d384917c7"
 
 # KV Namespaces
 [[kv_namespaces]]
-binding = "RATE_LIMIT"
+binding = "STATE"
 id = "7319ee9195df4ccf8f4b2c8449dd7930"
+
+[[kv_namespaces]]
+binding = "STATE_CACHE"
+id = "d22e703c3af9451a9942fa2a551a1aa8"
+
+# Browser Run
+[browser]
+binding = "MYBROWSER"
 
 # Production environment
 [env.production]
 name = "aether-bridge-prod"
 
 [[d1_databases]]
-binding = "GovernanceDB"
+binding = "DB"
 database_name = "council-routing-db"
 database_id = "218e0bc6-f955-45d1-b9bf-276d384917c7"
+
+[[kv_namespaces]]
+binding = "STATE"
+id = "7319ee9195df4ccf8f4b2c8449dd7930"
+
+[[kv_namespaces]]
+binding = "STATE_CACHE"
+id = "d22e703c3af9451a9942fa2a551a1aa8"

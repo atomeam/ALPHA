@@ -35,7 +35,14 @@ export default {
       if (path === '/api/health') {
         return new Response(JSON.stringify({
           status: 'ok',
-          timestamp: new Date().toISOString()
+          worker: 'aether-bridge',
+          timestamp: new Date().toISOString(),
+          bindings: {
+            db: !!env.DB,
+            state: !!env.STATE,
+            state_cache: !!env.STATE_CACHE,
+            mybrowser: !!env.MYBROWSER,
+          }
         }), {
           headers: { 'Content-Type': 'application/json' }
         });
@@ -91,8 +98,10 @@ export default {
 
 // Types for Cloudflare
 interface Env {
-  GovernanceDB?: D1Database;
-  RATE_LIMIT?: KVNamespace;
+  DB: D1Database;
+  STATE: KVNamespace;
+  STATE_CACHE: KVNamespace;
+  MYBROWSER: any;
 }
 
 interface ExecutionContext {
