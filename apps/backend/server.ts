@@ -1387,3 +1387,99 @@ app.post("/api/truncate", async (req, res) => {
     res.status(400).json({ error: e.message });
   }
 });
+
+// Signed Provenance
+app.post("/api/provenance/sign", async (req, res) => {
+  try {
+    const { writeSignedLesson, verifyLesson } = await import('@aether/signed-provenance');
+    const { pattern, action, outcome, confidence, source } = req.body;
+    
+    if (req.query.verify === 'true') {
+      const result = verifyLesson(req.body);
+      res.json(result);
+    } else {
+      const lesson = writeSignedLesson({ pattern, action, outcome, confidence, source });
+      res.json(lesson);
+    }
+  } catch (e: any) {
+    res.status(400).json({ error: e.message });
+  }
+});
+
+app.get("/api/provenance/quota/:source", async (req, res) => {
+  try {
+    const { getQuotaRemaining } = await import('@aether/signed-provenance');
+    const remaining = getQuotaRemaining(req.params.source);
+    res.json({ source: req.params.source, remaining, max: 100 });
+  } catch (e: any) {
+    res.json({ error: e.message });
+  }
+});
+
+app.get("/api/provenance/drift", async (req, res) => {
+  try {
+    const { detectConfidenceDrift } = await import('@aether/signed-provenance');
+    const threshold = parseFloat(req.query.threshold as string) || 0.2;
+    res.json({ alerts: detectConfidenceDrift([], threshold) });
+  } catch (e: any) {
+    res.json({ alerts: [], error: e.message });
+  }
+});
+
+// Tombstone (GDPR deletion)
+app.post("/api/tombstone", async (req, res) => {
+  try {
+    const { markDeleted } = await import('@aether/tombstone');
+    const { originalId, recordType, reason, suppressedBy, originalRecord } = req.body;
+    const result = markDeleted({ originalId, recordType, reason, suppressedBy, originalRecord });
+    res.json(result);
+  } catch (e: any) {
+    res.status(400).json({ error: e.message });
+  }
+});
+
+app.get("/api/tombstone/:id", async (req, res) => {
+  try {
+    const { isDeleted, listTombstones, getDeletionStats } = await import('@aether/tombstone');
+    
+    if (req.query.id) {
+      res.json(isDeleted(req.query.id as string));
+    } else if (req.query.stats === 'true') {
+      res.json(getDeletionStats());
+    } else {
+      res.json({ tombstones: listTombstones() });
+    }
+  } catch (e: any) {
+    res.json({ error: e.message });
+  }
+});
+
+app.get("/api/tombstone-verify", async (req, res) => {
+  try {
+    const { verifyChain } = await import('@aether/tombstone');
+    res.json(verifyChain());
+  } catch (e: any) {
+    res.json({ valid: false, error: e.message });
+  }
+});
+
+app.get("/api/tombstone-export", async (req, res) => {
+  try {
+    const { exportDeletionLog } = await import('@aether/tombstone');
+    const startDate = req.query.start ? parseInt(req.query.start as string) : undefined;
+    const endDate = req.query.end ? parseInt(req.query.end as string) : undefined;
+    res.json(exportDeletionLog(startDate, endDate));
+  } catch (e: any) {
+    res.json({ error: e.message });
+  }
+});
+
+// Hash-chain integrity endpoint
+app.get("/api/audit-verify", async (req, res) => {
+  try {
+    const { verifyChainIntegrity } = await import('@aether/curator-audit');
+    res.json(verifyChainIntegrity());
+  } catch (e: any) {
+    res.json({ valid: false, error: e.message });
+  }
+});
