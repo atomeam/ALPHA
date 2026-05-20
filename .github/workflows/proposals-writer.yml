@@ -21,10 +21,8 @@ jobs:
           node-version: 22
 
       - name: Install
-        run: npm ci --ignore-scripts
+        run: npm install --legacy-peer-deps
         working-directory: .
-        env:
-          NPM_CONFIG_REGISTRY: https://registry.npmjs.org/
 
       - name: Run ProposalsWatcher one cycle
         working-directory: .
