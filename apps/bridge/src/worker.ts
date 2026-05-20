@@ -353,9 +353,9 @@ export default {
           
           if (env.STATE) {
             const existing = await env.STATE.get('proposals:snapshot');
-            let items = [];
+            let items: any[] = [];
             if (existing) {
-              try { items = JSON.parse(existing).items || JSON.parse(existing).proposals || []; } catch {}
+              try { items = JSON.parse(existing).proposals || []; } catch {}
             }
             
             items.push({
@@ -367,7 +367,7 @@ export default {
             });
             
             await env.STATE.put('proposals:snapshot', JSON.stringify({
-              items,
+              proposals: items,
               source: 'notion-webhook',
               updatedAt: timestamp,
             }));
@@ -375,9 +375,9 @@ export default {
           
           if (env.STATE_CACHE) {
             const existingCache = await env.STATE_CACHE.get('lessons:index');
-            let lessons = [];
+            let lessons: any[] = [];
             if (existingCache) {
-              try { lessons = JSON.parse(existingCache).lessons || JSON.parse(existingCache).items || []; } catch {}
+              try { lessons = JSON.parse(existingCache).lessons || []; } catch {}
             }
             
             lessons.push({
@@ -389,7 +389,7 @@ export default {
             });
             
             await env.STATE_CACHE.put('lessons:index', JSON.stringify({
-              lessons,
+              lessons: lessons,
               source: 'notion-webhook',
               updatedAt: timestamp,
             }));
@@ -429,7 +429,7 @@ export default {
   }
 };
 
-// Types for Cloudflare Workers
+// Types for Cloudflare
 interface Env {
   DB: D1Database;
   STATE: KVNamespace;
@@ -442,4 +442,8 @@ interface ExecutionContext {
   waitUntil(promise: Promise<void>): void;
   passThroughOnException(): void;
 }
-// Local dev fallback not needed in Workers
+
+// Fallback for local dev
+if (typeof globalThis !== 'undefined' && !('fetch' in globalThis)) {
+  export { default as app };
+}
