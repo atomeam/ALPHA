@@ -851,6 +851,48 @@ interface Env {
   _LOGS: R2Bucket; // R2 bucket for logs
 }
 
+// API Key + Tier helpers
+async function getApiKeyTier(env: Env, auth: string): Promise<{tier: string, key: string} | null> {
+  if (!auth || !auth.startsWith('Bearer ')) return null;
+  const key = auth.slice(7);
+  const hash = await hashKey(key);
+  const stored = await env.STATE.get(`api_key:${hash}`, 'json');
+  return stored ? { tier: stored.tier || 'free', key: hash } : null;
+}
+
+async function hashKey(key: string): Promise<string> {
+  const msg = new TextEncoder().encode(key);
+  const hash = await crypto.subtle.digest('SHA-256', msg);
+  return Array.from(new Uint8Array(hash)).map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
+const TIER_LIMITS: Record<string, {daily: number}> = {
+  free: { daily: 100 },
+  pro: { daily: 5000 },
+  enterprise: { daily: Infinity }
+};
+
+async function checkTierLimit(env: Env, key: string, tier: string): Promise<boolean> {
+  const tierConfig = TIER_LIMITS[tier] || TIER_LIMITS.free;
+  if (tierConfig.daily === Infinity) return true;
+  const today = new Date().toISOString().slice(0, 10);
+  const countKey = `daily:${today}:${key}`;
+  const count = parseInt(await env.STATE.get(countKey) || '0');
+  return count < tierConfig.daily;
+}
+
+async function incrementUsage(env: Env, key: string, endpoint: string, tier: string) {
+  const today = new Date().toISOString().slice(0, 10);
+  const countKey = `daily:${today}:${key}`;
+  const count = parseInt(await env.STATE.get(countKey) || '0');
+  await env.STATE.put(countKey, String(count + 1));
+  // Emit usage event to D1
+  const timestamp = new Date().toISOString();
+  await env.DB.prepare(
+    "INSERT INTO events (type, payload, timestamp) VALUES (?, ?, ?)"
+  ).bind('USAGE_RECORDED', JSON.stringify({ key, endpoint, tier }), timestamp).run();
+}
+
 // Queue message type
 interface CuratorJob {
   id: string;
