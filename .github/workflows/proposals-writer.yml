@@ -24,8 +24,11 @@ jobs:
       - name: Install
         run: npm install --ignore-scripts
 
+      - name: Install TypeScript
+        run: npm install -g typescript
+
       - name: Build chaos
-        run: npm run build -w @aether/chaos || npx tsc -p packages/chaos/tsconfig.json
+        run: tsc -p packages/chaos/tsconfig.json
 
       - name: Run ProposalsWatcher one cycle
         env:
