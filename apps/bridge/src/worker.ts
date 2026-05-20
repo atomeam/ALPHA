@@ -373,6 +373,7 @@ export default {
               source: 'notion-webhook',
               updatedAt: timestamp,
             }));
+            console.log('[Webhook] Wrote to STATE KV, items:', items.length);
           }
           
           if (env.STATE_CACHE) {
