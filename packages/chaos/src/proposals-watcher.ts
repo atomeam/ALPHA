@@ -141,7 +141,7 @@ if (args.includes('--help')) {
   console.log(`
 ProposalsWatcher - Nervous System
 
-Usage: node packages/chaos/src/proposals-watcher.ts
+Usage: node packages/chaos/src/proposals-watcher.ts [--once]
 
 Environment:
   NOTION_API_KEY       - Notion integration token
@@ -149,9 +149,29 @@ Environment:
   POLL_INTERVAL_MS    - Polling interval (default: 5000)
 
 Example:
-  NOTION_API_KEY=secret_xxx POLL_INTERVAL_MS=3000 node packages/chaos/src/proposals-watcher.ts
+  NOTION_API_KEY=secret_xxx POLL_INTERVAL_MS=3000 node packages/chaos/src/proposals-watcher.ts --once
 `);
   process.exit(0);
 }
 
-poll().catch(console.error);
+// Run once mode
+if (args.includes('--once')) {
+  console.log('[Watcher] Running in one-shot mode');
+  (async () => {
+    try {
+      const proposals = NOTION_API_KEY 
+        ? await fetchFromNotion() 
+        : fetchFromLocal();
+      
+      console.log(`[Watcher] Found ${proposals.length} proposal(s)`);
+      for (const proposal of proposals) {
+        await dispatch(proposal);
+      }
+    } catch (error) {
+      console.error(`[Watcher] Error: ${error}`);
+    }
+    process.exit(0);
+  })();
+} else {
+  poll().catch(console.error);
+}

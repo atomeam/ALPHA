@@ -35,7 +35,7 @@ jobs:
           CF_KV_STATE_CACHE_ID: ${{ secrets.CF_KV_STATE_CACHE_ID }}
         run: node packages/chaos/dist/proposals-watcher.js --once
 
-      - name: Verify writer output
+      - name: Verify writer
         run: |
           curl -sS "https://aether.atomicmoonbeam88.workers.dev/crew/status" \
             | jq -e '.proposals.items[0].source == "backend-proposals-watcher"' \
