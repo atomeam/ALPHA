@@ -12,7 +12,7 @@
 import { default as app } from './server';
 
 // Shared constants
-const VERSION = '0.10.0';
+const VERSION = '0.11.0';
 const SERVICE = 'aether-bridge';
 
 // No-store JSON helper - prevents stale cache
@@ -58,24 +58,44 @@ function checkRateLimit(ip: string): boolean {
   return entry.count <= RATE_LIMIT;
 }
 
-// ─── In-Memory KV Cache ──────────────────────────────────────────────
-const kvCache = new Map<string, { value: any; expiresAt: number }>();
-const CACHE_TTL = 10_000; // 10 seconds
+// ─── Edge Cache API ───────────────────────────────────────────────
+const DEFAULT_TTL = 10; // seconds
 
-function cachedKVGet(key: string): any | null {
-  const cached = kvCache.get(key);
-  if (cached && Date.now() < cached.expiresAt) {
-    return cached.value;
+async function getCachedOrFetch<T>(
+  cacheKey: string,
+  fetcher: () => Promise<T>,
+  ttlSeconds: number = DEFAULT_TTL
+): Promise<T> {
+  try {
+    const cache = caches.default;
+    const cacheReq = new Request('https://aether-cache/' + cacheKey);
+    const cached = await cache.match(cacheReq);
+    
+    if (cached) {
+      return await cached.json() as T;
+    }
+    
+    const data = await fetcher();
+    const response = new Response(JSON.stringify(data), {
+      headers: { 
+        'Cache-Control': `max-age=${ttlSeconds}`,
+        'Content-Type': 'application/json'
+      }
+    });
+    await cache.put(cacheReq, response);
+    return data;
+  } catch {
+    // Fallback to fetch on cache error
+    return fetcher();
   }
-  return undefined;
 }
 
-function cachedKVSet(key: string, value: any): void {
-  kvCache.set(key, { value, expiresAt: Date.now() + CACHE_TTL });
-}
-
-function invalidateCache(key: string): void {
-  kvCache.delete(key);
+async function invalidateCache(key: string): Promise<void> {
+  try {
+    const cache = caches.default;
+    const cacheReq = new Request('https://aether-cache/' + key);
+    await cache.delete(cacheReq);
+  } catch {}
 }
 
 export default {
