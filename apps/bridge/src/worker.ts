@@ -12,7 +12,7 @@
 import { default as app } from './server';
 
 // Shared constants
-const VERSION = '0.3.0';
+const VERSION = '0.4.0';
 const SERVICE = 'aether-bridge';
 
 // No-store JSON helper - prevents stale cache
@@ -457,6 +457,53 @@ export default {
         return new Response(html, {
           headers: { "Content-Type": "text/html", "Cache-Control": "no-cache" },
         });
+      }
+
+
+      // GET /api/ai/presence - get AI presence status
+      if (path === '/api/ai/presence') {
+        const raw = await env.STATE_CACHE.get('ai:presence', 'json');
+        const aiList = raw ? Object.entries(raw) : [];
+        return json({ ok: true, count: aiList.length, ais: Object.fromEntries(aiList) });
+      }
+
+      // POST /api/ai/heartbeat - update AI presence
+      if (path === '/api/ai/heartbeat' && method === 'POST') {
+        const body = await req.json();
+        const { ai_id, name, status = 'active', role } = body;
+        if (!ai_id) return json({ error: 'ai_id required' }, 400);
+
+        const raw = (await env.STATE_CACHE.get('ai:presence', 'json')) || {};
+        raw[ai_id] = { name: name || ai_id, status, role, last_seen: new Date().toISOString() };
+        await env.STATE_CACHE.put('ai:presence', JSON.stringify(raw));
+        return json({ ok: true, ai_id, status });
+      }
+
+      // POST /api/council/log - log a conversation message
+      if (path === '/api/council/log' && method === 'POST') {
+        const body = await req.json();
+        const { session_id, agent_id, role, content } = body;
+        if (!session_id || !agent_id || !role || !content) {
+          return json({ error: 'session_id, agent_id, role, content required' }, 400);
+        }
+        const timestamp = new Date().toISOString();
+        await env.DB.prepare(
+          "INSERT INTO council_logs (session_id, agent_id, role, content, timestamp) VALUES (?, ?, ?, ?, ?)"
+        ).bind(session_id, agent_id, role, content.substring(0, 5000), timestamp).run();
+        return json({ ok: true, timestamp });
+      }
+
+      // GET /api/council/history - get conversation history
+      if (path === '/api/council/history') {
+        const session_id = url.searchParams.get('session_id');
+        const limit = Math.min(parseInt(url.searchParams.get('limit') || '50'), 200);
+        if (!session_id) {
+          return json({ error: 'session_id required' }, 400);
+        }
+        const { results } = await env.DB.prepare(
+          "SELECT * FROM council_logs WHERE session_id = ? ORDER BY timestamp DESC LIMIT ?"
+        ).bind(session_id, limit).all();
+        return json({ ok: true, count: results.length, messages: results });
       }
 
       // 404
