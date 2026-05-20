@@ -12,7 +12,7 @@
 import { default as app } from './server';
 
 // Shared constants
-const VERSION = '0.15.2';
+const VERSION = '0.15.3';
 const SERVICE = 'aether-bridge';
 
 // No-store JSON helper - prevents stale cache
@@ -49,16 +49,20 @@ const RATE_WINDOW = 60_000;  // 60 seconds
 
 // ─── Usage Tracker (for monetization) ───────────────────────────────
 async function trackUsage(env: Env, ip: string, type: 'request' | 'ai_call' | 'd1_query') {
-  const key = `usage:${ip}`;
-  const raw = await env.STATE.get(key);
-  let usage = { requests: 0, ai_calls: 0, d1_queries: 0 };
-  if (raw) {
-    try { usage = JSON.parse(raw); } catch {}
+  try {
+    const key = `usage:${ip}`;
+    const raw = await env.STATE.get(key);
+    let usage = { requests: 0, ai_calls: 0, d1_queries: 0 };
+    if (raw) {
+      try { usage = JSON.parse(raw); } catch { /* ignore malformed JSON */ }
+    }
+    if (type === 'request') usage.requests++;
+    else if (type === 'ai_call') usage.ai_calls++;
+    else if (type === 'd1_query') usage.d1_queries++;
+    await env.STATE.put(key, JSON.stringify(usage));
+  } catch (e) {
+    // Silently fail - don't break requests for usage tracking issues
   }
-  if (type === 'request') usage.requests++;
-  else if (type === 'ai_call') usage.ai_calls++;
-  else if (type === 'd1_query') usage.d1_queries++;
-  await env.STATE.put(key, JSON.stringify(usage));
 }
 
 function checkRateLimit(ip: string): boolean {
@@ -893,14 +897,16 @@ async function checkTierLimit(env: Env, key: string, tier: string): Promise<bool
   if (tierConfig.daily === Infinity) return true;
   const today = new Date().toISOString().slice(0, 10);
   const countKey = `daily:${today}:${key}`;
-  const count = parseInt(await env.STATE.get(countKey) || '0');
+  const raw = await env.STATE.get(countKey);
+  const count = raw ? parseInt(raw) : 0;
   return count < tierConfig.daily;
 }
 
 async function incrementUsage(env: Env, key: string, endpoint: string, tier: string) {
   const today = new Date().toISOString().slice(0, 10);
   const countKey = `daily:${today}:${key}`;
-  const count = parseInt(await env.STATE.get(countKey) || '0');
+  const raw = await env.STATE.get(countKey);
+  const count = raw ? parseInt(raw) : 0;
   await env.STATE.put(countKey, String(count + 1));
   // Emit usage event to D1
   const timestamp = new Date().toISOString();
