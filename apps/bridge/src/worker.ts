@@ -76,7 +76,7 @@ export default {
         
         if (env.STATE) {
           try {
-            const raw = await env.STATE.get('proposals:snapshot');
+            const raw = await env.STATE_CACHE.get('proposals:snapshot');
             const parsed = raw ? JSON.parse(raw) : null;
             if (Array.isArray(parsed)) {
               proposals.items = parsed;
@@ -123,7 +123,9 @@ export default {
         
         if (env.STATE) {
           try {
-            const value = await env.STATE_CACHE.get('proposals:snapshot');
+            const rawValue = await env.STATE_CACHE.get('proposals:snapshot');
+          console.log('[Proposals] Raw value:', rawValue);
+          const value = rawValue;
             const parsed = value ? JSON.parse(value) : null;
             if (Array.isArray(parsed)) {
               proposals = parsed;
@@ -203,7 +205,7 @@ export default {
             updatedAt: new Date().toISOString(),
           };
           
-          await env.STATE.put('proposals:snapshot', JSON.stringify(payload));
+          await env.STATE_CACHE.put('proposals:snapshot', JSON.stringify(payload));
           
           return json({ ok: true, updatedAt: payload.updatedAt });
         } catch {
@@ -233,90 +235,6 @@ export default {
       
 
       // POST /webhooks/notion - Notion webhook receiver with HMAC verification
-      if (path === '/webhooks/notion' && method === 'POST') {
-        const signature = request.headers.get('x-notion-signature') || request.headers.get('x-hub-signature');
-        const rawBody = await request.clone().text();
-        
-        if (signature && env.NOTION_WEBHOOK_SECRET) {
-          const crypto = await import('crypto');
-          const expectedSig = crypto.createHmac('sha256', env.NOTION_WEBHOOK_SECRET).update(rawBody).digest('hex');
-          const providedSig = signature.replace(/^sha256=/, '');
-          
-          let valid = false;
-          if (expectedSig.length === providedSig.length) {
-            valid = true;
-            for (let i = 0; i < expectedSig.length; i++) {
-              valid = valid && expectedSig[i] === providedSig[i];
-            }
-          }
-          
-          if (!valid) {
-            console.log('[Webhook] HMAC verification FAILED');
-            return json({ ok: false, error: 'Invalid signature' }, 401);
-          }
-          console.log('[Webhook] HMAC verification PASSED');
-        } else if (!env.NOTION_WEBHOOK_SECRET) {
-          console.log('[Webhook] WARNING: NOTION_WEBHOOK_SECRET not configured');
-        } else {
-          console.log('[Webhook] WARNING: No signature header');
-        }
-        
-        try {
-          const event = JSON.parse(rawBody);
-          console.log('[Webhook] Received Notion event:', JSON.stringify(event).slice(0, 200));
-          const timestamp = new Date().toISOString();
-          
-          if (env.STATE) {
-            const existing = await env.STATE.get('proposals:snapshot');
-            let items = [];
-            if (existing) {
-              try { items = JSON.parse(existing).items || JSON.parse(existing).proposals || []; } catch {}
-            }
-            
-            items.push({
-              id: event.data?.id || event.id || `notion-${Date.now()}`,
-              title: event.data?.title || event.data?.Name?.title?.[0]?.plain_text || 'Untitled',
-              stage: 'pending_review',
-              source: 'notion-webhook',
-              timestamp,
-            });
-            
-            await env.STATE.put('proposals:snapshot', JSON.stringify({
-              items,
-              source: 'notion-webhook',
-              updatedAt: timestamp,
-            }));
-          }
-          
-          if (env.STATE_CACHE) {
-            const existingCache = await env.STATE_CACHE.get('lessons:index');
-            let lessons = [];
-            if (existingCache) {
-              try { lessons = JSON.parse(existingCache).lessons || JSON.parse(existingCache).items || []; } catch {}
-            }
-            
-            lessons.push({
-              id: event.data?.id || event.id || `notion-${Date.now()}`,
-              title: `Notion Update: ${event.data?.title || 'Event'}`,
-              hash: event.data?.id || event.id,
-              source: 'notion-webhook',
-              timestamp,
-            });
-            
-            await env.STATE_CACHE.put('lessons:index', JSON.stringify({
-              lessons,
-              source: 'notion-webhook',
-              updatedAt: timestamp,
-            }));
-          }
-          
-          return json({ ok: true, received: true, timestamp });
-        } catch (e) {
-          return json({ ok: false, error: 'Invalid JSON' }, 400);
-        }
-      }
-
-
       // POST /webhooks/notion - Notion webhook receiver with HMAC verification
       if (path === '/webhooks/notion' && method === 'POST') {
         const signature = request.headers.get('x-notion-signature') || request.headers.get('x-hub-signature');
