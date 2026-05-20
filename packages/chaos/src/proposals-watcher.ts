@@ -34,6 +34,7 @@ const NOTION_API_KEY = process.env.NOTION_API_KEY;
 const PROPOSALS_DB_ID = process.env.PROPOSALS_DB_ID || process.env.ALPHA_PROPOSALS_DB_URL;
 const POLL_INTERVAL_MS = parseInt(process.env.POLL_INTERVAL_MS || '5000');
 const USE_MOCK = process.env.USE_MOCK === 'true';
+const WORKER_URL = process.env.WORKER_URL || 'https://aether.atomicmoonbeam88.workers.dev';
 
 // Local fallback path
 const PROPOSALS_LOG = './logs/proposals.jsonl';
@@ -99,8 +100,24 @@ async function dispatch(proposal: Proposal): Promise<void> {
   console.log(`  Title: ${proposal.title}`);
   console.log(`  Status: ${proposal.status}`);
   
-  // In production, hand off to dispatcher.ts
-  // For now, log the dispatch
+  // Write to worker via HTTP API
+  try {
+    const response = await fetch(`${WORKER_URL}/proposals/write`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        items: [{ ...proposal, source: 'backend-proposals-watcher' }],
+      }),
+    });
+    
+    if (response.ok) {
+      console.log(`  [KV] Written via worker API`);
+    } else {
+      console.log(`  [KV] Write failed: ${response.status}`);
+    }
+  } catch (error) {
+    console.log(`  [KV] Error: ${error}`);
+  }
 }
 
 async function poll(): Promise<void> {

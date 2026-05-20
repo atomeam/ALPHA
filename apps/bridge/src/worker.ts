@@ -191,6 +191,46 @@ export default {
         return json({ ok: true, hash, collision });
       }
       
+      // POST /proposals/write - write proposals snapshot (workflow writer)
+      if (path === '/proposals/write' && method === 'POST' && env.STATE) {
+        try {
+          const body = await request.json() as { items?: unknown[]; source?: string };
+          const items = body.items || [];
+          
+          const payload = {
+            items,
+            source: body.source || 'backend-proposals-watcher',
+            updatedAt: new Date().toISOString(),
+          };
+          
+          await env.STATE.put('proposals:snapshot', JSON.stringify(payload));
+          
+          return json({ ok: true, updatedAt: payload.updatedAt });
+        } catch {
+          return json({ ok: false, error: 'Invalid request body' }, 400);
+        }
+      }
+      
+      // POST /lessons/write - write lessons index (workflow writer)
+      if (path === '/lessons/write' && method === 'POST' && env.STATE_CACHE) {
+        try {
+          const body = await request.json() as { items?: unknown[]; source?: string };
+          const items = body.items || [];
+          
+          const payload = {
+            items,
+            source: body.source || 'backend-proposals-watcher',
+            updatedAt: new Date().toISOString(),
+          };
+          
+          await env.STATE_CACHE.put('lessons:index', JSON.stringify(payload));
+          
+          return json({ ok: true, updatedAt: payload.updatedAt });
+        } catch {
+          return json({ ok: false, error: 'Invalid request body' }, 400);
+        }
+      }
+      
       // Legacy API: /api/stack
       if (path === '/api/stack') {
         return json({
