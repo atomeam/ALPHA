@@ -18,16 +18,18 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
-          npm-version: 10.9.2
+          node-version: 22
 
       - name: Install
-        run: npm ci
+        run: npm install
+        working-directory: .
 
       - name: Build
         run: npm run build --workspaces --if-present
+        working-directory: .
 
       - name: Run ProposalsWatcher one cycle
+        working-directory: .
         env:
           CF_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
           CF_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
