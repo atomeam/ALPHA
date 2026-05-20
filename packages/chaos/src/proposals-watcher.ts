@@ -109,6 +109,11 @@ async function dispatch(proposal: Proposal): Promise<void> {
   console.log(`  Title: ${proposal.title}`);
   console.log(`  Status: ${proposal.status}`);
   
+  // Debug: log CF config status
+  console.log(`  CF_ACCOUNT_ID: ${CF_ACCOUNT_ID ? 'set' : 'MISSING'}`);
+  console.log(`  CF_API_TOKEN: ${CF_API_TOKEN ? 'set' : 'MISSING'}`);
+  console.log(`  CF_KV_STATE_ID: ${CF_KV_STATE_ID ? 'set' : 'MISSING'}`);
+  
   // Write to Cloudflare KV via REST API
   if (CF_ACCOUNT_ID && CF_API_TOKEN && CF_KV_STATE_ID) {
     try {
