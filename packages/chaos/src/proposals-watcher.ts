@@ -151,6 +151,9 @@ async function dispatch(proposal: Proposal): Promise<void> {
     
     // Write lessons index to STATE_CACHE (independent write)
     console.log(`[Dispatcher] Checking cache namespace write...`);
+    console.log(`[Dispatcher]   Has CF_ACCOUNT_ID: ${!!CF_ACCOUNT_ID}`);
+    console.log(`[Dispatcher]   Has CF_API_TOKEN: ${!!CF_API_TOKEN}`);
+    console.log(`[Dispatcher]   Has CF_KV_STATE_CACHE_ID: ${!!CF_KV_STATE_CACHE_ID}`);
     if (CF_ACCOUNT_ID && CF_API_TOKEN && CF_KV_STATE_CACHE_ID) {
       console.log(`[Dispatcher] Writing lessons to cache namespace: ${CF_KV_STATE_CACHE_ID}...`);
       try {
