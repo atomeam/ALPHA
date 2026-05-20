@@ -21,9 +21,6 @@ jobs:
           node-version: 20
           cache: npm
 
-      - name: Install
-        run: npm install --ignore-scripts
-
       - name: Install TypeScript
         run: npm install -g typescript
 
