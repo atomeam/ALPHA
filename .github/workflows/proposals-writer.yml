@@ -22,14 +22,11 @@ jobs:
 
       - name: Install
         run: npm ci
-        working-directory: .
 
       - name: Build
         run: npm run build --workspaces --if-present
-        working-directory: .
 
       - name: Run ProposalsWatcher one cycle
-        working-directory: .
         env:
           CF_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
           CF_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
@@ -37,8 +34,7 @@ jobs:
           CF_KV_STATE_CACHE_ID: ${{ secrets.CF_KV_STATE_CACHE_ID }}
         run: node packages/chaos/dist/proposals-watcher.js --once
 
-      - name: Verify writer output
-        working-directory: .
+      - name: Verify writer
         run: |
           curl -sS "https://aether.atomicmoonbeam88.workers.dev/crew/status" \
             | jq -e '.proposals.items[0].source == "backend-proposals-watcher"' \
