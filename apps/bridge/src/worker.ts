@@ -47,6 +47,16 @@ const rateLimiter = new Map<string, { count: number; resetAt: number }>();
 const RATE_LIMIT = 60;       // requests per minute per IP
 const RATE_WINDOW = 60_000;  // 60 seconds
 
+// ─── Usage Tracker (for monetization) ───────────────────────────────
+async function trackUsage(env: Env, ip: string, type: 'request' | 'ai_call' | 'd1_query') {
+  const key = `usage:${ip}`;
+  const usage = (await env.STATE.get(key, 'json')) || { requests: 0, ai_calls: 0, d1_queries: 0 };
+  if (type === 'request') usage.requests++;
+  else if (type === 'ai_call') usage.ai_calls++;
+  else if (type === 'd1_query') usage.d1_queries++;
+  await env.STATE.put(key, JSON.stringify(usage));
+}
+
 function checkRateLimit(ip: string): boolean {
   const now = Date.now();
   const entry = rateLimiter.get(ip);
@@ -106,6 +116,11 @@ export default {
       return new Response(JSON.stringify({ error: 'Rate limit exceeded' }), { status: 429, headers: { 'Content-Type': 'application/json' } });
     }
     const url = new URL(request.url);
+
+    // Track request usage
+    if (env.STATE) {
+      trackUsage(env, ip, 'request');
+    }
     
     // CORS preflight
     if (request.method === 'OPTIONS') {
@@ -536,6 +551,7 @@ export default {
         if (!env.STATE_CACHE) return json({ error: 'STATE_CACHE not bound' }, 500);
         const raw = await env.STATE_CACHE.get('ai:presence', 'json');
         const aiList = raw ? Object.entries(raw) : [];
+        if (env.STATE) trackUsage(env, ip, 'ai_call');
         return json({ ok: true, count: aiList.length, ais: Object.fromEntries(aiList) });
       }
 
@@ -565,7 +581,15 @@ export default {
         await env.DB.prepare(
           "INSERT OR IGNORE INTO council_logs (session_id, agent_id, role, content, message_id, timestamp) VALUES (?, ?, ?, ?, ?, ?)"
         ).bind(session_id, agent_id, role, content.substring(0, 5000), message_id, timestamp).run();
+        if (env.STATE) trackUsage(env, ip, 'd1_query');
         return json({ ok: true, timestamp });
+      }
+
+      // GET /api/usage - get usage for this IP
+      if (path === '/api/usage') {
+        if (!env.STATE) return json({ error: 'STATE not bound' }, 500);
+        const usage = await env.STATE.get(`usage:${ip}`, 'json') || { requests: 0, ai_calls: 0, d1_queries: 0 };
+        return json({ ok: true, ip, usage });
       }
 
       // GET /api/council/history - get conversation history
