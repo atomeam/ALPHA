@@ -21,11 +21,8 @@ jobs:
           node-version: 20
           cache: npm
 
-      - name: Install TypeScript
-        run: npm install -g typescript
-
-      - name: Build chaos
-        run: tsc -p packages/chaos/tsconfig.json
+      - name: Install TypeScript and ts-node
+        run: npm install -g typescript ts-node
 
       - name: Run ProposalsWatcher one cycle
         env:
@@ -33,7 +30,7 @@ jobs:
           CF_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
           CF_KV_STATE_ID: ${{ secrets.CF_KV_STATE_ID }}
           CF_KV_STATE_CACHE_ID: ${{ secrets.CF_KV_STATE_CACHE_ID }}
-        run: node packages/chaos/dist/proposals-watcher.js --once
+        run: npx ts-node packages/chaos/src/proposals-watcher.ts
 
       - name: Verify writer output
         run: |
