@@ -92,7 +92,11 @@ async function fetchFromNotion(): Promise<Proposal[]> {
 }
 
 function fetchFromLocal(): Proposal[] {
-  if (!fs.existsSync(PROPOSALS_LOG)) return [];
+  if (!fs.existsSync(PROPOSALS_LOG)) {
+    // Use fallback mock data when no local file exists (CI scenario)
+    console.log('[Watcher] No local proposals file, using fallback');
+    return MOCK_PROPOSALS;
+  }
   
   const lines = fs.readFileSync(PROPOSALS_LOG, 'utf-8').split('\n').filter(Boolean);
   return lines
