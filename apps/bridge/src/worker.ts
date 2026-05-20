@@ -12,7 +12,7 @@
 import { default as app } from './server';
 
 // Shared constants
-const VERSION = '0.4.0';
+const VERSION = '0.5.0';
 const SERVICE = 'aether-bridge';
 
 // No-store JSON helper - prevents stale cache
@@ -267,13 +267,14 @@ export default {
           console.log('[Webhook] Received Notion event');
           const timestamp = new Date().toISOString();
 
-          // Log to D1 events table for audit trail
+          // Log to D1 events table for audit trail (idempotent)
           if (env.DB) {
             const eventId = event.data?.id || event.id || `notion-${Date.now()}`;
             const pageId = event.data?.id || '';
             const databaseId = event.data?.parent?.database_id || event.data?.parent?.page_id || '';
+            // Idempotent insert - ignore if exists
             await env.DB.prepare(
-              "INSERT INTO events (event_id, source, kind, level, page_id, database_id, payload, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
+              "INSERT OR IGNORE INTO events (event_id, source, kind, level, page_id, database_id, payload, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
             ).bind(eventId, 'tier2-webhook', 'WHK_RECEIVED', 'info', pageId, databaseId, rawBody.substring(0, 500), timestamp).run();
           }
 
@@ -487,9 +488,11 @@ export default {
           return json({ error: 'session_id, agent_id, role, content required' }, 400);
         }
         const timestamp = new Date().toISOString();
+        const message_id = `${session_id}-${timestamp}-${agent_id}`;
+        // Idempotent insert
         await env.DB.prepare(
-          "INSERT INTO council_logs (session_id, agent_id, role, content, timestamp) VALUES (?, ?, ?, ?, ?)"
-        ).bind(session_id, agent_id, role, content.substring(0, 5000), timestamp).run();
+          "INSERT OR IGNORE INTO council_logs (session_id, agent_id, role, content, message_id, timestamp) VALUES (?, ?, ?, ?, ?, ?)"
+        ).bind(session_id, agent_id, role, content.substring(0, 5000), message_id, timestamp).run();
         return json({ ok: true, timestamp });
       }
 
