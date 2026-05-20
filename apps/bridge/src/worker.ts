@@ -12,7 +12,7 @@
 import { default as app } from './server';
 
 // Shared constants
-const VERSION = '0.2.0';
+const VERSION = '0.3.0';
 const SERVICE = 'aether-bridge';
 
 // No-store JSON helper - prevents stale cache
@@ -347,6 +347,118 @@ export default {
         return json({ status: 'idle', currentStep: 0, totalSteps: 0 });
       }
       
+
+      // GET /api/events - query events from D1
+      if (path === '/api/events') {
+        const limit = Math.min(parseInt(url.searchParams.get("limit") || "50"), 200);
+        const source = url.searchParams.get("source");
+        const kind = url.searchParams.get("kind");
+        const level = url.searchParams.get("level");
+
+        let query = "SELECT * FROM events";
+        const conditions: string[] = [];
+        const params: any[] = [];
+
+        if (source) { conditions.push("source = ?"); params.push(source); }
+        if (kind) { conditions.push("kind = ?"); params.push(kind); }
+        if (level) { conditions.push("level = ?"); params.push(level); }
+
+        if (conditions.length > 0) {
+          query += " WHERE " + conditions.join(" AND ");
+        }
+        query += " ORDER BY created_at DESC LIMIT ?";
+        params.push(limit);
+
+        const { results } = await env.DB.prepare(query).bind(...params).all();
+
+        return new Response(JSON.stringify({ ok: true, count: results.length, events: results }), {
+          headers: { "Content-Type": "application/json", "Cache-Control": "no-cache" },
+        });
+      }
+
+      // GET /dashboard - HTML dashboard
+      if (path === '/dashboard') {
+        const { results } = await env.DB.prepare(
+          "SELECT * FROM events ORDER BY created_at DESC LIMIT 100"
+        ).all();
+
+        const proposals = await env.STATE_CACHE.get("proposals:snapshot", "json");
+        const lessons = await env.STATE_CACHE.get("lessons:index", "json");
+
+        const html = `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Aether Bridge — Dashboard</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: 'SF Mono', 'Fira Code', monospace; background: #080808; color: #e0e0e0; padding: 24px; }
+    h1 { color: #00ff88; font-size: 18px; margin-bottom: 8px; }
+    h2 { color: #4db8ff; font-size: 14px; margin: 20px 0 8px; }
+    .meta { color: #888; font-size: 12px; margin-bottom: 20px; }
+    .cards { display: flex; gap: 16px; margin-bottom: 24px; flex-wrap: wrap; }
+    .card { background: #0d0d0d; border: 1px solid #222; border-radius: 8px; padding: 16px; min-width: 180px; }
+    .card .label { color: #888; font-size: 11px; text-transform: uppercase; }
+    .card .value { color: #00ff88; font-size: 24px; font-weight: bold; }
+    .card .sub { color: #666; font-size: 11px; margin-top: 4px; }
+    table { width: 100%; border-collapse: collapse; font-size: 12px; }
+    th { text-align: left; color: #888; padding: 8px 12px; border-bottom: 1px solid #222; font-size: 11px; text-transform: uppercase; }
+    td { padding: 6px 12px; border-bottom: 1px solid #111; }
+    tr:hover { background: #0d0d0d; }
+    .kind { color: #4db8ff; }
+    .source { color: #f59e0b; }
+    .level-info { color: #00ff88; }
+    .level-warn { color: #f59e0b; }
+    .level-error { color: #ff4444; }
+    .ts { color: #666; font-size: 11px; }
+    .empty { color: #555; text-align: center; padding: 40px; }
+    .refresh { background: none; border: 1px solid #333; color: #888; padding: 4px 12px; border-radius: 4px; cursor: pointer; font-family: inherit; font-size: 11px; float: right; }
+    .refresh:hover { border-color: #00ff88; color: #00ff88; }
+  </style>
+</head>
+<body>
+  <h1>AETHER BRIDGE <span style="color:#666">v0.3.0</span></h1>
+  <div class="meta">Operator dashboard &middot; ${new Date().toISOString()}</div>
+
+  <div class="cards">
+    <div class="card">
+      <div class="label">Proposals</div>
+      <div class="value">${(proposals as any)?.proposals?.length ?? (proposals as any)?.count ?? 0}</div>
+      <div class="sub">${(proposals as any)?.source ?? "—"}</div>
+    </div>
+    <div class="card">
+      <div class="label">Lessons</div>
+      <div class="value">${(lessons as any)?.lessons?.length ?? (lessons as any)?.count ?? 0}</div>
+      <div class="sub">${(lessons as any)?.source ?? "—"}</div>
+    </div>
+    <div class="card">
+      <div class="label">Events</div>
+      <div class="value">${results.length}</div>
+      <div class="sub">last 100</div>
+    </div>
+  </div>
+
+  <h2>Event Log <button class="refresh" onclick="location.reload()">↻ refresh</button></h2>
+  ${results.length > 0 ? `<table>
+    <tr><th>Time</th><th>Kind</th><th>Source</th><th>Level</th><th>Page ID</th><th>Event ID</th></tr>
+    ${(results as any[]).map((e: any) => `<tr>
+      <td class="ts">${e.created_at?.slice(11, 19) ?? "—"}</td>
+      <td class="kind">${e.kind ?? "—"}</td>
+      <td class="source">${e.source ?? "—"}</td>
+      <td class="level-${e.level ?? "info"}">${e.level ?? "—"}</td>
+      <td>${e.page_id?.slice(0, 12) ?? "—"}${e.page_id?.length > 12 ? "…" : ""}</td>
+      <td class="ts">${e.event_id?.slice(0, 12) ?? "—"}…</td>
+    </tr>`).join("")}
+  </table>` : `<div class="empty">No events recorded yet. Webhook and queue activity will appear here.</div>`}
+</body>
+</html>`;
+
+        return new Response(html, {
+          headers: { "Content-Type": "text/html", "Cache-Control": "no-cache" },
+        });
+      }
+
       // 404
       return json({ error: 'Not found' }, 404);
       
