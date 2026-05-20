@@ -111,10 +111,12 @@ async function dispatch(proposal: Proposal): Promise<void> {
   console.log(`[Dispatcher] CF_ACCOUNT_ID: ${CF_ACCOUNT_ID ? 'SET' : 'MISSING'}`);
   console.log(`[Dispatcher] CF_API_TOKEN: ${CF_API_TOKEN ? 'SET' : 'MISSING'}`);
   console.log(`[Dispatcher] CF_KV_STATE_ID: ${CF_KV_STATE_ID ? 'SET' : 'MISSING'}`);
-  console.log(`[Dispatcher] Writing to namespace: ${CF_KV_STATE_ID}`);
+  console.log(`[Dispatcher] CF_KV_STATE_CACHE_ID: ${CF_KV_STATE_CACHE_ID ? 'SET' : 'MISSING'}`);
   
   if (CF_ACCOUNT_ID && CF_API_TOKEN && CF_KV_STATE_ID) {
     console.log(`[Dispatcher] All credentials present - attempting KV write...`);
+    
+    // Write proposals
     try {
       const payload = JSON.stringify({
         proposals: [{ id: proposal.id, title: proposal.title, stage: proposal.status, source: 'backend-proposals-watcher', updatedAt: new Date().toISOString() }],
@@ -141,6 +143,40 @@ async function dispatch(proposal: Proposal): Promise<void> {
       }
     } catch (error) {
       console.log(`[Dispatcher] KV Error: ${error}`);
+    }
+    
+    // Write lessons index to STATE_CACHE
+    if (CF_KV_STATE_CACHE_ID) {
+      console.log(`[Dispatcher] Writing lessons to cache namespace...`);
+      try {
+        const lessonsPayload = JSON.stringify({
+          lessons: [
+            { id: 'lesson_001', title: `${proposal.title} - Lesson`, hash: proposal.id, source: 'backend-proposals-watcher', updatedAt: new Date().toISOString() }
+          ],
+          updatedAt: new Date().toISOString()
+        });
+        
+        const lessonsResponse = await fetch(
+          `https://api.cloudflare.com/client/v4/accounts/${CF_ACCOUNT_ID}/storage/kv/namespaces/${CF_KV_STATE_CACHE_ID}/values/lessons:index`,
+          {
+            method: 'PUT',
+            headers: {
+              'Authorization': `Bearer ${CF_API_TOKEN}`,
+              'Content-Type': 'application/json',
+            },
+            body: lessonsPayload,
+          }
+        );
+        
+        if (lessonsResponse.ok) {
+          console.log(`[Dispatcher] Lessons KV write SUCCESS`);
+        } else {
+          const err = await lessonsResponse.text();
+          console.log(`[Dispatcher] Lessons KV write FAILED: ${lessonsResponse.status} - ${err}`);
+        }
+      } catch (error) {
+        console.log(`[Dispatcher] Lessons KV Error: ${error}`);
+      }
     }
   } else {
     console.log(`[Dispatcher] CF credentials not configured - skipping KV write`);
