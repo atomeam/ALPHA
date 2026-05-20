@@ -12,7 +12,7 @@
 import { default as app } from './server';
 
 // Shared constants
-const VERSION = '0.14.0';
+const VERSION = '0.15.0';
 const SERVICE = 'aether-bridge';
 
 // No-store JSON helper - prevents stale cache
@@ -588,7 +588,11 @@ export default {
       // GET /api/usage - get usage for this IP
       if (path === '/api/usage') {
         if (!env.STATE) return json({ error: 'STATE not bound' }, 500);
-        const usage = await env.STATE.get(`usage:${ip}`, 'json') || { requests: 0, ai_calls: 0, d1_queries: 0 };
+        const raw = await env.STATE.get(`usage:${ip}`);
+        let usage = { requests: 0, ai_calls: 0, d1_queries: 0 };
+        if (raw) {
+          try { usage = JSON.parse(raw); } catch {}
+        }
         return json({ ok: true, ip, usage });
       }
 
