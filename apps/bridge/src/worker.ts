@@ -266,7 +266,17 @@ export default {
           const event = JSON.parse(rawBody);
           console.log('[Webhook] Received Notion event');
           const timestamp = new Date().toISOString();
-          
+
+          // Log to D1 events table for audit trail
+          if (env.DB) {
+            const eventId = event.data?.id || event.id || `notion-${Date.now()}`;
+            const pageId = event.data?.id || '';
+            const databaseId = event.data?.parent?.database_id || event.data?.parent?.page_id || '';
+            await env.DB.prepare(
+              "INSERT INTO events (event_id, source, kind, level, page_id, database_id, payload, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
+            ).bind(eventId, 'tier2-webhook', 'WHK_RECEIVED', 'info', pageId, databaseId, rawBody.substring(0, 500), timestamp).run();
+          }
+
           // Use STATE_CACHE (lessons KV) for proposals as fallback since STATE has issues
           if (env.STATE_CACHE) {
                         const existing = await env.STATE_CACHE.get('proposals:snapshot');
