@@ -24,6 +24,3 @@ id = "d22e703c3af9451a9942fa2a551a1aa8"
 # Browser Run
 [browser]
 binding = "MYBROWSER"
-# Notion Webhook Secret
-[vars]
-NOTION_WEBHOOK_SECRET = ""
