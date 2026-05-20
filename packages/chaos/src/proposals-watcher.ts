@@ -105,18 +105,16 @@ function fetchFromLocal(): Proposal[] {
 }
 
 async function dispatch(proposal: Proposal): Promise<void> {
-  const debug = (msg: string) => console.error(`[Dispatcher] ${msg}`);
-  debug(`Dispatching proposal: ${proposal.id}`);
-  debug(`Title: ${proposal.title}`);
-  debug(`Status: ${proposal.status}`);
-  debug(`CF_ACCOUNT_ID: ${CF_ACCOUNT_ID ? 'SET' : 'MISSING'}`);
-  debug(`CF_API_TOKEN: ${CF_API_TOKEN ? 'SET' : 'MISSING'}`);
-  debug(`CF_KV_STATE_ID: ${CF_KV_STATE_ID ? 'SET' : 'MISSING'}`);
-  debug(`Writing to namespace: ${CF_KV_STATE_ID}`);
+  console.log(`[Dispatcher] Dispatching proposal: ${proposal.id}`);
+  console.log(`[Dispatcher] Title: ${proposal.title}`);
+  console.log(`[Dispatcher] Status: ${proposal.status}`);
+  console.log(`[Dispatcher] CF_ACCOUNT_ID: ${CF_ACCOUNT_ID ? 'SET' : 'MISSING'}`);
+  console.log(`[Dispatcher] CF_API_TOKEN: ${CF_API_TOKEN ? 'SET' : 'MISSING'}`);
+  console.log(`[Dispatcher] CF_KV_STATE_ID: ${CF_KV_STATE_ID ? 'SET' : 'MISSING'}`);
+  console.log(`[Dispatcher] Writing to namespace: ${CF_KV_STATE_ID}`);
   
-  // Write to Cloudflare KV via REST API
   if (CF_ACCOUNT_ID && CF_API_TOKEN && CF_KV_STATE_ID) {
-    debug(`Attempting write to CF KV...`);
+    console.log(`[Dispatcher] All credentials present - attempting KV write...`);
     try {
       const payload = JSON.stringify({
         proposals: [{ id: proposal.id, title: proposal.title, stage: proposal.status, source: 'backend-proposals-watcher', updatedAt: new Date().toISOString() }],
@@ -136,16 +134,16 @@ async function dispatch(proposal: Proposal): Promise<void> {
       );
       
       if (response.ok) {
-        debug(`KV write SUCCESS`);
+        console.log(`[Dispatcher] KV write SUCCESS`);
       } else {
         const err = await response.text();
-        debug(`KV write FAILED: ${response.status} - ${err}`);
+        console.log(`[Dispatcher] KV write FAILED: ${response.status} - ${err}`);
       }
     } catch (error) {
-      debug(`KV Error: ${error}`);
+      console.log(`[Dispatcher] KV Error: ${error}`);
     }
   } else {
-    debug(`CF credentials not configured - skipping KV write`);
+    console.log(`[Dispatcher] CF credentials not configured - skipping KV write`);
   }
 }
 
