@@ -24,3 +24,14 @@ id = "d22e703c3af9451a9942fa2a551a1aa8"
 # Browser Run
 [browser]
 binding = "MYBROWSER"
+
+# Cloudflare Queues (created manually: npx wrangler queues create curator-jobs)
+[[queues.producers]]
+binding = "CURATOR_QUEUE"
+queue = "curator-jobs"
+
+[[queues.consumers]]
+queue = "curator-jobs"
+max_batch_size = 1
+max_batch_timeout = 30
+max_retries = 3
