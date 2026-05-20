@@ -18,10 +18,15 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 22
-          cache: "npm"
+          node-version: 20
+          cache: npm
 
-      - run: npm install --ignore-scripts
+      - name: Install
+        run: npm ci
+        working-directory: .
+
+      - name: Build
+        run: npm run build --workspaces --if-present
         working-directory: .
 
       - name: Run ProposalsWatcher one cycle
@@ -31,9 +36,10 @@ jobs:
           CF_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
           CF_KV_STATE_ID: ${{ secrets.CF_KV_STATE_ID }}
           CF_KV_STATE_CACHE_ID: ${{ secrets.CF_KV_STATE_CACHE_ID }}
-        run: node --loader ts-node/esm packages/chaos/src/proposals-watcher.ts --once
+        run: node packages/chaos/dist/proposals-watcher.js --once
 
       - name: Verify writer output
+        working-directory: .
         run: |
           curl -sS "https://aether.atomicmoonbeam88.workers.dev/crew/status" \
             | jq -e '.proposals.items[0].source == "backend-proposals-watcher"' \
