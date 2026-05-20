@@ -469,7 +469,7 @@ export default {
 
       // POST /api/ai/heartbeat - update AI presence
       if (path === '/api/ai/heartbeat' && method === 'POST') {
-        const body = await req.json();
+        const body = await request.json();
         const { ai_id, name, status = 'active', role } = body;
         if (!ai_id) return json({ error: 'ai_id required' }, 400);
 
@@ -481,7 +481,7 @@ export default {
 
       // POST /api/council/log - log a conversation message
       if (path === '/api/council/log' && method === 'POST') {
-        const body = await req.json();
+        const body = await request.json();
         const { session_id, agent_id, role, content } = body;
         if (!session_id || !agent_id || !role || !content) {
           return json({ error: 'session_id, agent_id, role, content required' }, 400);
