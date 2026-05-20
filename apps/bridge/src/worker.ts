@@ -123,7 +123,7 @@ export default {
         
         if (env.STATE) {
           try {
-            const value = await env.STATE.get('proposals:snapshot');
+            const value = await env.STATE_CACHE.get('proposals:snapshot');
             const parsed = value ? JSON.parse(value) : null;
             if (Array.isArray(parsed)) {
               proposals = parsed;
@@ -351,10 +351,10 @@ export default {
           console.log('[Webhook] Received Notion event');
           const timestamp = new Date().toISOString();
           
-          if (env.STATE) {
-            console.log('[Webhook] Checking STATE KV');
-            const existing = await env.STATE.get('proposals:snapshot');
-            console.log('[Webhook] Existing from STATE:', existing);
+          // Use STATE_CACHE (lessons KV) for proposals as fallback since STATE has issues
+          if (env.STATE_CACHE) {
+            console.log('[Webhook] Using STATE_CACHE for proposals');
+            const existing = await env.STATE_CACHE.get('proposals:snapshot');
             let items: any[] = [];
             if (existing) {
               try { items = JSON.parse(existing).proposals || []; } catch {}
@@ -368,12 +368,12 @@ export default {
               timestamp,
             });
             
-            await env.STATE.put('proposals:snapshot', JSON.stringify({
+            await env.STATE_CACHE.put('proposals:snapshot', JSON.stringify({
               proposals: items,
               source: 'notion-webhook',
               updatedAt: timestamp,
             }));
-            console.log('[Webhook] Wrote to STATE KV, items:', items.length);
+            console.log('[Webhook] Wrote to STATE_CACHE, items:', items.length);
           }
           
           if (env.STATE_CACHE) {
