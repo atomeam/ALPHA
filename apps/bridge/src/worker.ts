@@ -12,7 +12,7 @@
 import { default as app } from './server';
 
 // Shared constants
-const VERSION = '0.6.0';
+const VERSION = '0.7.0';
 const SERVICE = 'aether-bridge';
 
 // No-store JSON helper - prevents stale cache
@@ -516,6 +516,65 @@ export default {
           "SELECT * FROM council_logs WHERE session_id = ? ORDER BY timestamp DESC LIMIT ?"
         ).bind(session_id, limit).all();
         return json({ ok: true, count: results.length, messages: results });
+      }
+
+
+      // GET /api/council/replay - session replay with state transitions
+      if (path === '/api/council/replay') {
+        const sessionId = url.searchParams.get('session_id');
+        if (!sessionId) {
+          return json({ error: 'session_id required' }, 400);
+        }
+
+        try {
+          const { results: rawLogs } = await env.DB.prepare(`
+            SELECT agent_id, role, content, created_at
+            FROM council_logs
+            WHERE session_id = ?
+            ORDER BY created_at ASC
+          `).bind(sessionId).all();
+
+          // State accumulator
+          let runningScore = 0;
+          const activeFlags: string[] = [];
+          let currentLane = 'ai-only';
+
+          const timeline = rawLogs.map((log: any) => {
+            const content = log.content || '';
+            if (content.includes('eval-stale-penalty')) {
+              runningScore += -10;
+              if (!activeFlags.includes('STALE_DRIFT')) activeFlags.push('STALE_DRIFT');
+            }
+            if (content.includes('eval-status-ready')) {
+              runningScore += 25;
+              if (!activeFlags.includes('CLEAN_PASS')) activeFlags.push('CLEAN_PASS');
+            }
+            if (content.includes('Human Operational Lane') || content.includes('VIKTOR')) {
+              currentLane = 'human-only';
+            }
+
+            return {
+              ts: log.created_at,
+              actor: log.agent_id,
+              role: log.role,
+              message: content,
+              state: { runningScore, flags: activeFlags, lane: currentLane }
+            };
+          });
+
+          return json({
+            session_id: sessionId,
+            meta: {
+              total: timeline.length,
+              final_score: runningScore,
+              lane: currentLane,
+              compiled_at: new Date().toISOString()
+            },
+            timeline
+          });
+        } catch (err: any) {
+          return json({ error: 'Replay failed', details: err.message }, 500);
+        }
       }
 
       // 404
