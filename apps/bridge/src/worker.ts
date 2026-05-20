@@ -12,7 +12,7 @@
 import { default as app } from './server';
 
 // Shared constants
-const VERSION = '0.5.0';
+const VERSION = '0.6.0';
 const SERVICE = 'aether-bridge';
 
 // No-store JSON helper - prevents stale cache
@@ -267,7 +267,16 @@ export default {
           console.log('[Webhook] Received Notion event');
           const timestamp = new Date().toISOString();
 
-          // Log to D1 events table for audit trail (idempotent)
+          // Deduplication check
+        const existingEvent = await env.DB.prepare(
+          "SELECT event_id FROM events WHERE event_id = ? LIMIT 1"
+        ).bind(eventId).first();
+        if (existingEvent) {
+          console.log('[Webhook] Duplicate event skipped: ' + eventId);
+          return json({ ok: true, duplicate: true });
+        }
+
+        // Log to D1 events table for audit trail (idempotent)
           if (env.DB) {
             const eventId = event.data?.id || event.id || `notion-${Date.now()}`;
             const pageId = event.data?.id || '';
@@ -475,7 +484,7 @@ export default {
         if (!ai_id) return json({ error: 'ai_id required' }, 400);
 
         const raw = (await env.STATE_CACHE.get('ai:presence', 'json')) || {};
-        raw[ai_id] = { name: name || ai_id, status, role, last_seen: new Date().toISOString() };
+        raw[ai_id] = { name: name || ai_id, status, role, last_seen: new Date().toISOString(), expires_at: new Date(Date.now() + 300000).toISOString() };
         await env.STATE_CACHE.put('ai:presence', JSON.stringify(raw));
         return json({ ok: true, ai_id, status });
       }
@@ -522,11 +531,16 @@ export default {
     for (const message of batch.messages) {
       try {
         const job = message.body as CuratorJob;
+        // Queue visibility events
+        if (env.DB) {
+          await env.DB.prepare(
+            "INSERT OR IGNORE INTO events (event_id, source, kind, level, page_id, database_id, payload, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
+          ).bind(job.id, 'curator-queue', 'QUEUE_DEQUEUED', 'info', job.pageId || '', job.databaseId || '', JSON.stringify(job), new Date().toISOString()).run();
+        }
+        
         console.log(JSON.stringify({
           ts: new Date().toISOString(),
           kind: "WHK_QUEUE_CONSUME",
-          level: "info",
-          source: "curator-consumer",
           payload: { jobId: job.id, eventType: job.eventType, pageId: job.pageId },
         }));
 
