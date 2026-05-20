@@ -159,7 +159,7 @@ async function dispatch(proposal: Proposal): Promise<void> {
       try {
         const lessonsPayload = JSON.stringify({
           lessons: [
-            { id: 'lesson_001', title: `${proposal.title} - Lesson`, hash: proposal.id, source: 'backend-proposals-watcher', updatedAt: new Date().toISOString() }
+            { id: 'lesson_001', title: `${proposal.title} - Lesson`, hash: proposal.id, source: 'backend-lessons-index', updatedAt: new Date().toISOString() }
           ],
           updatedAt: new Date().toISOString()
         });
