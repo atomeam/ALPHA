@@ -20,10 +20,6 @@ jobs:
         with:
           node-version: 22
 
-      - name: Install
-        run: npm install --legacy-peer-deps
-        working-directory: .
-
       - name: Run ProposalsWatcher one cycle
         working-directory: .
         env:
@@ -31,7 +27,7 @@ jobs:
           CF_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
           CF_KV_STATE_ID: ${{ secrets.CF_KV_STATE_ID }}
           CF_KV_STATE_CACHE_ID: ${{ secrets.CF_KV_STATE_CACHE_ID }}
-        run: node packages/chaos/dist/proposals-watcher.js --once
+        run: npx tsx packages/chaos/src/proposals-watcher.ts --once
 
       - name: Verify writer
         run: |
