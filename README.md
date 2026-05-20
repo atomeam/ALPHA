@@ -1,6 +1,6 @@
 # Aether - ALPHA Stack Monorepo
 
-This is the ALPHA Stack monorepo with npm workspaces.
+Welcome to Aether! This is the ALPHA Stack monorepo with npm workspaces.
 
 ## Quick Start
 
@@ -27,7 +27,7 @@ npm run dev:frontend
 
 ### Then open in browser
 
-```
+```text
 http://localhost:5173
 ```
 
@@ -53,3 +53,17 @@ aether/
 | `npm run dev:frontend` | Start frontend on port 5173 |
 | `npm run build` | Build all packages |
 | `npm run test` | Run tests |
+
+## Testing
+
+Run tests with Turborepo:
+
+```bash
+npx turbo run test
+```
+
+Or test individual packages:
+
+```bash
+npm run test -w @aether/contracts
+```
