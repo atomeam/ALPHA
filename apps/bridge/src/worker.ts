@@ -12,7 +12,7 @@
 import { default as app } from './server';
 
 // Shared constants
-const VERSION = '0.7.1';
+const VERSION = '0.8.0';
 const SERVICE = 'aether-bridge';
 
 // No-store JSON helper - prevents stale cache
@@ -582,6 +582,104 @@ export default {
           });
         } catch (err: any) {
           return json({ error: 'Replay failed', details: err.message }, 500);
+        }
+      }
+
+
+      // GET /api/council/policy-diff - compare policies on same event stream
+      if (path === '/api/council/policy-diff') {
+        const sessionId = url.searchParams.get('session_id');
+        const policyA = url.searchParams.get('a') || 'curator:v1';
+        const policyB = url.searchParams.get('b') || 'curator:v2';
+        if (!sessionId) {
+          return json({ error: 'session_id required' }, 400);
+        }
+
+        try {
+          const { results: rawEvents } = await env.DB.prepare(`
+            SELECT event_id, kind, level, page_id, database_id, payload, created_at
+            FROM events
+            WHERE session_id = ? OR page_id = ?
+            ORDER BY created_at ASC
+          `).bind(sessionId, sessionId).all();
+
+          // Parse events
+          const events = rawEvents.map((e: any) => ({
+            event_type: e.kind,
+            payload: typeof e.payload === 'string' ? JSON.parse(e.payload) : (e.payload || {}),
+            created_at: e.created_at
+          }));
+
+          // Policy v1 (original rules)
+          const reduceV1 = (evts: any[]) => {
+            const state = { score: 0, flags: [] as string[], lane: 'ai-only', history: [] as any[] };
+            for (const e of evts) {
+              if (e.event_type === 'CURATOR_EVALUATED') {
+                state.score = e.payload.score || 0;
+                (e.payload.flags || []).forEach((f: string) => { if (!state.flags.includes(f)) state.flags.push(f); });
+              }
+              if (e.event_type === 'RULE_APPLIED') {
+                state.score += e.payload.delta || 0;
+                if (e.payload.flag && !state.flags.includes(e.payload.flag)) state.flags.push(e.payload.flag);
+              }
+              if (e.event_type === 'LANE_SWITCHED') state.lane = e.payload.lane || 'human-only';
+              if (e.event_type === 'QUEUE_ENQUEUED' && e.payload.lane) state.lane = e.payload.lane;
+              state.history.push({ at: e.created_at, type: e.event_type, snapshot: { ...state } });
+            }
+            return state;
+          };
+
+          // Policy v2 (stricter rules)
+          const reduceV2 = (evts: any[]) => {
+            const state = { score: 0, flags: [] as string[], lane: 'ai-only', history: [] as any[] };
+            for (const e of evts) {
+              if (e.event_type === 'CURATOR_EVALUATED') {
+                state.score = (e.payload.score || 0) * 0.5;  // Stricter scoring
+                (e.payload.flags || []).forEach((f: string) => { if (!state.flags.includes(f)) state.flags.push(f); });
+              }
+              if (e.event_type === 'RULE_APPLIED') {
+                state.score += (e.payload.delta || 0) * 0.5;
+                if (e.payload.flag && !state.flags.includes(e.payload.flag)) state.flags.push(e.payload.flag);
+              }
+              if (e.event_type === 'LANE_SWITCHED') state.lane = e.payload.lane || 'human-only';
+              if (e.event_type === 'QUEUE_ENQUEUED' && e.payload.lane) state.lane = e.payload.lane;
+              state.history.push({ at: e.created_at, type: e.event_type, snapshot: { ...state } });
+            }
+            return state;
+          };
+
+          const a = reduceV1(events);
+          const b = reduceV2(events);
+
+          // Compute divergences
+          const divergences: any[] = [];
+          const maxLen = Math.max(a.history.length, b.history.length);
+          for (let i = 0; i < maxLen; i++) {
+            const ea = a.history[i];
+            const eb = b.history[i];
+            const diff: any = {};
+            if (ea && eb) {
+              if (ea.snapshot.score !== eb.snapshot.score) diff.score = { a: ea.snapshot.score, b: eb.snapshot.score };
+              if (ea.snapshot.lane !== eb.snapshot.lane) diff.lane = { a: ea.snapshot.lane, b: eb.snapshot.lane };
+              const fa = new Set(ea.snapshot.flags);
+              const fb = new Set(eb.snapshot.flags);
+              const added = [...fb].filter(f => !fa.has(f));
+              const removed = [...fa].filter(f => !fb.has(f));
+              if (added.length || removed.length) diff.flags = { added, removed };
+            }
+            if (Object.keys(diff).length) {
+              divergences.push({ index: i, at: ea?.at, event_type: ea?.type || eb?.type, diff });
+            }
+          }
+
+          return json({
+            session_id: sessionId,
+            policies: { a: policyA, b: policyB },
+            final: { a: { score: a.score, flags: a.flags, lane: a.lane }, b: { score: b.score, flags: b.flags, lane: b.lane } },
+            divergences
+          });
+        } catch (err: any) {
+          return json({ error: 'Diff failed', details: err.message }, 500);
         }
       }
 
