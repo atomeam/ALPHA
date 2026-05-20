@@ -1,0 +1,21 @@
+name: Proposals Writer
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  write:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Run Proposals Writer
+        run: |
+          # Add your specific script or command here
+          echo "Running proposal writing logic..."
+          
