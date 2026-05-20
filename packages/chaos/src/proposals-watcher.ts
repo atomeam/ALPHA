@@ -147,7 +147,7 @@ async function dispatch(proposal: Proposal): Promise<void> {
     
     // Write lessons index to STATE_CACHE
     if (CF_KV_STATE_CACHE_ID) {
-      console.log(`[Dispatcher] Writing lessons to cache namespace...`);
+      console.log(`[Dispatcher] Writing lessons to cache namespace: ${CF_KV_STATE_CACHE_ID}...`);
       try {
         const lessonsPayload = JSON.stringify({
           lessons: [
@@ -183,6 +183,7 @@ async function dispatch(proposal: Proposal): Promise<void> {
   }
 }
 
+// Only write to cache namespace (standalone)
 async function poll(): Promise<void> {
   console.log('[Dispatcher] ProposalsWatcher initialized.');
   console.log(`  Poll interval: ${POLL_INTERVAL_MS}ms`);
