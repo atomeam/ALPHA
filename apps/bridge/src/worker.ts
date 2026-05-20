@@ -443,7 +443,4 @@ interface ExecutionContext {
   passThroughOnException(): void;
 }
 
-// Fallback for local dev
-if (typeof globalThis !== 'undefined' && !('fetch' in globalThis)) {
-  export { default as app };
-}
+
