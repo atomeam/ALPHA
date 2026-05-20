@@ -12,7 +12,7 @@
 import { default as app } from './server';
 
 // Shared constants
-const VERSION = '0.11.0';
+const VERSION = '0.12.0';
 const SERVICE = 'aether-bridge';
 
 // No-store JSON helper - prevents stale cache
@@ -822,6 +822,7 @@ interface Env {
   MYBROWSER: any;
   NOTION_WEBHOOK_SECRET: string;
   CURATOR_QUEUE: any; // Cloudflare Queue producer
+  _LOGS: R2Bucket; // R2 bucket for logs
 }
 
 // Queue message type

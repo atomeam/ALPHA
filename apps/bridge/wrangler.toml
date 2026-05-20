@@ -1,0 +1,15 @@
+name = "aether-bridge"
+main = "src/worker.ts"
+compatibility_date = "2024-01-01"
+
+[[r2_buckets]]
+bucket_name = "aether-logs"
+binding = "_LOGS"
+
+[env.production]
+name = "aether-bridge"
+route = { pattern = "aether-bridge.atomicmoonbeam88.workers.dev", zone_name = "atomicmoonbeam88.workers.dev" }
+
+[[env.production.r2_buckets]]
+bucket_name = "aether-logs"
+binding = "_LOGS"
