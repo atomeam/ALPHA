@@ -343,7 +343,63 @@ export default {
     } catch (error) {
       return json({ error: error instanceof Error ? error.message : 'Unknown error' }, 500);
     }
-  }
+  },
+
+  // Queue consumer handler
+  async queue(batch: any, env: Env, ctx: ExecutionContext): Promise<void> {
+    for (const message of batch.messages) {
+      try {
+        const job = message.body as CuratorJob;
+        console.log(JSON.stringify({
+          ts: new Date().toISOString(),
+          kind: "WHK_QUEUE_CONSUME",
+          level: "info",
+          source: "curator-consumer",
+          payload: { jobId: job.id, eventType: job.eventType, pageId: job.pageId },
+        }));
+
+        // Process the job - write to KV as processed marker
+        if (job.pageId && env.STATE_CACHE) {
+          const existingStr = await env.STATE_CACHE.get("lessons:index");
+          let existing = { ok: true, lessons: [], source: "curator-queue", updatedAt: "" };
+          if (existingStr) {
+            try { existing = JSON.parse(existingStr); } catch {}
+          }
+
+          if (!existing.lessons) existing.lessons = [];
+          existing.lessons.push({
+            id: `curator-${job.id}`,
+            source: "curator-queue",
+            eventType: job.eventType,
+            pageId: job.pageId,
+            processedAt: new Date().toISOString(),
+          });
+          existing.updatedAt = new Date().toISOString();
+          existing.source = "curator-queue";
+
+          await env.STATE_CACHE.put("lessons:index", JSON.stringify(existing));
+        }
+
+        message.ack();
+        console.log(JSON.stringify({
+          ts: new Date().toISOString(),
+          kind: "WHK_JOB_COMPLETED",
+          level: "info",
+          source: "curator-consumer",
+          payload: { jobId: job.id },
+        }));
+      } catch (err) {
+        console.error(JSON.stringify({
+          ts: new Date().toISOString(),
+          kind: "WHK_DISPATCH_FAIL",
+          level: "error",
+          source: "curator-consumer",
+          payload: { error: String(err) },
+        }));
+        message.retry();
+      }
+    }
+  },
 };
 
 // Types for Cloudflare
@@ -372,60 +428,6 @@ interface ExecutionContext {
   waitUntil(promise: Promise<void>): void;
   passThroughOnException(): void;
 }
-// Queue consumer handler - separate export as per Cloudflare Workers pattern
-export const queue = async (batch: any, env: Env, ctx: ExecutionContext): Promise<void> => {
-  for (const message of batch.messages) {
-    try {
-      const job = message.body as CuratorJob;
-      console.log(JSON.stringify({
-        ts: new Date().toISOString(),
-        kind: "WHK_QUEUE_CONSUME",
-        level: "info",
-        source: "curator-consumer",
-        payload: { jobId: job.id, eventType: job.eventType, pageId: job.pageId },
-      }));
 
-      // Process the job - write to KV as processed marker
-      if (job.pageId && env.STATE_CACHE) {
-        const existingStr = await env.STATE_CACHE.get("lessons:index");
-        let existing = { ok: true, lessons: [], source: "curator-queue", updatedAt: "" };
-        if (existingStr) {
-          try { existing = JSON.parse(existingStr); } catch {}
-        }
-
-        if (!existing.lessons) existing.lessons = [];
-        existing.lessons.push({
-          id: `curator-${job.id}`,
-          source: "curator-queue",
-          eventType: job.eventType,
-          pageId: job.pageId,
-          processedAt: new Date().toISOString(),
-        });
-        existing.updatedAt = new Date().toISOString();
-        existing.source = "curator-queue";
-
-        await env.STATE_CACHE.put("lessons:index", JSON.stringify(existing));
-      }
-
-      message.ack();
-      console.log(JSON.stringify({
-        ts: new Date().toISOString(),
-        kind: "WHK_JOB_COMPLETED",
-        level: "info",
-        source: "curator-consumer",
-        payload: { jobId: job.id },
-      }));
-    } catch (err) {
-      console.error(JSON.stringify({
-        ts: new Date().toISOString(),
-        kind: "WHK_DISPATCH_FAIL",
-        level: "error",
-        source: "curator-consumer",
-        payload: { error: String(err) },
-      }));
-      message.retry();
-    }
-  }
-};
 
 
