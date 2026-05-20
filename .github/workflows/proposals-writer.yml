@@ -21,19 +21,17 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: 20
-          cache: npm
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Build monorepo
-        run: npm run build --workspaces --if-present
+          node-version: 22
 
       - name: Run ProposalsWatcher once
-        run: node dist/proposals-watcher.js --once
+        run: npx tsx packages/chaos/src/proposals-watcher.ts --once
+        env:
+          CF_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
+          CF_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
+          CF_KV_STATE_ID: ${{ secrets.CF_KV_STATE_ID }}
+          CF_KV_STATE_CACHE_ID: ${{ secrets.CF_KV_STATE_CACHE_ID }}
 
-      - name: Verify KV flip
+      - name: Verify
         run: |
           echo "Checking KV..."
           curl -s https://aether.atomeam.workers.dev/api/proposals/snapshot | jq -r '.source'
