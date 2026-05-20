@@ -34,5 +34,5 @@ jobs:
       - name: Verify
         run: |
           echo "Checking KV..."
-          curl -s https://aether.atomeam.workers.dev/api/proposals/snapshot | jq -r '.source'
+          curl -s https://aether.atomicmoonbeam88.workers.dev/proposals | jq -r '.proposals[0].source'
 
