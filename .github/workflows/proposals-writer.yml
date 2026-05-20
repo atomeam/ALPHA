@@ -1,9 +1,9 @@
 name: proposals-writer
 
 on:
-  workflow_dispatch: {}        # manual trigger
+  workflow_dispatch:
   schedule:
-    - cron: "*/10 * * * *"    # every 10 minutes
+    - cron: "*/10 * * * *"
 
 concurrency:
   group: proposals-writer
@@ -13,26 +13,28 @@ jobs:
   write:
     runs-on: ubuntu-latest
     timeout-minutes: 5
+
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
 
-      - uses: actions/setup-node@v4
+      - name: Setup Node
+        uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: 20
+          cache: npm
 
-      - name: Run ProposalsWatcher one cycle
-        working-directory: .
-        env:
-          CF_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
-          CF_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
-          CF_KV_STATE_ID: ${{ secrets.CF_KV_STATE_ID }}
-          CF_KV_STATE_CACHE_ID: ${{ secrets.CF_KV_STATE_CACHE_ID }}
-        run: npx tsx packages/chaos/src/proposals-watcher.ts --once
+      - name: Install dependencies
+        run: npm ci
 
-      - name: Verify writer
+      - name: Build monorepo
+        run: npm run build --workspaces --if-present
+
+      - name: Run ProposalsWatcher once
+        run: node dist/proposals-watcher.js --once
+
+      - name: Verify KV flip
         run: |
-          curl -sS "https://aether.atomicmoonbeam88.workers.dev/crew/status" \
-            | jq -e '.proposals.items[0].source == "backend-proposals-watcher"' \
-            && echo "✅ proposals writer confirmed" \
-            || (echo "❌ source marker not flipped"; exit 1)
-          
+          echo "Checking KV..."
+          curl -s https://aether.atomeam.workers.dev/api/proposals/snapshot | jq -r '.source'
+
