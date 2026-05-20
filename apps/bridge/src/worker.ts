@@ -429,7 +429,7 @@ export default {
   }
 };
 
-// Types for Cloudflare
+// Types for Cloudflare Workers
 interface Env {
   DB: D1Database;
   STATE: KVNamespace;
