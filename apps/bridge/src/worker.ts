@@ -12,7 +12,7 @@
 import { default as app } from './server';
 
 // Shared constants
-const VERSION = '0.15.1';
+const VERSION = '0.15.2';
 const SERVICE = 'aether-bridge';
 
 // No-store JSON helper - prevents stale cache
@@ -472,8 +472,10 @@ export default {
           "SELECT * FROM events ORDER BY created_at DESC LIMIT 100"
         ).all();
 
-        const proposals = await env.STATE_CACHE.get("proposals:snapshot", "json");
-        const lessons = await env.STATE_CACHE.get("lessons:index", "json");
+        const proposalsRaw = await env.STATE_CACHE.get("proposals:snapshot");
+        const lessonsRaw = await env.STATE_CACHE.get("lessons:index");
+        const proposals = proposalsRaw ? JSON.parse(proposalsRaw) : null;
+        const lessons = lessonsRaw ? JSON.parse(lessonsRaw) : null;
 
         const html = `<!DOCTYPE html>
 <html lang="en">
@@ -553,8 +555,9 @@ export default {
       // GET /api/ai/presence - get AI presence status
       if (path === '/api/ai/presence') {
         if (!env.STATE_CACHE) return json({ error: 'STATE_CACHE not bound' }, 500);
-        const raw = await env.STATE_CACHE.get('ai:presence', 'json');
-        const aiList = raw ? Object.entries(raw) : [];
+        const rawStr = await env.STATE_CACHE.get('ai:presence');
+        const raw = rawStr ? JSON.parse(rawStr) : {};
+        const aiList = Object.entries(raw);
         if (env.STATE) trackUsage(env, ip, 'ai_call');
         return json({ ok: true, count: aiList.length, ais: Object.fromEntries(aiList) });
       }
@@ -566,7 +569,8 @@ export default {
         const { ai_id, name, status = 'active', role } = body;
         if (!ai_id) return json({ error: 'ai_id required' }, 400);
 
-        const raw = (await env.STATE_CACHE.get('ai:presence', 'json')) || {};
+        const rawStr = await env.STATE_CACHE.get('ai:presence');
+        const raw = rawStr ? JSON.parse(rawStr) : {};
         raw[ai_id] = { name: name || ai_id, status, role, last_seen: new Date().toISOString(), expires_at: new Date(Date.now() + 300000).toISOString() };
         await env.STATE_CACHE.put('ai:presence', JSON.stringify(raw));
         return json({ ok: true, ai_id, status });
@@ -864,8 +868,12 @@ async function getApiKeyTier(env: Env, auth: string): Promise<{tier: string, key
   if (!auth || !auth.startsWith('Bearer ')) return null;
   const key = auth.slice(7);
   const hash = await hashKey(key);
-  const stored = await env.STATE.get(`api_key:${hash}`, 'json');
-  return stored ? { tier: stored.tier || 'free', key: hash } : null;
+  const storedStr = await env.STATE.get(`api_key:${hash}`);
+  if (!storedStr) return null;
+  try {
+    const stored = JSON.parse(storedStr);
+    return { tier: stored.tier || 'free', key: hash };
+  } catch { return null; }
 }
 
 async function hashKey(key: string): Promise<string> {
