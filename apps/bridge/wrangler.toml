@@ -4,11 +4,11 @@ compatibility_date = "2024-12-01"
 
 [[kv_namespaces]]
 binding = "STATE"
-id = "c6c23445ac984c20a6af52baeb305312"
+id = "7319ee9195df4ccf8f4b2c8449dd7930"
 
 [[kv_namespaces]]
 binding = "STATE_CACHE"
-id = "c6c23445ac984c20a6af52baeb305312"
+id = "d22e703c3af9451a9942fa2a551a1aa8"
 
 [[d1_databases]]
 binding = "DB"
