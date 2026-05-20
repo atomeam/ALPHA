@@ -124,8 +124,7 @@ export default {
         if (env.STATE) {
           try {
             const rawValue = await env.STATE_CACHE.get('proposals:snapshot');
-          console.log('[Proposals] Raw value:', rawValue);
-          const value = rawValue;
+                    const value = rawValue;
             const parsed = value ? JSON.parse(value) : null;
             if (Array.isArray(parsed)) {
               proposals = parsed;
@@ -271,8 +270,7 @@ export default {
           
           // Use STATE_CACHE (lessons KV) for proposals as fallback since STATE has issues
           if (env.STATE_CACHE) {
-            console.log('[Webhook] Using STATE_CACHE for proposals');
-            const existing = await env.STATE_CACHE.get('proposals:snapshot');
+                        const existing = await env.STATE_CACHE.get('proposals:snapshot');
             let items: any[] = [];
             if (existing) {
               try { items = JSON.parse(existing).proposals || []; } catch {}
@@ -291,8 +289,7 @@ export default {
               source: 'notion-webhook',
               updatedAt: timestamp,
             }));
-            console.log('[Webhook] Wrote to STATE_CACHE, items:', items.length);
-          }
+                      }
           
           if (env.STATE_CACHE) {
             const existingCache = await env.STATE_CACHE.get('lessons:index');
