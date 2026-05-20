@@ -46,7 +46,7 @@ const PROPOSALS_LOG = './logs/proposals.jsonl';
 
 // Mock responses for testing/fallback
 const MOCK_PROPOSALS = [
-  { id: 'mock_prop_001', title: 'Mock Proposal - Test', status: 'pending_review', summary: 'Mock response for testing' },
+  { id: 'prop_001', title: 'Council Badge System', status: 'pending_review', summary: 'Test proposal' },
 ];
 
 interface Proposal {
