@@ -12,7 +12,7 @@
 import { default as app } from './server';
 
 // Shared constants
-const VERSION = '0.15.0';
+const VERSION = '0.15.1';
 const SERVICE = 'aether-bridge';
 
 // No-store JSON helper - prevents stale cache
@@ -50,7 +50,11 @@ const RATE_WINDOW = 60_000;  // 60 seconds
 // ─── Usage Tracker (for monetization) ───────────────────────────────
 async function trackUsage(env: Env, ip: string, type: 'request' | 'ai_call' | 'd1_query') {
   const key = `usage:${ip}`;
-  const usage = (await env.STATE.get(key, 'json')) || { requests: 0, ai_calls: 0, d1_queries: 0 };
+  const raw = await env.STATE.get(key);
+  let usage = { requests: 0, ai_calls: 0, d1_queries: 0 };
+  if (raw) {
+    try { usage = JSON.parse(raw); } catch {}
+  }
   if (type === 'request') usage.requests++;
   else if (type === 'ai_call') usage.ai_calls++;
   else if (type === 'd1_query') usage.d1_queries++;
