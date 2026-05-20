@@ -12,7 +12,7 @@
 import { default as app } from './server';
 
 // Shared constants
-const VERSION = '0.13.0';
+const VERSION = '0.14.0';
 const SERVICE = 'aether-bridge';
 
 // No-store JSON helper - prevents stale cache
@@ -533,13 +533,15 @@ export default {
 
       // GET /api/ai/presence - get AI presence status
       if (path === '/api/ai/presence') {
+        if (!env.STATE_CACHE) return json({ error: 'STATE_CACHE not bound' }, 500);
         const raw = await env.STATE_CACHE.get('ai:presence', 'json');
         const aiList = raw ? Object.entries(raw) : [];
         return json({ ok: true, count: aiList.length, ais: Object.fromEntries(aiList) });
       }
 
       // POST /api/ai/heartbeat - update AI presence
-      if (path === '/api/ai/heartbeat' && method === 'POST') {
+      if (path === '/api/ai/heartbeat' && method === 'POST')
+        if (!env.STATE_CACHE) return json({ error: 'STATE_CACHE not bound' }, 500); {
         const body = await request.json();
         const { ai_id, name, status = 'active', role } = body;
         if (!ai_id) return json({ error: 'ai_id required' }, 400);
