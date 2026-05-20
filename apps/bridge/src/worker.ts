@@ -12,7 +12,7 @@
 import { default as app } from './server';
 
 // Shared constants
-const VERSION = '0.8.0';
+const VERSION = '0.9.0';
 const SERVICE = 'aether-bridge';
 
 // No-store JSON helper - prevents stale cache
@@ -283,8 +283,8 @@ export default {
             const databaseId = event.data?.parent?.database_id || event.data?.parent?.page_id || '';
             // Idempotent insert - ignore if exists
             await env.DB.prepare(
-              "INSERT OR IGNORE INTO events (event_id, source, kind, level, page_id, database_id, payload, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
-            ).bind(eventId, 'tier2-webhook', 'WHK_RECEIVED', 'info', pageId, databaseId, rawBody.substring(0, 500), timestamp).run();
+              "INSERT OR IGNORE INTO events (event_id, source, kind, level, page_id, database_id, payload, session_id, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+            ).bind(eventId, 'tier2-webhook', 'WHK_RECEIVED', 'info', pageId, databaseId, rawBody.substring(0, 500), pageId, timestamp).run();
           }
 
           // Use STATE_CACHE (lessons KV) for proposals as fallback since STATE has issues
@@ -699,8 +699,8 @@ export default {
         // Queue visibility events
         if (env.DB) {
           await env.DB.prepare(
-            "INSERT OR IGNORE INTO events (event_id, source, kind, level, page_id, database_id, payload, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
-          ).bind(job.id, 'curator-queue', 'QUEUE_DEQUEUED', 'info', job.pageId || '', job.databaseId || '', JSON.stringify(job), new Date().toISOString()).run();
+            "INSERT OR IGNORE INTO events (event_id, source, kind, level, page_id, database_id, payload, session_id, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+          ).bind(job.id, 'curator-queue', 'QUEUE_DEQUEUED', 'info', job.pageId || '', job.databaseId || '', JSON.stringify(job), job.sessionId || job.pageId, new Date().toISOString()).run();
         }
         
         console.log(JSON.stringify({
