@@ -12,7 +12,7 @@
 import { default as app } from './server';
 
 // Shared constants
-const VERSION = '0.7.0';
+const VERSION = '0.7.1';
 const SERVICE = 'aether-bridge';
 
 // No-store JSON helper - prevents stale cache
@@ -519,7 +519,7 @@ export default {
       }
 
 
-      // GET /api/council/replay - session replay with state transitions
+      // GET /api/council/replay - deterministic event-driven replay
       if (path === '/api/council/replay') {
         const sessionId = url.searchParams.get('session_id');
         if (!sessionId) {
@@ -527,50 +527,58 @@ export default {
         }
 
         try {
-          const { results: rawLogs } = await env.DB.prepare(`
-            SELECT agent_id, role, content, created_at
-            FROM council_logs
-            WHERE session_id = ?
+          // Query structured events (not logs)
+          const { results: rawEvents } = await env.DB.prepare(`
+            SELECT event_id, kind, level, page_id, database_id, payload, created_at
+            FROM events
+            WHERE session_id = ? OR page_id = ?
             ORDER BY created_at ASC
-          `).bind(sessionId).all();
+          `).bind(sessionId, sessionId).all();
 
-          // State accumulator
-          let runningScore = 0;
-          const activeFlags: string[] = [];
-          let currentLane = 'ai-only';
+          // Deterministic state reducer
+          const state = {
+            score: 0,
+            flags: [] as string[],
+            lane: 'ai-only',
+            history: [] as any[]
+          };
 
-          const timeline = rawLogs.map((log: any) => {
-            const content = log.content || '';
-            if (content.includes('eval-stale-penalty')) {
-              runningScore += -10;
-              if (!activeFlags.includes('STALE_DRIFT')) activeFlags.push('STALE_DRIFT');
-            }
-            if (content.includes('eval-status-ready')) {
-              runningScore += 25;
-              if (!activeFlags.includes('CLEAN_PASS')) activeFlags.push('CLEAN_PASS');
-            }
-            if (content.includes('Human Operational Lane') || content.includes('VIKTOR')) {
-              currentLane = 'human-only';
+          for (const e of rawEvents) {
+            const eventKind = e.kind;
+            const payload = typeof e.payload === 'string' ? JSON.parse(e.payload) : (e.payload || {});
+
+            switch (eventKind) {
+              case 'CURATOR_EVALUATED':
+                state.score = payload.score || 0;
+                payload.flags?.forEach((f: string) => {
+                  if (!state.flags.includes(f)) state.flags.push(f);
+                });
+                break;
+              case 'RULE_APPLIED':
+                state.score += payload.delta || 0;
+                if (payload.flag && !state.flags.includes(payload.flag)) {
+                  state.flags.push(payload.flag);
+                }
+                break;
+              case 'LANE_SWITCHED':
+                state.lane = payload.lane || 'human-only';
+                break;
+              case 'QUEUE_ENQUEUED':
+                if (payload.lane) state.lane = payload.lane;
+                break;
             }
 
-            return {
-              ts: log.created_at,
-              actor: log.agent_id,
-              role: log.role,
-              message: content,
-              state: { runningScore, flags: activeFlags, lane: currentLane }
-            };
-          });
+            state.history.push({
+              at: e.created_at,
+              type: eventKind,
+              snapshot: { score: state.score, flags: [...state.flags], lane: state.lane }
+            });
+          }
 
           return json({
             session_id: sessionId,
-            meta: {
-              total: timeline.length,
-              final_score: runningScore,
-              lane: currentLane,
-              compiled_at: new Date().toISOString()
-            },
-            timeline
+            meta: { total: state.history.length, final_score: state.score, lane: state.lane },
+            timeline: state.history
           });
         } catch (err: any) {
           return json({ error: 'Replay failed', details: err.message }, 500);
