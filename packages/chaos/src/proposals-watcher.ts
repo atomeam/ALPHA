@@ -112,6 +112,7 @@ async function dispatch(proposal: Proposal): Promise<void> {
   console.log(`[Dispatcher] CF_API_TOKEN: ${CF_API_TOKEN ? 'SET' : 'MISSING'}`);
   console.log(`[Dispatcher] CF_KV_STATE_ID: ${CF_KV_STATE_ID ? 'SET' : 'MISSING'}`);
   console.log(`[Dispatcher] CF_KV_STATE_CACHE_ID: ${CF_KV_STATE_CACHE_ID ? 'SET' : 'MISSING'}`);
+  console.log(`[Dispatcher] Cache namespace ID: ${CF_KV_STATE_CACHE_ID}`);
   
   if (CF_ACCOUNT_ID && CF_API_TOKEN && CF_KV_STATE_ID) {
     console.log(`[Dispatcher] All credentials present - attempting KV write...`);
