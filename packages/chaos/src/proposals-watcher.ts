@@ -34,7 +34,12 @@ const NOTION_API_KEY = process.env.NOTION_API_KEY;
 const PROPOSALS_DB_ID = process.env.PROPOSALS_DB_ID || process.env.ALPHA_PROPOSALS_DB_URL;
 const POLL_INTERVAL_MS = parseInt(process.env.POLL_INTERVAL_MS || '5000');
 const USE_MOCK = process.env.USE_MOCK === 'true';
-const WORKER_URL = process.env.WORKER_URL || 'https://aether.atomicmoonbeam88.workers.dev';
+
+// Cloudflare KV credentials
+const CF_ACCOUNT_ID = process.env.CF_ACCOUNT_ID;
+const CF_API_TOKEN = process.env.CF_API_TOKEN;
+const CF_KV_STATE_ID = process.env.CF_KV_STATE_ID;
+const CF_KV_STATE_CACHE_ID = process.env.CF_KV_STATE_CACHE_ID;
 
 // Local fallback path
 const PROPOSALS_LOG = './logs/proposals.jsonl';
@@ -100,23 +105,36 @@ async function dispatch(proposal: Proposal): Promise<void> {
   console.log(`  Title: ${proposal.title}`);
   console.log(`  Status: ${proposal.status}`);
   
-  // Write to worker via HTTP API
-  try {
-    const response = await fetch(`${WORKER_URL}/proposals/write`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        items: [{ ...proposal, source: 'backend-proposals-watcher' }],
-      }),
-    });
-    
-    if (response.ok) {
-      console.log(`  [KV] Written via worker API`);
-    } else {
-      console.log(`  [KV] Write failed: ${response.status}`);
+  // Write to Cloudflare KV via REST API
+  if (CF_ACCOUNT_ID && CF_API_TOKEN && CF_KV_STATE_ID) {
+    try {
+      const payload = JSON.stringify({
+        items: [{ ...proposal, source: 'backend-proposals-watcher', updatedAt: new Date().toISOString() }]
+      });
+      
+      const response = await fetch(
+        `https://api.cloudflare.com/client/v4/accounts/${CF_ACCOUNT_ID}/storage/kv/namespaces/${CF_KV_STATE_ID}/values/proposals:snapshot`,
+        {
+          method: 'PUT',
+          headers: {
+            'Authorization': `Bearer ${CF_API_TOKEN}`,
+            'Content-Type': 'application/json',
+          },
+          body: payload,
+        }
+      );
+      
+      if (response.ok) {
+        console.log(`  [KV] Written to Cloudflare KV`);
+      } else {
+        const err = await response.text();
+        console.log(`  [KV] Write failed: ${response.status} - ${err}`);
+      }
+    } catch (error) {
+      console.log(`  [KV] Error: ${error}`);
     }
-  } catch (error) {
-    console.log(`  [KV] Error: ${error}`);
+  } else {
+    console.log(`  [KV] CF credentials not configured`);
   }
 }
 
