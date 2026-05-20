@@ -22,10 +22,10 @@ jobs:
           cache: npm
 
       - name: Install
-        run: npm install
+        run: npm install --ignore-scripts
 
-      - name: Build
-        run: npm run build --workspaces --if-present
+      - name: Build chaos
+        run: npm run build -w @aether/chaos || npx tsc -p packages/chaos/tsconfig.json
 
       - name: Run ProposalsWatcher one cycle
         env:
