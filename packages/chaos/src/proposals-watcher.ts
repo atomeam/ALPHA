@@ -118,7 +118,8 @@ async function dispatch(proposal: Proposal): Promise<void> {
     debug(`Attempting write to CF KV...`);
     try {
       const payload = JSON.stringify({
-        items: [{ ...proposal, source: 'backend-proposals-watcher', updatedAt: new Date().toISOString() }]
+        proposals: [{ id: proposal.id, title: proposal.title, stage: proposal.status, source: 'backend-proposals-watcher', updatedAt: new Date().toISOString() }],
+        updatedAt: new Date().toISOString()
       });
       
       const response = await fetch(
