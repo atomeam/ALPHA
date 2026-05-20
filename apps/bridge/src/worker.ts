@@ -352,7 +352,9 @@ export default {
           const timestamp = new Date().toISOString();
           
           if (env.STATE) {
+            console.log('[Webhook] Checking STATE KV');
             const existing = await env.STATE.get('proposals:snapshot');
+            console.log('[Webhook] Existing from STATE:', existing);
             let items: any[] = [];
             if (existing) {
               try { items = JSON.parse(existing).proposals || []; } catch {}
