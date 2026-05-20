@@ -116,6 +116,7 @@ async function dispatch(proposal: Proposal): Promise<void> {
   
   // Write to Cloudflare KV via REST API
   if (CF_ACCOUNT_ID && CF_API_TOKEN && CF_KV_STATE_ID) {
+    console.log(`  [KV] Attempting write to CF KV...`);
     try {
       const payload = JSON.stringify({
         items: [{ ...proposal, source: 'backend-proposals-watcher', updatedAt: new Date().toISOString() }]
