@@ -12,7 +12,7 @@
 import { default as app } from './server';
 
 // Shared constants
-const VERSION = '0.9.0';
+const VERSION = '0.10.0';
 const SERVICE = 'aether-bridge';
 
 // No-store JSON helper - prevents stale cache
@@ -42,8 +42,49 @@ function getBindings(env: Env) {
 }
 
 // Cloudflare Workers export
+// ─── Rate Limiter ────────────────────────────────────────────────────
+const rateLimiter = new Map<string, { count: number; resetAt: number }>();
+const RATE_LIMIT = 60;       // requests per minute per IP
+const RATE_WINDOW = 60_000;  // 60 seconds
+
+function checkRateLimit(ip: string): boolean {
+  const now = Date.now();
+  const entry = rateLimiter.get(ip);
+  if (!entry || now > entry.resetAt) {
+    rateLimiter.set(ip, { count: 1, resetAt: now + RATE_WINDOW });
+    return true;
+  }
+  entry.count++;
+  return entry.count <= RATE_LIMIT;
+}
+
+// ─── In-Memory KV Cache ──────────────────────────────────────────────
+const kvCache = new Map<string, { value: any; expiresAt: number }>();
+const CACHE_TTL = 10_000; // 10 seconds
+
+function cachedKVGet(key: string): any | null {
+  const cached = kvCache.get(key);
+  if (cached && Date.now() < cached.expiresAt) {
+    return cached.value;
+  }
+  return undefined;
+}
+
+function cachedKVSet(key: string, value: any): void {
+  kvCache.set(key, { value, expiresAt: Date.now() + CACHE_TTL });
+}
+
+function invalidateCache(key: string): void {
+  kvCache.delete(key);
+}
+
 export default {
   async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
+    // Rate limit
+    const ip = request.headers.get('cf-connecting-ip') || 'unknown';
+    if (!checkRateLimit(ip)) {
+      return new Response(JSON.stringify({ error: 'Rate limit exceeded' }), { status: 429, headers: { 'Content-Type': 'application/json' } });
+    }
     const url = new URL(request.url);
     
     // CORS preflight
