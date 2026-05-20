@@ -6,6 +6,9 @@
   "exports": {
     ".": "./src/index.ts"
   },
+  "scripts": {
+    "build": "tsc"
+  },
   "devDependencies": {
     "@types/node": "^22.14.0",
     "typescript": "~5.8.2"
