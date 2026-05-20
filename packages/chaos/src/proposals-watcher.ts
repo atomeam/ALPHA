@@ -112,6 +112,7 @@ async function dispatch(proposal: Proposal): Promise<void> {
   debug(`CF_ACCOUNT_ID: ${CF_ACCOUNT_ID ? 'SET' : 'MISSING'}`);
   debug(`CF_API_TOKEN: ${CF_API_TOKEN ? 'SET' : 'MISSING'}`);
   debug(`CF_KV_STATE_ID: ${CF_KV_STATE_ID ? 'SET' : 'MISSING'}`);
+  debug(`Writing to namespace: ${CF_KV_STATE_ID}`);
   
   // Write to Cloudflare KV via REST API
   if (CF_ACCOUNT_ID && CF_API_TOKEN && CF_KV_STATE_ID) {
