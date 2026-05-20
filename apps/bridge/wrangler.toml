@@ -1,15 +1,32 @@
 name = "aether-bridge"
 main = "src/worker.ts"
-compatibility_date = "2024-01-01"
+compatibility_date = "2024-12-01"
+
+[[kv_namespaces]]
+binding = "STATE"
+id = "c6c23445ac984c20a6af52baeb305312"
+
+[[kv_namespaces]]
+binding = "STATE_CACHE"
+id = "c6c23445ac984c20a6af52baeb305312"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "council-routing-db"
+database_id = "218e0bc6-f955-45d1-b9bf-276d384917c7"
+
+[[queues.producers]]
+binding = "CURATOR_QUEUE"
+queue = "curator-jobs"
+
+[[queues.consumers]]
+queue = "curator-jobs"
+max_batch_size = 1
+max_retries = 3
+
+[browser]
+binding = "MYBROWSER"
 
 [[r2_buckets]]
-bucket_name = "aether-logs"
 binding = "_LOGS"
-
-[env.production]
-name = "aether-bridge"
-route = { pattern = "aether-bridge.atomicmoonbeam88.workers.dev", zone_name = "atomicmoonbeam88.workers.dev" }
-
-[[env.production.r2_buckets]]
 bucket_name = "aether-logs"
-binding = "_LOGS"
