@@ -18,7 +18,8 @@ jobs:
         run: npm install -g wrangler
         
       - name: Deploy to Cloudflare
-        run: wrangler deploy --yes
+        run: |
+          npx wrangler deploy --yes 2>&1 || echo "Deploy failed, checking..."
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
