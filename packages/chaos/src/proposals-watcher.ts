@@ -146,8 +146,9 @@ async function dispatch(proposal: Proposal): Promise<void> {
       console.log(`[Dispatcher] KV Error: ${error}`);
     }
     
-    // Write lessons index to STATE_CACHE
-    if (CF_KV_STATE_CACHE_ID) {
+    // Write lessons index to STATE_CACHE (independent write)
+    console.log(`[Dispatcher] Checking cache namespace write...`);
+    if (CF_ACCOUNT_ID && CF_API_TOKEN && CF_KV_STATE_CACHE_ID) {
       console.log(`[Dispatcher] Writing lessons to cache namespace: ${CF_KV_STATE_CACHE_ID}...`);
       try {
         const lessonsPayload = JSON.stringify({
