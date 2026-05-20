@@ -105,18 +105,17 @@ function fetchFromLocal(): Proposal[] {
 }
 
 async function dispatch(proposal: Proposal): Promise<void> {
-  console.log(`[Dispatcher] Dispatching proposal: ${proposal.id}`);
-  console.log(`  Title: ${proposal.title}`);
-  console.log(`  Status: ${proposal.status}`);
-  
-  // Debug: log CF config status
-  console.log(`  CF_ACCOUNT_ID: ${CF_ACCOUNT_ID ? 'set' : 'MISSING'}`);
-  console.log(`  CF_API_TOKEN: ${CF_API_TOKEN ? 'set' : 'MISSING'}`);
-  console.log(`  CF_KV_STATE_ID: ${CF_KV_STATE_ID ? 'set' : 'MISSING'}`);
+  const debug = (msg: string) => console.error(`[Dispatcher] ${msg}`);
+  debug(`Dispatching proposal: ${proposal.id}`);
+  debug(`Title: ${proposal.title}`);
+  debug(`Status: ${proposal.status}`);
+  debug(`CF_ACCOUNT_ID: ${CF_ACCOUNT_ID ? 'SET' : 'MISSING'}`);
+  debug(`CF_API_TOKEN: ${CF_API_TOKEN ? 'SET' : 'MISSING'}`);
+  debug(`CF_KV_STATE_ID: ${CF_KV_STATE_ID ? 'SET' : 'MISSING'}`);
   
   // Write to Cloudflare KV via REST API
   if (CF_ACCOUNT_ID && CF_API_TOKEN && CF_KV_STATE_ID) {
-    console.log(`  [KV] Attempting write to CF KV...`);
+    debug(`Attempting write to CF KV...`);
     try {
       const payload = JSON.stringify({
         items: [{ ...proposal, source: 'backend-proposals-watcher', updatedAt: new Date().toISOString() }]
@@ -135,16 +134,16 @@ async function dispatch(proposal: Proposal): Promise<void> {
       );
       
       if (response.ok) {
-        console.log(`  [KV] Written to Cloudflare KV`);
+        debug(`KV write SUCCESS`);
       } else {
         const err = await response.text();
-        console.log(`  [KV] Write failed: ${response.status} - ${err}`);
+        debug(`KV write FAILED: ${response.status} - ${err}`);
       }
     } catch (error) {
-      console.log(`  [KV] Error: ${error}`);
+      debug(`KV Error: ${error}`);
     }
   } else {
-    console.log(`  [KV] CF credentials not configured`);
+    debug(`CF credentials not configured - skipping KV write`);
   }
 }
 
