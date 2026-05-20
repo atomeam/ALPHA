@@ -234,7 +234,6 @@ export default {
       
 
       // POST /webhooks/notion - Notion webhook receiver with HMAC verification
-      // POST /webhooks/notion - Notion webhook receiver with HMAC verification
       if (path === '/webhooks/notion' && method === 'POST') {
         const signature = request.headers.get('x-notion-signature') || request.headers.get('x-hub-signature');
         const rawBody = await request.clone().text();
