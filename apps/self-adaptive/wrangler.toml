@@ -1,0 +1,28 @@
+name = "alpha-self-adaptive"
+main = "src/index.ts"
+compatibility_date = "2024-12-01"
+
+# Durable Objects for assessment engine
+[[durable_objects.bindings]]
+name = "ASSESSMENT_ENGINE"
+class_name = "AssessmentEngine"
+
+# KV namespace for metrics storage
+[[kv_namespaces]]
+binding = "METRICS_KV"
+id = "your-metrics-namespace-id"
+
+# Queue for action dispatch
+[[queues]]
+binding = "ACTION_QUEUE"
+queue = "self-adaptive-actions"
+
+# Environment variables
+[vars]
+LOG_LEVEL = "info"
+ASSESSMENT_INTERVAL_MS = "60000"
+METRICS_RETENTION_HOURS = "168"
+
+# Secrets (set via `wrangler secret put`)
+# CLOUDFLARE_API_TOKEN - for Cloudflare API access
+# SLACK_WEBHOOK_URL - for notifications

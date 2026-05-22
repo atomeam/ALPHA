@@ -1,0 +1,1142 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ALPHA — Self-Adaptive System</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-deep: #05050a;
+      --bg-surface: #0a0a14;
+      --bg-card: #0f0f1a;
+      --accent-primary: #00f0ff;
+      --accent-secondary: #8b5cf6;
+      --accent-tertiary: #f472b6;
+      --text-primary: #ffffff;
+      --text-secondary: #a0a0b0;
+      --glow-cyan: 0 0 40px rgba(0, 240, 255, 0.4);
+      --glow-purple: 0 0 40px rgba(139, 92, 246, 0.4);
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    html {
+      scroll-behavior: smooth;
+      scroll-snap-type: y mandatory;
+    }
+
+    body {
+      font-family: 'Syne', sans-serif;
+      background: var(--bg-deep);
+      color: var(--text-primary);
+      overflow-x: hidden;
+      line-height: 1.6;
+    }
+
+    .mono {
+      font-family: 'Space Mono', monospace;
+    }
+
+    /* Slide Container */
+    .slide {
+      min-height: 100vh;
+      scroll-snap-align: start;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      padding: 60px 80px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .slide::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: 
+        radial-gradient(ellipse 80% 50% at 50% -20%, rgba(0, 240, 255, 0.08), transparent),
+        radial-gradient(ellipse 60% 40% at 80% 100%, rgba(139, 92, 246, 0.06), transparent);
+      pointer-events: none;
+    }
+
+    /* Grid pattern overlay */
+    .slide::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background-image: 
+        linear-gradient(rgba(0, 240, 255, 0.03) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(0, 240, 255, 0.03) 1px, transparent 1px);
+      background-size: 60px 60px;
+      pointer-events: none;
+      opacity: 0.5;
+    }
+
+    /* Typography */
+    h1 {
+      font-size: clamp(3rem, 8vw, 6rem);
+      font-weight: 800;
+      line-height: 1.1;
+      letter-spacing: -0.03em;
+      background: linear-gradient(135deg, var(--text-primary) 0%, var(--accent-primary) 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    h2 {
+      font-size: clamp(2rem, 5vw, 3.5rem);
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      margin-bottom: 40px;
+    }
+
+    h3 {
+      font-size: 1.5rem;
+      font-weight: 600;
+      color: var(--accent-primary);
+      margin-bottom: 16px;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+    }
+
+    p {
+      font-size: 1.2rem;
+      color: var(--text-secondary);
+      max-width: 600px;
+    }
+
+    /* Slide 1: Title */
+    .slide-title {
+      text-align: center;
+    }
+
+    .slide-title .logo {
+      font-size: 12rem;
+      font-weight: 800;
+      background: linear-gradient(135deg, var(--accent-primary) 0%, var(--accent-secondary) 50%, var(--accent-tertiary) 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      animation: shimmer 3s ease-in-out infinite;
+      text-shadow: var(--glow-cyan);
+    }
+
+    @keyframes shimmer {
+      0%, 100% { filter: hue-rotate(0deg); }
+      50% { filter: hue-rotate(15deg); }
+    }
+
+    .slide-title .tagline {
+      font-size: 1.5rem;
+      color: var(--text-secondary);
+      margin-top: 24px;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+    }
+
+    .slide-title .subtitle {
+      font-size: 1.1rem;
+      color: var(--accent-primary);
+      margin-top: 40px;
+      padding: 12px 32px;
+      border: 1px solid rgba(0, 240, 255, 0.3);
+      border-radius: 100px;
+      display: inline-block;
+    }
+
+    /* Floating particles */
+    .particles {
+      position: absolute;
+      inset: 0;
+      overflow: hidden;
+      pointer-events: none;
+    }
+
+    .particle {
+      position: absolute;
+      width: 4px;
+      height: 4px;
+      background: var(--accent-primary);
+      border-radius: 50%;
+      opacity: 0.6;
+      animation: float 20s infinite;
+    }
+
+    .particle:nth-child(2) { left: 20%; animation-delay: -5s; animation-duration: 25s; }
+    .particle:nth-child(3) { left: 40%; animation-delay: -10s; animation-duration: 22s; }
+    .particle:nth-child(4) { left: 60%; animation-delay: -15s; animation-duration: 28s; }
+    .particle:nth-child(5) { left: 80%; animation-delay: -20s; animation-duration: 24s; }
+    .particle:nth-child(6) { left: 10%; animation-delay: -3s; animation-duration: 20s; background: var(--accent-secondary); }
+    .particle:nth-child(7) { left: 70%; animation-delay: -8s; animation-duration: 26s; background: var(--accent-secondary); }
+
+    @keyframes float {
+      0%, 100% { transform: translateY(100vh) scale(0); opacity: 0; }
+      10% { opacity: 0.6; transform: translateY(80vh) scale(1); }
+      90% { opacity: 0.6; }
+      100% { transform: translateY(-20vh) scale(0.5); opacity: 0; }
+    }
+
+    /* Slide 2: Problem Statement */
+    .slide-problem {
+      background: linear-gradient(180deg, var(--bg-deep) 0%, var(--bg-surface) 100%);
+    }
+
+    .problem-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 32px;
+      margin-top: 60px;
+      position: relative;
+      z-index: 1;
+    }
+
+    .problem-card {
+      background: var(--bg-card);
+      border: 1px solid rgba(255, 255, 255, 0.06);
+      border-radius: 24px;
+      padding: 40px;
+      text-align: center;
+      transition: all 0.4s ease;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .problem-card::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 3px;
+      background: linear-gradient(90deg, var(--accent-primary), var(--accent-secondary));
+      opacity: 0;
+      transition: opacity 0.3s;
+    }
+
+    .problem-card:hover {
+      transform: translateY(-8px);
+      border-color: rgba(0, 240, 255, 0.2);
+    }
+
+    .problem-card:hover::before {
+      opacity: 1;
+    }
+
+    .problem-icon {
+      font-size: 3rem;
+      margin-bottom: 20px;
+    }
+
+    .problem-title {
+      font-size: 1.3rem;
+      font-weight: 700;
+      margin-bottom: 12px;
+    }
+
+    .problem-desc {
+      font-size: 1rem;
+      color: var(--text-secondary);
+    }
+
+    /* Slide 3: Architecture */
+    .slide-architecture {
+      padding: 40px 60px;
+    }
+
+    .architecture-diagram {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 20px;
+      margin-top: 40px;
+      flex-wrap: wrap;
+    }
+
+    .arch-box {
+      background: var(--bg-card);
+      border: 1px solid rgba(0, 240, 255, 0.2);
+      border-radius: 16px;
+      padding: 24px 32px;
+      text-align: center;
+      position: relative;
+      min-width: 180px;
+      transition: all 0.3s ease;
+    }
+
+    .arch-box:hover {
+      transform: scale(1.05);
+      box-shadow: var(--glow-cyan);
+    }
+
+    .arch-box.primary {
+      border-color: var(--accent-primary);
+      background: linear-gradient(135deg, rgba(0, 240, 255, 0.1) 0%, transparent 100%);
+    }
+
+    .arch-box.secondary {
+      border-color: var(--accent-secondary);
+      background: linear-gradient(135deg, rgba(139, 92, 246, 0.1) 0%, transparent 100%);
+    }
+
+    .arch-label {
+      font-size: 0.85rem;
+      color: var(--accent-primary);
+      text-transform: uppercase;
+      letter-spacing: 0.15em;
+      margin-bottom: 8px;
+    }
+
+    .arch-title {
+      font-size: 1.2rem;
+      font-weight: 700;
+    }
+
+    .arch-arrow {
+      font-size: 2rem;
+      color: var(--text-secondary);
+      animation: pulse-arrow 2s ease-in-out infinite;
+    }
+
+    @keyframes pulse-arrow {
+      0%, 100% { opacity: 0.5; transform: translateX(0); }
+      50% { opacity: 1; transform: translateX(5px); }
+    }
+
+    /* Slide 4: Components */
+    .slide-components {
+      padding: 40px 60px;
+    }
+
+    .components-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 24px;
+      margin-top: 40px;
+      position: relative;
+      z-index: 1;
+    }
+
+    .component-card {
+      background: linear-gradient(135deg, var(--bg-card) 0%, rgba(15, 15, 26, 0.5) 100%);
+      border: 1px solid rgba(255, 255, 255, 0.06);
+      border-radius: 20px;
+      padding: 32px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .component-number {
+      position: absolute;
+      top: -20px;
+      right: 20px;
+      font-size: 8rem;
+      font-weight: 800;
+      opacity: 0.05;
+      color: var(--accent-primary);
+    }
+
+    .component-header {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      margin-bottom: 20px;
+    }
+
+    .component-badge {
+      background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary));
+      padding: 8px 16px;
+      border-radius: 100px;
+      font-size: 0.75rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+    }
+
+    .component-title {
+      font-size: 1.4rem;
+      font-weight: 700;
+    }
+
+    .component-desc {
+      color: var(--text-secondary);
+      margin-bottom: 16px;
+      font-size: 1rem;
+    }
+
+    .component-features {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .feature-tag {
+      background: rgba(0, 240, 255, 0.1);
+      border: 1px solid rgba(0, 240, 255, 0.2);
+      padding: 6px 12px;
+      border-radius: 6px;
+      font-size: 0.85rem;
+      color: var(--accent-primary);
+    }
+
+    /* Slide 5: How It Works */
+    .slide-workflow {
+      padding: 40px 60px;
+    }
+
+    .workflow-container {
+      display: flex;
+      justify-content: center;
+      align-items: flex-start;
+      gap: 40px;
+      margin-top: 60px;
+      flex-wrap: wrap;
+    }
+
+    .workflow-step {
+      text-align: center;
+      flex: 1;
+      min-width: 200px;
+      max-width: 280px;
+    }
+
+    .step-circle {
+      width: 100px;
+      height: 100px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, var(--bg-card) 0%, var(--bg-surface) 100%);
+      border: 3px solid var(--accent-primary);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 2.5rem;
+      margin: 0 auto 20px;
+      position: relative;
+      box-shadow: var(--glow-cyan);
+    }
+
+    .step-number {
+      position: absolute;
+      top: -10px;
+      right: -10px;
+      width: 32px;
+      height: 32px;
+      background: var(--accent-primary);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.9rem;
+      font-weight: 700;
+      color: var(--bg-deep);
+    }
+
+    .step-title {
+      font-size: 1.2rem;
+      font-weight: 700;
+      margin-bottom: 8px;
+    }
+
+    .step-desc {
+      font-size: 0.95rem;
+      color: var(--text-secondary);
+    }
+
+    .workflow-connector {
+      display: flex;
+      align-items: center;
+      font-size: 2rem;
+      color: var(--text-secondary);
+      margin-top: 50px;
+    }
+
+    /* Slide 6: Deployment */
+    .slide-deployment {
+      padding: 40px 60px;
+    }
+
+    .deployment-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 20px;
+      margin-top: 50px;
+      position: relative;
+      z-index: 1;
+    }
+
+    .deploy-step {
+      background: var(--bg-card);
+      border: 1px solid rgba(255, 255, 255, 0.06);
+      border-radius: 16px;
+      padding: 28px;
+      text-align: center;
+      position: relative;
+    }
+
+    .deploy-step::after {
+      content: '→';
+      position: absolute;
+      right: -20px;
+      top: 50%;
+      transform: translateY(-50%);
+      font-size: 1.5rem;
+      color: var(--text-secondary);
+    }
+
+    .deploy-step:last-child::after {
+      display: none;
+    }
+
+    .deploy-number {
+      width: 48px;
+      height: 48px;
+      background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary));
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.3rem;
+      font-weight: 700;
+      margin: 0 auto 16px;
+    }
+
+    .deploy-title {
+      font-size: 1.1rem;
+      font-weight: 700;
+      margin-bottom: 8px;
+    }
+
+    .deploy-code {
+      font-family: 'Space Mono', monospace;
+      font-size: 0.85rem;
+      color: var(--accent-primary);
+      background: rgba(0, 240, 255, 0.1);
+      padding: 8px 16px;
+      border-radius: 8px;
+      display: inline-block;
+      margin-top: 12px;
+    }
+
+    /* Slide 7: API Endpoints */
+    .slide-api {
+      padding: 40px 60px;
+    }
+
+    .api-table {
+      width: 100%;
+      max-width: 900px;
+      margin-top: 40px;
+      position: relative;
+      z-index: 1;
+    }
+
+    .api-row {
+      display: grid;
+      grid-template-columns: 100px 1fr 200px;
+      gap: 24px;
+      padding: 20px 24px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+      align-items: center;
+      transition: background 0.2s;
+    }
+
+    .api-row:hover {
+      background: rgba(0, 240, 255, 0.05);
+    }
+
+    .method-badge {
+      font-family: 'Space Mono', monospace;
+      font-size: 0.85rem;
+      font-weight: 700;
+      padding: 6px 12px;
+      border-radius: 6px;
+      text-align: center;
+      width: fit-content;
+    }
+
+    .method-badge.get {
+      background: rgba(34, 197, 94, 0.2);
+      color: #22c55e;
+      border: 1px solid rgba(34, 197, 94, 0.3);
+    }
+
+    .method-badge.post {
+      background: rgba(59, 130, 246, 0.2);
+      color: #3b82f6;
+      border: 1px solid rgba(59, 130, 246, 0.3);
+    }
+
+    .method-badge.delete {
+      background: rgba(239, 68, 68, 0.2);
+      color: #ef4444;
+      border: 1px solid rgba(239, 68, 68, 0.3);
+    }
+
+    .endpoint-path {
+      font-family: 'Space Mono', monospace;
+      font-size: 1rem;
+      color: var(--text-primary);
+    }
+
+    .endpoint-desc {
+      font-size: 0.95rem;
+      color: var(--text-secondary);
+    }
+
+    /* Slide 8: Summary */
+    .slide-summary {
+      text-align: center;
+    }
+
+    .summary-title {
+      font-size: 3rem;
+      font-weight: 800;
+      margin-bottom: 40px;
+    }
+
+    .features-row {
+      display: flex;
+      justify-content: center;
+      gap: 32px;
+      flex-wrap: wrap;
+      margin-bottom: 60px;
+    }
+
+    .feature-card {
+      background: linear-gradient(135deg, var(--bg-card) 0%, var(--bg-surface) 100%);
+      border: 1px solid rgba(0, 240, 255, 0.15);
+      border-radius: 20px;
+      padding: 32px;
+      width: 200px;
+      text-align: center;
+    }
+
+    .feature-icon {
+      font-size: 2.5rem;
+      margin-bottom: 16px;
+    }
+
+    .feature-name {
+      font-size: 1.1rem;
+      font-weight: 700;
+    }
+
+    .cta-section {
+      margin-top: 40px;
+    }
+
+    .cta-text {
+      font-size: 1.3rem;
+      color: var(--text-secondary);
+      margin-bottom: 24px;
+    }
+
+    .cta-buttons {
+      display: flex;
+      gap: 20px;
+      justify-content: center;
+    }
+
+    .cta-btn {
+      padding: 16px 40px;
+      border-radius: 100px;
+      font-size: 1rem;
+      font-weight: 700;
+      text-decoration: none;
+      transition: all 0.3s ease;
+      cursor: pointer;
+      border: none;
+    }
+
+    .cta-btn.primary {
+      background: linear-gradient(135deg, var(--accent-primary) 0%, var(--accent-secondary) 100%);
+      color: var(--bg-deep);
+    }
+
+    .cta-btn.primary:hover {
+      transform: scale(1.05);
+      box-shadow: var(--glow-cyan);
+    }
+
+    .cta-btn.secondary {
+      background: transparent;
+      border: 2px solid var(--accent-primary);
+      color: var(--accent-primary);
+    }
+
+    .cta-btn.secondary:hover {
+      background: rgba(0, 240, 255, 0.1);
+    }
+
+    /* Navigation dots */
+    .nav-dots {
+      position: fixed;
+      right: 30px;
+      top: 50%;
+      transform: translateY(-50%);
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      z-index: 100;
+    }
+
+    .nav-dot {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      background: rgba(255, 255, 255, 0.2);
+      border: none;
+      cursor: pointer;
+      transition: all 0.3s;
+    }
+
+    .nav-dot:hover, .nav-dot.active {
+      background: var(--accent-primary);
+      box-shadow: 0 0 12px var(--accent-primary);
+    }
+
+    /* Responsive */
+    @media (max-width: 1024px) {
+      .slide {
+        padding: 40px;
+      }
+      
+      .problem-grid, .components-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .deployment-grid {
+        grid-template-columns: repeat(2, 1fr);
+      }
+
+      .deployment-grid .deploy-step::after {
+        display: none;
+      }
+
+      .api-row {
+        grid-template-columns: 80px 1fr;
+      }
+
+      .endpoint-desc {
+        grid-column: 2;
+      }
+
+      .architecture-diagram {
+        flex-direction: column;
+      }
+
+      .arch-arrow {
+        transform: rotate(90deg);
+      }
+
+      .workflow-container {
+        flex-direction: column;
+        align-items: center;
+      }
+
+      .workflow-connector {
+        transform: rotate(90deg);
+        margin: 20px 0;
+      }
+    }
+
+    @media (max-width: 640px) {
+      .slide {
+        padding: 24px;
+      }
+
+      .deployment-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .features-row {
+        flex-direction: column;
+        align-items: center;
+      }
+
+      .cta-buttons {
+        flex-direction: column;
+      }
+
+      .nav-dots {
+        display: none;
+      }
+    }
+
+    /* Scroll animations */
+    .fade-in {
+      opacity: 0;
+      transform: translateY(30px);
+      transition: all 0.8s ease;
+    }
+
+    .fade-in.visible {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  </style>
+</head>
+<body>
+
+<!-- Navigation Dots -->
+<nav class="nav-dots">
+  <button class="nav-dot active" data-slide="0" aria-label="Slide 1"></button>
+  <button class="nav-dot" data-slide="1" aria-label="Slide 2"></button>
+  <button class="nav-dot" data-slide="2" aria-label="Slide 3"></button>
+  <button class="nav-dot" data-slide="3" aria-label="Slide 4"></button>
+  <button class="nav-dot" data-slide="4" aria-label="Slide 5"></button>
+  <button class="nav-dot" data-slide="5" aria-label="Slide 6"></button>
+  <button class="nav-dot" data-slide="6" aria-label="Slide 7"></button>
+  <button class="nav-dot" data-slide="7" aria-label="Slide 8"></button>
+</nav>
+
+<!-- Slide 1: Title -->
+<section class="slide slide-title" id="slide-0">
+  <div class="particles">
+    <div class="particle" style="left: 5%"></div>
+    <div class="particle"></div>
+    <div class="particle"></div>
+    <div class="particle"></div>
+    <div class="particle"></div>
+    <div class="particle"></div>
+    <div class="particle"></div>
+  </div>
+  <div class="logo">ALPHA</div>
+  <p class="tagline">Self-Adaptive Intelligence</p>
+  <div class="subtitle mono">Cloudflare Workers + Durable Objects</div>
+</section>
+
+<!-- Slide 2: Problem -->
+<section class="slide slide-problem" id="slide-1">
+  <h3>The Challenge</h3>
+  <h2>Traditional Systems React.<br/>ALPHA Anticipates.</h2>
+  <div class="problem-grid">
+    <div class="problem-card fade-in">
+      <div class="problem-icon">⚡</div>
+      <div class="problem-title">Manual Intervention</div>
+      <div class="problem-desc">Ops teams spend hours diagnosing and fixing issues that could have been prevented</div>
+    </div>
+    <div class="problem-card fade-in">
+      <div class="problem-icon">🔴</div>
+      <div class="problem-title">Reactive Firefighting</div>
+      <div class="problem-desc">System failures cascade before anyone notices, leading to extended outages</div>
+    </div>
+    <div class="problem-card fade-in">
+      <div class="problem-icon">📊</div>
+      <div class="problem-title">Fragmented Monitoring</div>
+      <div class="problem-desc">Metrics scattered across tools with no unified view of system health</div>
+    </div>
+  </div>
+</section>
+
+<!-- Slide 3: Architecture -->
+<section class="slide slide-architecture" id="slide-2">
+  <h3>Architecture</h3>
+  <h2>Self-Assessment Loop</h2>
+  <div class="architecture-diagram">
+    <div class="arch-box">
+      <div class="arch-label">Input</div>
+      <div class="arch-title">Monitor</div>
+      <div style="font-size: 2rem; margin-top: 12px;">📡</div>
+    </div>
+    <div class="arch-arrow">→</div>
+    <div class="arch-box primary">
+      <div class="arch-label">Core</div>
+      <div class="arch-title">Assess</div>
+      <div style="font-size: 2rem; margin-top: 12px;">🧠</div>
+    </div>
+    <div class="arch-arrow">→</div>
+    <div class="arch-box">
+      <div class="arch-label">Logic</div>
+      <div class="arch-title">Decide</div>
+      <div style="font-size: 2rem; margin-top: 12px;">⚖️</div>
+    </div>
+    <div class="arch-arrow">→</div>
+    <div class="arch-box secondary">
+      <div class="arch-label">Output</div>
+      <div class="arch-title">Act</div>
+      <div style="font-size: 2rem; margin-top: 12px;">🚀</div>
+    </div>
+  </div>
+  <p style="text-align: center; margin-top: 50px;">
+    Powered by <span style="color: var(--accent-primary);">Durable Objects</span> for stateful intelligence,
+    <span style="color: var(--accent-secondary);">KV</span> for metrics storage,
+    and <span style="color: var(--accent-tertiary);">Queues</span> for action dispatch
+  </p>
+</section>
+
+<!-- Slide 4: Components -->
+<section class="slide slide-components" id="slide-3">
+  <h3>Core Components</h3>
+  <h2>Four Pillars of Intelligence</h2>
+  <div class="components-grid">
+    <div class="component-card fade-in">
+      <span class="component-number">01</span>
+      <div class="component-header">
+        <span class="component-badge">Collect</span>
+      </div>
+      <div class="component-title">Monitoring Layer</div>
+      <div class="component-desc">Collects metrics from system, health checks, and custom sources</div>
+      <div class="component-features">
+        <span class="feature-tag">System Metrics</span>
+        <span class="feature-tag">Health Checks</span>
+        <span class="feature-tag">Custom Sources</span>
+      </div>
+    </div>
+    <div class="component-card fade-in">
+      <span class="component-number">02</span>
+      <div class="component-header">
+        <span class="component-badge">Analyze</span>
+      </div>
+      <div class="component-title">Assessment Engine</div>
+      <div class="component-desc">Durable Object "brain" that evaluates health and generates recommendations</div>
+      <div class="component-features">
+        <span class="feature-tag">Stateful</span>
+        <span class="feature-tag">Anomaly Detection</span>
+        <span class="feature-tag">Trend Analysis</span>
+      </div>
+    </div>
+    <div class="component-card fade-in">
+      <span class="component-number">03</span>
+      <div class="component-header">
+        <span class="component-badge">Reason</span>
+      </div>
+      <div class="component-title">Decision Engine</div>
+      <div class="component-desc">Rule-based system with configurable thresholds and priority scoring</div>
+      <div class="component-features">
+        <span class="feature-tag">Rule-based</span>
+        <span class="feature-tag">ML-ready</span>
+        <span class="feature-tag">Priority Queue</span>
+      </div>
+    </div>
+    <div class="component-card fade-in">
+      <span class="component-number">04</span>
+      <div class="component-header">
+        <span class="component-badge">Execute</span>
+      </div>
+      <div class="component-title">Action Executor</div>
+      <div class="component-desc">Handles scale, cache, alerts, and recovery with rollback support</div>
+      <div class="component-features">
+        <span class="feature-tag">Scale Up/Down</span>
+        <span class="feature-tag">Clear Cache</span>
+        <span class="feature-tag">Send Alerts</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Slide 5: How It Works -->
+<section class="slide slide-workflow" id="slide-4">
+  <h3>How It Works</h3>
+  <h2>Continuous Feedback Loop</h2>
+  <div class="workflow-container">
+    <div class="workflow-step fade-in">
+      <div class="step-circle">
+        📊
+        <span class="step-number">1</span>
+      </div>
+      <div class="step-title">Collect Metrics</div>
+      <div class="step-desc">Gather CPU, memory, latency, error rates from all sources</div>
+    </div>
+    <div class="workflow-connector">→</div>
+    <div class="workflow-step fade-in">
+      <div class="step-circle">
+        🔍
+        <span class="step-number">2</span>
+      </div>
+      <div class="step-title">Assess Health</div>
+      <div class="step-desc">Evaluate against rules, detect anomalies, compute scores</div>
+    </div>
+    <div class="workflow-connector">→</div>
+    <div class="workflow-step fade-in">
+      <div class="step-circle">
+        💡
+        <span class="step-number">3</span>
+      </div>
+      <div class="step-title">Generate Actions</div>
+      <div class="step-desc">Create recommendations with priority and rollback plans</div>
+    </div>
+    <div class="workflow-connector">→</div>
+    <div class="workflow-step fade-in">
+      <div class="step-circle">
+        ⚡
+        <span class="step-number">4</span>
+      </div>
+      <div class="step-title">Execute & Learn</div>
+      <div class="step-desc">Dispatch actions, track outcomes, improve future decisions</div>
+    </div>
+  </div>
+</section>
+
+<!-- Slide 6: Deployment -->
+<section class="slide slide-deployment" id="slide-5">
+  <h3>Deployment</h3>
+  <h2>Get Started in Minutes</h2>
+  <div class="deployment-grid">
+    <div class="deploy-step fade-in">
+      <div class="deploy-number">1</div>
+      <div class="deploy-title">Install</div>
+      <div class="deploy-code">pnpm add -D wrangler</div>
+    </div>
+    <div class="deploy-step fade-in">
+      <div class="deploy-number">2</div>
+      <div class="deploy-title">Configure KV</div>
+      <div class="deploy-code">wrangler kv:namespace create METRICS</div>
+    </div>
+    <div class="deploy-step fade-in">
+      <div class="deploy-number">3</div>
+      <div class="deploy-title">Set Secrets</div>
+      <div class="deploy-code">wrangler secret put SLACK_WEBHOOK</div>
+    </div>
+    <div class="deploy-step fade-in">
+      <div class="deploy-number">4</div>
+      <div class="deploy-title">Deploy</div>
+      <div class="deploy-code">pnpm deploy</div>
+    </div>
+  </div>
+  <p style="text-align: center; margin-top: 50px; color: var(--text-secondary);">
+    Or run locally with <span class="mono" style="color: var(--accent-primary);">pnpm dev</span>
+  </p>
+</section>
+
+<!-- Slide 7: API -->
+<section class="slide slide-api" id="slide-6">
+  <h3>API Endpoints</h3>
+  <h2>Simple REST Interface</h2>
+  <div class="api-table">
+    <div class="api-row fade-in">
+      <span class="method-badge get">GET</span>
+      <span class="endpoint-path">/api/health</span>
+      <span class="endpoint-desc">Health check</span>
+    </div>
+    <div class="api-row fade-in">
+      <span class="method-badge post">POST</span>
+      <span class="endpoint-path">/api/metrics</span>
+      <span class="endpoint-desc">Ingest metrics</span>
+    </div>
+    <div class="api-row fade-in">
+      <span class="method-badge get">GET</span>
+      <span class="endpoint-path">/api/metrics</span>
+      <span class="endpoint-desc">Get recent metrics</span>
+    </div>
+    <div class="api-row fade-in">
+      <span class="method-badge post">POST</span>
+      <span class="endpoint-path">/api/assess</span>
+      <span class="endpoint-desc">Run assessment</span>
+    </div>
+    <div class="api-row fade-in">
+      <span class="method-badge get">GET</span>
+      <span class="endpoint-path">/api/status</span>
+      <span class="endpoint-desc">System status</span>
+    </div>
+    <div class="api-row fade-in">
+      <span class="method-badge get">GET</span>
+      <span class="endpoint-path">/api/actions</span>
+      <span class="endpoint-desc">List pending actions</span>
+    </div>
+    <div class="api-row fade-in">
+      <span class="method-badge post">POST</span>
+      <span class="endpoint-path">/api/actions/:id/approve</span>
+      <span class="endpoint-desc">Approve action</span>
+    </div>
+  </div>
+</section>
+
+<!-- Slide 8: Summary -->
+<section class="slide slide-summary" id="slide-7">
+  <h3>Key Features</h3>
+  <div class="summary-title">Self-Healing. Self-Optimizing.<br/>Self-Aware.</div>
+  <div class="features-row">
+    <div class="feature-card fade-in">
+      <div class="feature-icon">🧠</div>
+      <div class="feature-name">Autonomous</div>
+    </div>
+    <div class="feature-card fade-in">
+      <div class="feature-icon">🔄</div>
+      <div class="feature-name">Self-Healing</div>
+    </div>
+    <div class="feature-card fade-in">
+      <div class="feature-icon">📈</div>
+      <div class="feature-name">Proactive</div>
+    </div>
+    <div class="feature-card fade-in">
+      <div class="feature-icon">🎯</div>
+      <div class="feature-name">Precise</div>
+    </div>
+  </div>
+  <div class="cta-section">
+    <p class="cta-text">Ready to build the future of adaptive systems?</p>
+    <div class="cta-buttons">
+      <a href="/apps/self-adaptive" class="cta-btn primary">View Code</a>
+      <button class="cta-btn secondary" onclick="window.print()">Save PDF</button>
+    </div>
+  </div>
+</section>
+
+<script>
+  // Navigation dots functionality
+  const dots = document.querySelectorAll('.nav-dot');
+  const slides = document.querySelectorAll('.slide');
+
+  // Intersection Observer for active dot
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+      if (entry.isIntersecting) {
+        const slideIndex = Array.from(slides).indexOf(entry.target);
+        dots.forEach((dot, i) => {
+          dot.classList.toggle('active', i === slideIndex);
+        });
+      }
+    });
+  }, { threshold: 0.5 });
+
+  slides.forEach(slide => observer.observe(slide));
+
+  // Click navigation
+  dots.forEach(dot => {
+    dot.addEventListener('click', () => {
+      const slideIndex = dot.dataset.slide;
+      document.getElementById(`slide-${slideIndex}`).scrollIntoView({ behavior: 'smooth' });
+    });
+  });
+
+  // Scroll-triggered animations
+  const fadeObserver = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+      if (entry.isIntersecting) {
+        entry.target.classList.add('visible');
+      }
+    });
+  }, { threshold: 0.2 });
+
+  document.querySelectorAll('.fade-in').forEach(el => fadeObserver.observe(el));
+
+  // Keyboard navigation
+  document.addEventListener('keydown', (e) => {
+    const currentSlide = Array.from(slides).findIndex(slide => {
+      const rect = slide.getBoundingClientRect();
+      return rect.top >= 0 && rect.top < window.innerHeight / 2;
+    });
+
+    if (e.key === 'ArrowDown' || e.key === 'PageDown') {
+      e.preventDefault();
+      const next = Math.min(currentSlide + 1, slides.length - 1);
+      slides[next].scrollIntoView({ behavior: 'smooth' });
+    } else if (e.key === 'ArrowUp' || e.key === 'PageUp') {
+      e.preventDefault();
+      const prev = Math.max(currentSlide - 1, 0);
+      slides[prev].scrollIntoView({ behavior: 'smooth' });
+    }
+  });
+</script>
+
+</body>
+</html>
