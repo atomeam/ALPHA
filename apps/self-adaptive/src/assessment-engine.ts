@@ -3,7 +3,7 @@
  * 
  * The "brain" of the self-adaptive system that:
  * - Collects and analyzes metrics
- * - Evaluates health status
+ * - Evaluates health status (threshold + ML-based)
  * - Generates recommendations
  * - Plans and coordinates actions
  */
@@ -14,9 +14,9 @@ import type {
   Assessment, 
   Recommendation, 
   PlannedAction, 
-  AssessmentState,
   ActionType 
 } from './types';
+import { EnsembleAnomalyDetector, type AnomalyResult } from './anomaly-detector';
 
 interface DurableObjectState {
   lastAssessment: number;
@@ -31,6 +31,19 @@ interface DurableObjectState {
   }>;
 }
 
+interface MLEnhancedAssessment {
+  findings: Array<{
+    metric: string;
+    value: number;
+    type: 'threshold' | 'anomaly';
+    severity: 'critical' | 'warning' | 'info';
+    message: string;
+    mlConfidence?: number;
+    trend?: string;
+  }>;
+  overall: 'healthy' | 'warning' | 'critical';
+}
+
 export class AssessmentEngine {
   private state: DurableObjectState = {
     lastAssessment: 0,
@@ -42,8 +55,12 @@ export class AssessmentEngine {
 
   private metricsBuffer: Metric[] = [];
   private readonly MAX_METRICS_BUFFER = 1000;
+  private anomalyDetector: EnsembleAnomalyDetector;
 
-  constructor(private env: any) {}
+  constructor(private env: any) {
+    // Initialize anomaly detector with Workers AI if available
+    this.anomalyDetector = new EnsembleAnomalyDetector(env.AI || null);
+  }
 
   // HTTP handler for the Durable Object
   async fetch(request: Request): Promise<Response> {
@@ -96,22 +113,33 @@ export class AssessmentEngine {
   }
 
   /**
-   * Run a full assessment cycle
+   * Run a full assessment cycle with ML enhancement
    */
   private async runAssessment(): Promise<Response> {
     const startTime = Date.now();
+    const useML = this.env.USE_ML_ANOMALY_DETECTION === 'true';
     
     // Collect metrics for analysis
     const analysisMetrics = this.collectMetricsForAnalysis();
     
-    // Evaluate health
+    // Evaluate health (threshold-based)
     const health = this.evaluateHealth(analysisMetrics);
     
-    // Generate recommendations
-    const recommendations = this.generateRecommendations(health, analysisMetrics);
+    // ML-based anomaly detection
+    let mlFindings: AnomalyResult[] = [];
+    if (analysisMetrics.length > 0) {
+      try {
+        mlFindings = await this.anomalyDetector.detect(analysisMetrics);
+      } catch (error) {
+        console.error('ML anomaly detection failed:', error);
+      }
+    }
+    
+    // Generate recommendations (combining threshold + ML)
+    const recommendations = this.generateRecommendations(health, analysisMetrics, mlFindings);
     
     // Plan actions based on recommendations
-    const plannedActions = this.planActions(recommendations, health);
+    const plannedActions = this.planActions(recommendations, health, mlFindings);
     
     // Create assessment record
     const assessment: Assessment = {
@@ -133,6 +161,11 @@ export class AssessmentEngine {
 
     return Response.json({
       assessment,
+      mlEnhancement: {
+        enabled: useML,
+        anomaliesDetected: mlFindings.filter(f => f.isAnomaly).length,
+        details: mlFindings,
+      },
       durationMs: Date.now() - startTime,
       state: {
         healthTrend: this.state.healthTrend,
@@ -227,11 +260,14 @@ export class AssessmentEngine {
   }
 
   /**
-   * Generate recommendations based on health and metrics
+   * Generate recommendations based on health, metrics, and ML findings
    */
-  private generateRecommendations(health: HealthStatus, metrics: Metric[]): Recommendation[] {
+  private generateRecommendations(
+    health: HealthStatus, 
+    metrics: Metric[],
+    mlFindings: AnomalyResult[] = []
+  ): Recommendation[] {
     const recommendations: Recommendation[] = [];
-    const timestamp = Date.now();
 
     // Check for scaling needs
     const cpuUsage = metrics.find(m => m.name === 'cpu_usage_percent');
@@ -303,6 +339,21 @@ export class AssessmentEngine {
       });
     }
 
+    // Add ML-detected anomalies as recommendations
+    for (const finding of mlFindings) {
+      if (finding.isAnomaly && finding.score > 0.6) {
+        recommendations.push({
+          id: this.generateId(),
+          priority: finding.score > 0.85 ? 'critical' : 'high',
+          category: 'investigate',
+          title: `ML: ${finding.metric} anomaly detected`,
+          description: `${finding.pattern} (confidence: ${(finding.confidence * 100).toFixed(0)}%, trend: ${finding.trend})`,
+          confidence: finding.confidence,
+          estimatedImpact: 'Early warning - prevent threshold breach',
+        });
+      }
+    }
+
     // If overall health is poor, recommend investigation
     if (!health.healthy) {
       recommendations.push({
@@ -323,9 +374,13 @@ export class AssessmentEngine {
   }
 
   /**
-   * Plan actions based on recommendations
+   * Plan actions based on recommendations and ML findings
    */
-  private planActions(recommendations: Recommendation[], health: HealthStatus): PlannedAction[] {
+  private planActions(
+    recommendations: Recommendation[], 
+    health: HealthStatus,
+    mlFindings: AnomalyResult[] = []
+  ): PlannedAction[] {
     const actions: PlannedAction[] = [];
     const now = Date.now();
 
@@ -335,6 +390,9 @@ export class AssessmentEngine {
       if (rec.priority === 'critical' || rec.priority === 'high') {
         const actionType = this.mapRecommendationToAction(rec);
         
+        // Check if this is an ML-detected anomaly
+        const isML = rec.title.startsWith('ML:');
+        
         actions.push({
           id: this.generateId(),
           type: actionType,
@@ -342,10 +400,32 @@ export class AssessmentEngine {
           parameters: {
             recommendationId: rec.id,
             reason: rec.description,
+            mlDetected: isML,
+            confidence: rec.confidence,
           },
-          scheduledFor: now + 5000, // 5 second delay for potential human approval
+          scheduledFor: now + (isML ? 30000 : 5000), // More time for ML-detected issues
           status: 'pending',
           rollbackPlan: this.createRollbackPlan(actionType),
+        });
+      }
+    }
+
+    // Also create actions for high-confidence ML anomalies
+    for (const finding of mlFindings) {
+      if (finding.isAnomaly && finding.score > 0.8) {
+        actions.push({
+          id: this.generateId(),
+          type: 'send_alert',
+          target: finding.metric,
+          parameters: {
+            type: 'ml_anomaly',
+            message: finding.pattern,
+            score: finding.score,
+            confidence: finding.confidence,
+          },
+          scheduledFor: now + 30000,
+          status: 'pending',
+          rollbackPlan: { steps: [], timeoutMs: 0 },
         });
       }
     }

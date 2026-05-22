@@ -17,12 +17,17 @@ id = "your-metrics-namespace-id"
 binding = "ACTION_QUEUE"
 queue = "self-adaptive-actions"
 
+# Workers AI for anomaly detection
+[[ai]]
+binding = "AI"
+
 # Environment variables
 [vars]
 LOG_LEVEL = "info"
 ASSESSMENT_INTERVAL_MS = "60000"
 METRICS_RETENTION_HOURS = "168"
+USE_ML_ANOMALY_DETECTION = "true"
 
-# Secrets (set via `wrangler secret put`)
-# CLOUDFLARE_API_TOKEN - for Cloudflare API access
-# SLACK_WEBHOOK_URL - for notifications
+# Cron trigger for self-assessment every 5 minutes
+[triggers]
+crons = ["*/5 * * * *"]
