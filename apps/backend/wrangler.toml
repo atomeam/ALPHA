@@ -1,0 +1,163 @@
+# =============================================================================
+# Alpha — Cloudflare Workers Configuration
+# =============================================================================
+# This wrangler.toml configures the self-adaptive-app Worker for Alpha's
+# self-improving loop runtime. The Worker serves as Alpha's edge runtime
+# where OpenHands-edited code executes.
+#
+# Current status: Backend (Node/Express) needs adaptation for Workers runtime.
+# This config documents the target state. See docs/SELF-IMPROVE.md §4 for
+# migration guidance.
+#
+# Quick start:
+#   1. Create KV namespace: wrangler kv:namespace create METRICS
+#   2. Create queues: wrangler queue create adaptive-actions
+#   3. Update account_id and namespace IDs below
+#   4. Test locally: wrangler dev --env preview
+#   5. Deploy: wrangler deploy --env preview (preview) or --env production
+# =============================================================================
+
+#:schema node_modules/wrangler/config-schema.json
+
+name = "self-adaptive-app"
+compatibility_date = "2025-01-15"
+compatibility_flags = ["nodejs_compat"]
+
+# Cloudflare account - set via CLOUDFLARE_ACCOUNT_ID env var or below
+# account_id = "YOUR_ACCOUNT_ID"
+
+# Enable Workers Dev for local preview (disable in production)
+workers_dev = true
+
+# Observability
+[observability]
+enabled = true
+# Logs to Cloudflare's Logpush or real-time tail
+# tail_workers = ["self-adaptive-app"]
+
+# =============================================================================
+# KV Namespaces
+# =============================================================================
+# METRICS: Stores telemetry for the self-improvement loop
+#   - /api/metrics response caching
+#   - Per-integration success rates
+#   - Error budget tracking
+
+[[kv_namespaces]]
+binding = "METRICS"
+id = "YOUR_PROD_METRICS_NAMESPACE_ID"
+preview_id = "YOUR_PREVIEW_METRICS_NAMESPACE_ID"
+
+# =============================================================================
+# Queues
+# =============================================================================
+# adaptive-actions: Action queue for self-improvement decisions
+#   - OpenHands suggestions queued for review
+#   - Human operator approvals
+#   - Deployment triggers
+
+[[queues.producers]]
+queue = "adaptive-actions"
+binding = "ACTIONS"
+
+[[queues.consumers]]
+queue = "adaptive-actions"
+max_batch_size = 10
+max_batch_timeout = 30
+
+# =============================================================================
+# Durable Objects (if using AssessmentBrain)
+# =============================================================================
+# AssessmentBrain: Stateful actor for AI assessment decisions
+# Uncomment when DO class is implemented
+
+# [[durable_objects.bindings]]
+# name = "AssessmentBrain"
+# class_name = "AssessmentBrain"
+# script_name = "self-adaptive-app"
+
+# =============================================================================
+# Environment: Preview (branch deploys, PR testing)
+# =============================================================================
+[env.preview]
+workers_dev = true
+
+# Override KV for preview isolation
+[[env.preview.kv_namespaces]]
+binding = "METRICS"
+id = "YOUR_PREVIEW_METRICS_NAMESPACE_ID"
+
+# Preview queue
+[[env.preview.queues.producers]]
+queue = "adaptive-actions-preview"
+binding = "ACTIONS"
+
+# =============================================================================
+# Environment: Production
+# =============================================================================
+[env.production]
+workers_dev = false
+
+# Custom domain/routes
+routes = [
+  { pattern = "alpha.atomeam.workers.dev/*", zone_name = "atomeam.workers.dev" }
+]
+
+# Production KV (separate from preview)
+[[env.production.kv_namespaces]]
+binding = "METRICS"
+id = "YOUR_PROD_METRICS_NAMESPACE_ID"
+
+# Production queue
+[[env.production.queues.producers]]
+queue = "adaptive-actions"
+binding = "ACTIONS"
+
+# =============================================================================
+# Secrets (set via: wrangler secret put SECRET_NAME)
+# =============================================================================
+# These are set interactively, not in this file:
+#
+# wrangler secret put GEMINI_API_KEY
+# wrangler secret put CLOUDFLARE_API_TOKEN
+# wrangler secret put OPENHANDS_CLOUD_API_KEY
+# wrangler secret put NOTION_TOKEN
+# wrangler secret put SLACK_BOT_TOKEN
+# ... etc for all integration keys
+
+# =============================================================================
+# Build Configuration
+# =============================================================================
+# Current backend uses Node/Express - needs adaptation for Workers runtime.
+# 
+# For Workers compatibility, the entry point would need to use:
+#   - export default { fetch: handler } instead of app.listen()
+#   - Cloudflare's Request/Response types instead of Node http
+#   - workers-sdk KV/DO APIs instead of Node fs
+#
+# See: https://developers.cloudflare.com/workers/runtime-apis/nodejs/
+#
+# Build command uses existing tsc output:
+# [build]
+# command = "pnpm build"
+# cwd = "../.."
+# watch_dir = "../../apps/backend/src"
+
+# =============================================================================
+# Notes for Phase 0
+# =============================================================================
+# 1. This wrangler.toml is the contract between OpenHands and Cloudflare.
+#    OpenHands will deploy to preview (env.preview) first, then production.
+#
+# 2. The deploy.yml workflow calls:
+#    - wrangler deploy --env preview  (for PRs and testing)
+#    - wrangler deploy --env production  (for main branch merges)
+#
+# 3. Secrets must be set per-environment via:
+#    - GitHub Actions: repo Settings → Secrets and variables → Actions
+#    - Local dev: .env file (gitignored) or wrangler secret put
+#
+# 4. KV and queue IDs are per-namespace and must be created first:
+#    - wrangler kv:namespace create METRICS --env preview
+#    - wrangler kv:namespace create METRICS --env production
+#    - wrangler queue create adaptive-actions

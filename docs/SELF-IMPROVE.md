@@ -170,7 +170,16 @@ Add these variables to your repository:
 2. Navigate to Settings → Repositories
 3. Add `atomeam/ALPHA`
 
-### 4. Enable the Workflow
+### 4. Cloudflare Resources
+
+See [docs/CLOUDFLARE_SETUP.md](docs/CLOUDFLARE_SETUP.md) for step-by-step setup:
+
+1. Create KV namespace for metrics
+2. Create queues for action processing
+3. Configure wrangler.toml with real IDs
+4. Set worker secrets via `wrangler secret put`
+
+### 5. Enable the Workflow
 
 The `alpha-self-improve.yml` workflow can be triggered:
 

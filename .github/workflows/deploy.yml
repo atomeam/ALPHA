@@ -79,6 +79,7 @@ jobs:
         run: pnpm build
 
       - name: Deploy to Cloudflare Workers (preview)
+        working-directory: apps/backend
         uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ env.CLOUDFLARE_API_TOKEN }}
@@ -89,8 +90,10 @@ jobs:
       - name: Run smoke tests
         run: |
           sleep 5
-          curl -f "https://alpha-preview.${{ vars.CLOUDFLARE_PAGES_SUBDOMAIN }}.workers.dev/api/health" || exit 1
-          curl -f "https://alpha-preview.${{ vars.CLOUDFLARE_PAGES_SUBDOMAIN }}.workers.dev/api/metrics" || exit 1
+          # Smoke tests against preview URL
+          PR_NUMBER=${{ github.event.pull_request.number || 'preview' }}
+          curl -f "https://alpha-preview-${PR_NUMBER}.${{ vars.CLOUDFLARE_PAGES_SUBDOMAIN }}.workers.dev/api/health" || exit 1
+          curl -f "https://alpha-preview-${PR_NUMBER}.${{ vars.CLOUDFLARE_PAGES_SUBDOMAIN }}.workers.dev/api/metrics" || exit 1
 
   # Phase 3: Deploy to production
   deploy-production:
@@ -123,6 +126,7 @@ jobs:
         run: pnpm build
 
       - name: Deploy to Cloudflare Workers (production)
+        working-directory: apps/backend
         uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ env.CLOUDFLARE_API_TOKEN }}
