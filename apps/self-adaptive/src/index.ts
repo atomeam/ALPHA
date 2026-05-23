@@ -4,6 +4,11 @@ export interface Env {
   ADAPTIVE_QUEUE: Queue;
 }
 
+interface ScheduledEvent {
+  scheduledTime: number;
+  cron: string;
+}
+
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
@@ -127,6 +132,33 @@ export default {
       } catch (err) {
         console.error(`Failed to process message ${msg.id}:`, err);
       }
+    }
+  },
+
+  // Scheduled handler for cron triggers
+  async scheduled(_event: ScheduledEvent, env: Env, _ctx: ExecutionContext): Promise<void> {
+    console.log("Cron triggered - running assessment");
+
+    // Trigger a new assessment on schedule
+    const id = env.ASSESSMENT_ENGINE.idFromName("global-assessment");
+    const stub = env.ASSESSMENT_ENGINE.get(id);
+
+    const response = await stub.fetch(
+      new Request("http://internal/assess", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+      })
+    );
+
+    if (response.ok) {
+      const data = await response.json();
+      if (data.projection) {
+        await env.ADAPTIVE_STATE.put(
+          "projection:assessment:latest",
+          JSON.stringify(data.projection)
+        );
+      }
+      console.log("Scheduled assessment completed:", data.assessmentCount);
     }
   },
 };
