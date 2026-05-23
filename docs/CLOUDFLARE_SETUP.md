@@ -2,90 +2,51 @@
 
 This guide walks through setting up the Cloudflare Workers deployment for Alpha's self-improving loop.
 
-## Prerequisites
+## Current Configuration
 
-- Cloudflare account with Workers & Pages enabled
-- Wrangler CLI installed: `npm install -g wrangler`
-- GitHub repo with secrets configured (see below)
+Your Cloudflare resources are already configured:
 
-## Step 1: Create Cloudflare Resources
+| Resource | ID | Name |
+|----------|-----|------|
+| KV Namespace | `f3171ead95434d0a9be7a3a2526700b8` | self-adaptive-metrics |
+| Queue | `21ba5f44bfe34956b44f14ce10aa2b7b` | adaptive-actions |
+| DO Namespace | `7c03bd81d8ea4435829ab42ee2ce2ddc` | AssessmentBrain |
 
-### 1.1 Get Account ID
+Worker URL: `self-adaptive-app.atomicmoonbeam88.workers.dev`
 
-1. Log into [Cloudflare Dashboard](https://dash.cloudflare.com)
-2. Go to Workers & Pages → Overview
-3. Copy your Account ID (visible near the top)
+## Step 1: Create API Token (if not already)
 
-### 1.2 Create API Token
+If you don't have an API token yet:
 
-1. Go to Profile → API Tokens
+1. Go to [Cloudflare Dashboard](https://dash.cloudflare.com) → Profile → API Tokens
 2. Create Custom Token with these permissions:
    - **Account**: Workers Scripts (Edit)
    - **Account**: Workers KV Namespaces (Edit)
    - **Account**: Workers Queues (Edit)
    - **Account**: Workers Routes (Edit)
-3. Save the token securely (shown only once)
-
-### 1.3 Create KV Namespace
-
-```bash
-# Login to Wrangler
-wrangler login
-
-# Create METRICS namespace for production
-wrangler kv:namespace create METRICS
-
-# Create METRICS namespace for preview
-wrangler kv:namespace create METRICS --env preview
-```
-
-Save the namespace IDs from the output (e.g., `2f0a1234abcd5678...`).
-
-### 1.4 Create Queues
-
-```bash
-# Create action queue for production
-wrangler queue create adaptive-actions
-
-# Create preview queue
-wrangler queue create adaptive-actions-preview
-```
 
 ## Step 2: Configure GitHub Secrets
 
 In your GitHub repository, go to **Settings → Secrets and variables → Actions** and add:
 
-| Secret Name | Value | Source |
-|-------------|-------|--------|
-| `CLOUDFLARE_ACCOUNT_ID` | Your Cloudflare account ID | Dashboard → Workers → Overview |
-| `CLOUDFLARE_API_TOKEN` | API token from Step 1.2 | Cloudflare Profile → API Tokens |
-| `OPENHANDS_CLOUD_API_KEY` | API key from OpenHands Cloud | app.all-hands.dev → Settings → API Keys |
+| Secret Name | Value |
+|-------------|-------|
+| `CLOUDFLARE_ACCOUNT_ID` | `atomicmoonbeam88` (your Cloudflare account ID) |
+| `CLOUDFLARE_API_TOKEN` | API token from Step 1 |
+| `OPENHANDS_CLOUD_API_KEY` | From app.all-hands.dev → Settings → API Keys |
 
-### Add GitHub Variables (optional but recommended)
+### Add GitHub Variables
 
 | Variable Name | Value |
 |--------------|-------|
-| `CLOUDFLARE_PAGES_SUBDOMAIN` | Your workers.dev subdomain |
+| `CLOUDFLARE_PAGES_SUBDOMAIN` | `atomicmoonbeam88` |
 
-## Step 3: Update wrangler.toml
+## Step 3: Update wrangler.toml (already done)
 
-Edit `apps/backend/wrangler.toml` and replace placeholder IDs:
-
-```toml
-[[kv_namespaces]]
-binding = "METRICS"
-id = "YOUR_PROD_METRICS_NAMESPACE_ID"      # ← Replace with actual ID
-preview_id = "YOUR_PREVIEW_METRICS_NAMESPACE_ID"  # ← Replace with actual ID
-```
-
-For production route:
-```toml
-[env.production]
-workers_dev = false
-routes = [
-  { pattern = "alpha.atomeam.workers.dev/*", zone_name = "atomeam.workers.dev" }
-]
-```
+The `apps/backend/wrangler.toml` is pre-configured with your real binding IDs:
+- KV: `f3171ead95434d0a9be7a3a2526700b8`
+- Queue: `adaptive-actions`
+- DO: `ASSESSMENT_BRAIN` (AssessmentBrain class)
 
 ## Step 4: Set Worker Secrets
 
@@ -151,9 +112,9 @@ gh workflow run alpha-self-improve.yml
 
 Before running the first full self-improvement cycle:
 
-- [ ] Cloudflare resources created (KV, queues)
-- [ ] GitHub secrets configured
-- [ ] wrangler.toml updated with real IDs
+- [x] Cloudflare resources exist (KV, queues, DO)
+- [ ] GitHub secrets configured (`CLOUDFLARE_ACCOUNT_ID`, `CLOUDFLARE_API_TOKEN`, `OPENHANDS_CLOUD_API_KEY`)
+- [x] wrangler.toml updated with real IDs
 - [ ] Worker secrets set via `wrangler secret put`
 - [ ] Repository connected in OpenHands Cloud
 - [ ] PR #20 merged to main
