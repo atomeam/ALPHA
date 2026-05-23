@@ -66,12 +66,26 @@ Post-metrics from `/api/metrics` (after PR #20 deploy):
 ## Improvement Cycle
 
 1. **Trigger**: Manual dispatch or weekly cron
-2. **Input**: `alpha_objectives.md` + `/api/metrics` output
+2. **Input**: `alpha_objectives.md` + `/state` output + `alpha_first_target.md` (if exists)
 3. **Output**: PR with description including:
    - What changed
    - Why it improves the objective
    - Rollback plan
    - Tested against existing test suite
+
+## First Cycle Directive
+
+**Current state**: Error rate is critical (93% errors). See `alpha_first_target.md` for the first improvement target.
+
+For the first cycle, OpenHands should:
+
+1. **Read** `alpha_first_target.md` to understand current state and priority tasks
+2. **Analyze** the 109 errors in `/state` to identify root cause
+3. **Fix** the trust kernel grants (most likely cause of bulk denials)
+4. **Test** that metrics are being collected and visible
+5. **Verify** queue consumer is processing messages
+
+**Success criteria**: Error rate drops from 93% to < 10%
 
 ## Guardrails
 

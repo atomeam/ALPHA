@@ -78,8 +78,9 @@ def cmd_start(objective_file: str | None, repo: str = "atomeam/ALPHA", branch: s
     """
     Start an OpenHands conversation to run an improvement cycle.
 
-    Reads alpha_objectives.md (or a custom file) and uses it as context for the agent.
+    Reads alpha_objectives.md (or a custom file) and alpha_first_target.md as context.
     """
+    # Read primary objectives
     objective_content = ""
     if objective_file:
         objective_content = read_file(objective_file)
@@ -88,18 +89,54 @@ def cmd_start(objective_file: str | None, repo: str = "atomeam/ALPHA", branch: s
         if os.path.exists(default_path):
             objective_content = read_file(default_path)
 
+    # Read first target if exists (for the initial improvement cycle)
+    first_target_path = os.path.join(os.getcwd(), "alpha_first_target.md")
+    first_target_content = ""
+    if os.path.exists(first_target_path):
+        first_target_content = read_file(first_target_path)
+
+    # Read current state from Worker
+    state_info = ""
+    try:
+        import urllib.request
+        req = urllib.request.Request(
+            "https://self-adaptive-app.atomicmoonbeam88.workers.dev/state",
+            headers={"Accept": "application/json"}
+        )
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            state_data = json.loads(resp.read().decode())
+            state_info = f"""
+## Current Worker State
+```json
+{json.dumps(state_data, indent=2)}
+```
+
+Key metrics:
+- Total errors: {state_data.get('metrics', {}).get('total_errors', 'unknown')}
+- Error rate: {state_data.get('metrics', {}).get('error_rate', 'unknown')}
+- Assessment: {state_data.get('assessment', {}).get('overall', 'unknown')}
+- Action history: {len(state_data.get('actionHistory', []))} actions
+"""
+    except Exception as e:
+        state_info = f"\nNote: Could not fetch current state from Worker: {e}\n"
+
     initial_message = f"""You are Alpha's self-improvement agent. Run an improvement cycle against the ALPHA codebase.
 
 ## Your objectives (from alpha_objectives.md):
 {objective_content or "(No objectives file found. Focus on general code quality improvements.)"}
 
+{state_info}
+
+{f"## First Cycle Priority (from alpha_first_target.md):\n{first_target_content}" if first_target_content else ""}
+
 ## Instructions:
-1. Read the current metrics from the backend if available (GET /api/metrics)
-2. Identify areas for improvement based on the objectives
-3. Make focused, minimal changes that address the objectives
-4. Run tests to validate changes
-5. Open a PR with a summary of changes, why they improve the objective, and a rollback plan
-6. Do NOT modify: packages/permissions/src/grant-types.ts, apps/bridge/, or any auth/billing code
+1. Read the current metrics from the Worker (https://self-adaptive-app.atomicmoonbeam88.workers.dev/state)
+2. If alpha_first_target.md exists, prioritize its tasks
+3. Identify areas for improvement based on the objectives
+4. Make focused, minimal changes that address the objectives
+5. Run tests to validate changes
+6. Open a PR with a summary of changes, why they improve the objective, and a rollback plan
+7. Do NOT modify: packages/permissions/src/grant-types.ts, apps/bridge/, or any auth/billing code
 
 Repository: {repo}
 Branch: {branch}
