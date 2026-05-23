@@ -4,9 +4,9 @@
  */
 
 // Import DurableObject from cloudflare workers runtime
-// Note: In production, this would be imported from "cloudflare:workers"
+
 // For local dev with wrangler, we use the global export
-declare const DurableObject: typeof import("cloudflare:workers").DurableObject;
+import { DurableObject } from "cloudflare:workers";
 
 // ============================================================================
 // Type Definitions
