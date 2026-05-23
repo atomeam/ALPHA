@@ -43,3 +43,4 @@ venv/
 
 # local stores (trust kernel)
 .alpha/
+node_modules

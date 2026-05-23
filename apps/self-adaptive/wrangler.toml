@@ -1,0 +1,11 @@
+name = "self-adaptive-app"
+main = "src/index.ts"
+compatibility_date = "2026-05-23"
+
+[[durable_objects.bindings]]
+name = "ASSESSMENT_ENGINE"
+class_name = "AssessmentEngine"
+
+[[migrations]]
+tag = "v1"
+new_classes = ["AssessmentEngine"]
