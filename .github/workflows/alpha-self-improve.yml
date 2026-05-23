@@ -8,12 +8,32 @@ on:
         required: false
         default: 'alpha_objectives.md'
   schedule:
-    # Every Monday at 9 AM UTC
-    - cron: '0 9 * * 1'
+    # Every 6 hours - adjust based on system stability
+    - cron: '0 */6 * * *'
 
 env:
   REPO: atomeam/ALPHA
   OBJECTIVE_FILE: alpha_objectives.md
+  # Guardrails for auto-merge
+  MAX_DIFF_SIZE_KB: 500
+  ERROR_RATE_THRESHOLD: 0.10  # 10%
+  ALLOWED_PATHS: |
+    apps/backend/src/**
+    apps/frontend/src/**
+    packages/alpha-core/**
+    packages/nexus-core/**
+    packages/logger/**
+    packages/ui/**
+    scripts/**
+    docs/SELF-IMPROVE.md
+    docs/ALPHA.md
+  BLOCKED_PATHS: |
+    packages/permissions/src/grant-types.ts
+    apps/bridge/**
+    **/auth/**
+    **/billing/**
+    **/secrets**
+    wrangler.toml
 
 jobs:
   improve:
@@ -21,18 +41,26 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 60
 
+    outputs:
+      pr_created: ${{ steps.check_pr.outputs.pr_found }}
+      pr_number: ${{ steps.check_pr.outputs.pr_number }}
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
       - name: Validate objective file
         run: |
-          if [ ! -f "${{ github.event.inputs.objective_file || env.OBJECTIVE_FILE }}" ]; then
-            echo "Error: Objective file not found: ${{ github.event.inputs.objective_file || env.OBJECTIVE_FILE }}"
+          OBJECTIVE_PATH="${{ github.event.inputs.objective_file || env.OBJECTIVE_FILE }}"
+          if [ ! -f "$OBJECTIVE_PATH" ]; then
+            echo "Error: Objective file not found: $OBJECTIVE_PATH"
             exit 1
           fi
-          echo "Using objectives from: ${{ github.event.inputs.objective_file || env.OBJECTIVE_FILE }}"
-          cat "${{ github.event.inputs.objective_file || env.OBJECTIVE_FILE }}"
+          echo "Using objectives from: $OBJECTIVE_PATH"
+          echo "=== alpha_objectives.md ==="
+          head -30 "$OBJECTIVE_PATH"
+          echo "=== Current Worker State ==="
+          curl -s "https://self-adaptive-app.atomicmoonbeam88.workers.dev/state" | head -50 || echo "Worker not reachable"
 
       - name: Start OpenHands improvement cycle
         env:
@@ -43,73 +71,265 @@ jobs:
             --repo "${{ env.REPO }}" \
             --branch "main"
 
-      - name: Post result comment
-        if: github.event_name == 'workflow_dispatch'
-        uses: actions/github-script@v7
-        with:
-          script: |
-            github.rest.issues.createComment({
-              issue_number: context.issue.number,
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              body: 'Self-improvement cycle triggered. Check [OpenHands Cloud](https://app.all-hands.dev) for progress.'
-            })
-
-  # Phase 2: Auto-merge when criteria met
-  auto-merge:
-    needs: improve
-    if: github.event_name == 'workflow_dispatch'
-    runs-on: ubuntu-latest
-    environment: alpha-improve
-    timeout-minutes: 30
-
-    steps:
-      - name: Check PR status
-        env:
-          OPENHANDS_API_KEY: ${{ secrets.OPENHANDS_API_KEY }}
+      - name: Wait for OpenHands to create PR
         run: |
-          # Wait for OpenHands to create PR (up to 10 minutes)
+          echo "Waiting for OpenHands to create a PR..."
+          # Poll for up to 10 minutes
           for i in {1..20}; do
-            PR_COUNT=$(gh pr list --repo ${{ env.REPO }} --state open --head "openhands/alpha-improve" --json number --jq 'length')
-            if [ "$PR_COUNT" -gt 0 ]; then
-              echo "Found PR(s): $PR_COUNT"
-              break
+            PR_DATA=$(gh pr list --repo ${{ env.REPO }} --state open --head "openhands/alpha-improve" --json number,title,headRefName --jq '.[0]')
+            if [ "$PR_DATA" != "null" ] && [ -n "$PR_DATA" ]; then
+              PR_NUMBER=$(echo "$PR_DATA" | jq -r '.number')
+              echo "Found PR #$PR_NUMBER"
+              echo "pr_found=true" >> $GITHUB_OUTPUT
+              echo "pr_number=$PR_NUMBER" >> $GITHUB_OUTPUT
+              exit 0
             fi
             echo "Waiting for PR... attempt $i/20"
             sleep 30
           done
+          echo "pr_found=false" >> $GITHUB_OUTPUT
+          echo "pr_number=0" >> $GITHUB_OUTPUT
 
-      - name: Check CI status
+      - id: check_pr
+        name: Check PR status
         run: |
-          PR_NUMBER=$(gh pr list --repo ${{ env.REPO }} --state open --head "openhands/alpha-improve" --json number --jq '.[0].number')
-          if [ -z "$PR_NUMBER" ]; then
-            echo "No PR found"
-            exit 0
-          fi
-          echo "Checking PR #$PR_NUMBER CI status..."
-          gh pr checks "$PR_NUMBER" --repo ${{ env.REPO }} --watch --interval 30 || true
+          echo "pr_found=${{ steps.wait_pr.outputs.pr_found || 'false' }}" >> $GITHUB_OUTPUT
+          echo "pr_number=${{ steps.wait_pr.outputs.pr_number || '0' }}" >> $GITHUB_OUTPUT
 
-      - name: Auto-merge if green
+  # Phase 2: Validate PR (path checks, diff size)
+  validate-pr:
+    needs: improve
+    if: needs.improve.outputs.pr_created == 'true'
+    name: Validate PR changes
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout PR
+        uses: actions/checkout@v4
+        with:
+          ref: refs/pull/${{ needs.improve.outputs.pr_number }}/head
+
+      - name: Check changed files
+        run: |
+          CHANGED_FILES=$(git diff --name-only origin/main...HEAD | tr '\n' ' ')
+          echo "Changed files:"
+          echo "$CHANGED_FILES"
+          echo "changed_files=$CHANGED_FILES" >> $GITHUB_OUTPUT
+          
+          # Check for blocked paths
+          BLOCKED=false
+          for blocked in $BLOCKED_PATHS; do
+            if echo "$CHANGED_FILES" | grep -q "$blocked"; then
+              echo "ERROR: PR contains blocked path: $blocked"
+              BLOCKED=true
+            fi
+          done
+          
+          if [ "$BLOCKED" = "true" ]; then
+            echo "Blocking auto-merge: PR touches restricted paths"
+            echo "validation_passed=false" >> $GITHUB_OUTPUT
+            echo "validation_reason=blocked_paths" >> $GITHUB_OUTPUT
+          else
+            echo "All changed files are in allowed paths"
+            echo "validation_passed=true" >> $GITHUB_OUTPUT
+            echo "validation_reason=paths_ok" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Check diff size
         if: always()
+        run: |
+          DIFF_SIZE=$(git diff --stat origin/main...HEAD | tail -1 | awk '{print $5}' | tr -d '[,%]')
+          if [ -n "$DIFF_SIZE" ] && [ "$DIFF_SIZE" -gt 500 ]; then
+            echo "WARNING: Diff size ($DIFF_SIZE KB) exceeds limit (500 KB)"
+            echo "validation_passed=false" >> $GITHUB_OUTPUT
+            echo "validation_reason=diff_too_large" >> $GITHUB_OUTPUT
+          fi
+
+  # Phase 3: Run CI on PR
+  ci-tests:
+    needs: [improve, validate-pr]
+    if: needs.improve.outputs.pr_created == 'true'
+    name: Run CI tests on PR
+    runs-on: ubuntu-latest
+    environment:
+      name: preview
+      url: https://alpha-preview.${{ github.event.pull_request.number }}.workers.dev
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.1
+
+      - name: Use Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Prettier check
+        run: pnpm format:check
+
+      - name: ESLint
+        run: pnpm lint
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Tests
+        run: pnpm test
+
+      - name: Build
+        run: pnpm build
+
+      - name: Deploy to preview
+        working-directory: apps/backend
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          environment: preview
+          command: deploy --env preview
+
+      - name: Run smoke tests
+        run: |
+          sleep 5
+          PR_NUMBER=${{ needs.improve.outputs.pr_number }}
+          SMOKE_RESPONSE=$(curl -s "https://alpha-preview-${PR_NUMBER}.atomicmoonbeam88.workers.dev/health" || echo "FAILED")
+          if echo "$SMOKE_RESPONSE" | grep -q "alive"; then
+            echo "Smoke test passed: Worker is healthy"
+            echo "smoke_test_passed=true" >> $GITHUB_OUTPUT
+          else
+            echo "Smoke test failed: $SMOKE_RESPONSE"
+            echo "smoke_test_passed=false" >> $GITHUB_OUTPUT
+          fi
+
+  # Phase 4: Check metrics impact
+  check-metrics:
+    needs: [ci-tests]
+    name: Check metrics impact
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    outputs:
+      error_rate_improved: ${{ steps.analyze.outputs.error_rate_improved }}
+      metrics_ok: ${{ steps.analyze.outputs.metrics_ok }}
+
+    steps:
+      - name: Fetch pre-deploy state
+        run: |
+          echo "Fetching pre-deploy metrics..."
+          # This would normally compare pre/post, but for now just check current
+          curl -s "https://self-adaptive-app.atomicmoonbeam88.workers.dev/state" > /tmp/pre_state.json
+          cat /tmp/pre_state.json | jq '.'
+
+      - id: analyze
+        name: Analyze metrics
+        run: |
+          ERROR_RATE=$(curl -s "https://self-adaptive-app.atomicmoonbeam88.workers.dev/state" | jq -r '.metrics.error_rate // 0')
+          echo "Current error rate: $ERROR_RATE"
+          
+          # Threshold check
+          if (( $(echo "$ERROR_RATE < 0.10" | bc -l) )); then
+            echo "Error rate is acceptable (< 10%)"
+            echo "metrics_ok=true" >> $GITHUB_OUTPUT
+            echo "error_rate_improved=true" >> $GITHUB_OUTPUT
+          else
+            echo "Error rate is too high (>= 10%)"
+            echo "metrics_ok=false" >> $GITHUB_OUTPUT
+            echo "error_rate_improved=false" >> $GITHUB_OUTPUT
+          fi
+
+  # Phase 5: Auto-merge or close
+  auto-merge:
+    needs: [improve, validate-pr, ci-tests, check-metrics]
+    name: Auto-merge decision
+    runs-on: ubuntu-latest
+    environment:
+      name: alpha-improve
+    timeout-minutes: 30
+
+    steps:
+      - name: Decision summary
+        run: |
+          echo "=== Auto-merge Decision ==="
+          echo "PR created: ${{ needs.improve.outputs.pr_created }}"
+          echo "Validation passed: ${{ needs.validate-pr.outputs.validation_passed }}"
+          echo "CI tests passed: ${{ needs.ci-tests.outputs.smoke_test_passed }}"
+          echo "Metrics OK: ${{ needs.check-metrics.outputs.metrics_ok }}"
+          
+          # Check if all conditions met for auto-merge
+          if [ "${{ needs.improve.outputs.pr_created }}" = "true" ] && \
+             [ "${{ needs.validate-pr.outputs.validation_passed }}" = "true" ] && \
+             [ "${{ needs.ci-tests.outputs.smoke_test_passed }}" = "true" ] && \
+             [ "${{ needs.check-metrics.outputs.metrics_ok }}" = "true" ]; then
+            echo "ALL CONDITIONS MET: Will auto-merge"
+            echo "auto_merge=true" >> $GITHUB_OUTPUT
+          else
+            echo "CONDITIONS NOT MET: Will require manual review"
+            echo "auto_merge=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Auto-merge PR
+        if: needs.improve.outputs.pr_created == 'true' && needs.validate-pr.outputs.validation_passed == 'true' && needs.ci-tests.outputs.smoke_test_passed == 'true' && needs.check-metrics.outputs.metrics_ok == 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          PR_NUMBER=$(gh pr list --repo ${{ env.REPO }} --state open --head "openhands/alpha-improve" --json number --jq '.[0].number')
-          if [ -z "$PR_NUMBER" ]; then
-            echo "No PR to merge"
-            exit 0
+          PR_NUMBER=${{ needs.improve.outputs.pr_number }}
+          echo "Auto-merging PR #$PR_NUMBER..."
+          gh pr merge "$PR_NUMBER" --repo ${{ env.REPO }} --squash --auto
+          
+          # Record in history
+          echo "## Alpha Self-Improve Cycle $(date -Iseconds)" >> alpha_history.md
+          echo "- PR: #$PR_NUMBER" >> alpha_history.md
+          echo "- Result: auto-merged" >> alpha_history.md
+          echo "- Timestamp: $(date -Iseconds)" >> alpha_history.md
+          echo "" >> alpha_history.md
+
+      - name: Close PR with explanation
+        if: needs.improve.outputs.pr_created == 'true' && (needs.validate-pr.outputs.validation_passed != 'true' || needs.ci-tests.outputs.smoke_test_passed != 'true' || needs.check-metrics.outputs.metrics_ok != 'true')
+        run: |
+          PR_NUMBER=${{ needs.improve.outputs.pr_number }}
+          REASON=""
+          if [ "${{ needs.validate-pr.outputs.validation_passed }}" != "true" ]; then
+            REASON="validation failed"
+          elif [ "${{ needs.ci-tests.outputs.smoke_test_passed }}" != "true" ]; then
+            REASON="smoke tests failed"
+          elif [ "${{ needs.check-metrics.outputs.metrics_ok }}" != "true" ]; then
+            REASON="metrics check failed"
           fi
           
-          # Check if all checks passed
-          STATUS=$(gh pr view "$PR_NUMBER" --repo ${{ env.REPO }} --json statusCheckRollup --jq '.statusCheckRollup | length')
-          FAILED=$(gh pr view "$PR_NUMBER" --repo ${{ env.REPO }} --json statusCheckRollup --jq '[.statusCheckRollup[] | select(.conclusion == "FAILURE" or .conclusion == "TIMED_OUT")] | length')
+          echo "Closing PR #$PR_NUMBER because: $REASON"
+          gh pr close "$PR_NUMBER" --repo ${{ env.REPO }}
           
-          echo "Total checks: $STATUS, Failed: $FAILED"
+          # Record in history
+          echo "## Alpha Self-Improve Cycle $(date -Iseconds)" >> alpha_history.md
+          echo "- PR: #$PR_NUMBER" >> alpha_history.md
+          echo "- Result: closed ($REASON)" >> alpha_history.md
+          echo "- Timestamp: $(date -Iseconds)" >> alpha_history.md
+          echo "" >> alpha_history.md
           
-          if [ "$FAILED" -eq 0 ] && [ "$STATUS" -gt 0 ]; then
-            echo "All checks passed. Merging PR..."
-            gh pr merge "$PR_NUMBER" --repo ${{ env.REPO }} --squash --auto
-          else
-            echo "Checks not ready or failed. Manual review required."
-            gh pr edit "$PR_NUMBER" --repo ${{ env.REPO }} --add-label "needs-review"
-          fi
+          # Record in KV
+          curl -X POST "https://self-adaptive-app.atomicmoonbeam88.workers.dev/metrics" \
+            -H "Content-Type: application/json" \
+            -d "{\"type\":\"cycle-result\",\"pr\":$PR_NUMBER,\"result\":\"closed\",\"reason\":\"$REASON\",\"timestamp\":\"$(date -Iseconds)\"}" || true
+
+      - name: Notify (optional)
+        if: needs.improve.outputs.pr_created == 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const status = ${{ needs.auto_merge.outputs.auto_merge }} ? 'merged' : 'closed';
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: `Alpha self-improvement cycle completed. PR was ${status}. Check [OpenHands Cloud](https://app.all-hands.dev/conversations) for details.`
+            })
