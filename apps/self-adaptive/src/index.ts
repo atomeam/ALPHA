@@ -48,6 +48,22 @@ export default {
       const forwardPath = url.pathname.replace("/assessment", "") || "/status";
       const req = new Request(new URL(forwardPath, request.url), request);
       const response = await stub.fetch(req);
+      
+      // If DO returned a projection, cache it in KV
+      if (response.ok && request.method === "POST") {
+        try {
+          const data = await response.clone().json();
+          if (data.projection) {
+            await env.ADAPTIVE_STATE.put(
+              "projection:assessment:latest",
+              JSON.stringify(data.projection)
+            );
+          }
+        } catch {
+          // Projection write failed - DO is still authoritative
+        }
+      }
+      
       // Add CORS headers to DO response
       const newHeaders = new Headers(response.headers);
       Object.entries(CORS_HEADERS).forEach(([k, v]) => newHeaders.set(k, v));
@@ -97,12 +113,15 @@ export default {
           );
 
           if (doResponse.ok) {
-            // DO updated its state. Now update KV cache from DO response.
+            // DO updated its state and returned projection
+            // Write projection to KV cache under "projection:*" namespace
             const result = await doResponse.json();
-            await env.ADAPTIVE_STATE.put(
-              `action:${msg.id}`,
-              JSON.stringify({ ...data, processedAt: Date.now(), result })
-            );
+            if (result.projection) {
+              await env.ADAPTIVE_STATE.put(
+                "projection:assessment:latest",
+                JSON.stringify(result.projection)
+              );
+            }
           }
         }
       } catch (err) {
