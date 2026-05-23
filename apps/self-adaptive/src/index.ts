@@ -75,19 +75,35 @@ export default {
     return new Response("self-adaptive-app: route not found", { status: 404, headers: CORS_HEADERS });
   },
 
-  // Queue consumer for action execution
+  // Queue consumer - triggers DO (authoritative), writes KV cache only
   async queue(batch: MessageBatch, env: Env, _ctx: ExecutionContext): Promise<void> {
     for (const msg of batch.messages) {
       try {
         const data = msg.body as { type: string; payload: unknown; timestamp: number };
         console.log(`Processing queue message: ${data.type}`, data.payload);
-        
-        // Process action and store result in KV
+
+        // Queue MUST go through DO to maintain authoritative state
         if (data.type === "action") {
-          await env.ADAPTIVE_STATE.put(
-            `action:${msg.id}`,
-            JSON.stringify({ ...data, processedAt: Date.now(), messageId: msg.id })
+          const id = env.ASSESSMENT_ENGINE.idFromName("global-assessment");
+          const stub = env.ASSESSMENT_ENGINE.get(id);
+
+          // Call DO method to process action (DO is authoritative)
+          const doResponse = await stub.fetch(
+            new Request("http://internal/process-action", {
+              method: "POST",
+              body: JSON.stringify(data.payload),
+              headers: { "Content-Type": "application/json" },
+            })
           );
+
+          if (doResponse.ok) {
+            // DO updated its state. Now update KV cache from DO response.
+            const result = await doResponse.json();
+            await env.ADAPTIVE_STATE.put(
+              `action:${msg.id}`,
+              JSON.stringify({ ...data, processedAt: Date.now(), result })
+            );
+          }
         }
       } catch (err) {
         console.error(`Failed to process message ${msg.id}:`, err);

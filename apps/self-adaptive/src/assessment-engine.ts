@@ -136,6 +136,41 @@ export class AssessmentEngine {
       return Response.json({ reset: true });
     }
 
+    // Process action from queue - DO is authoritative
+    if (url.pathname === "/process-action" && request.method === "POST") {
+      try {
+        const actionData = await request.json();
+        
+        // Store action in DO state (authoritative)
+        const stored = await this.state.storage.get<PersistentState>("state") ?? {
+          assessments: [],
+          rules: [],
+          metadata: { createdAt: Date.now(), lastAssessment: 0, deploymentVersion: "0.0.1" },
+        };
+
+        // Create action record
+        const record: AssessmentRecord = {
+          id: crypto.randomUUID(),
+          timestamp: Date.now(),
+          status: "ok",
+          score: 100,
+          components: ["action", "queue-triggered"],
+        };
+
+        stored.assessments.push(record);
+        stored.metadata.lastAssessment = Date.now();
+        await this.state.storage.put("state", stored);
+
+        return Response.json({
+          processed: true,
+          actionId: record.id,
+          assessmentCount: stored.assessments.length,
+        });
+      } catch (err) {
+        return Response.json({ error: "Failed to process action" }, { status: 500 });
+      }
+    }
+
     return new Response("AssessmentEngine: route not found", { status: 404 });
   }
 
