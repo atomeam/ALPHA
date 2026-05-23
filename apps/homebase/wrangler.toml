@@ -1,0 +1,32 @@
+name = "homebase"
+main = "src/index.ts"
+compatibility_date = "2024-04-15"
+compatibility_flags = ["nodejs_compat"]
+
+[site]
+bucket = "./public"
+
+# Service Binding to self-adaptive-app
+[[services]]
+binding = "ADAPTIVE"
+service = "self-adaptive-app"
+
+# KV Namespaces
+[[kv_namespaces]]
+binding = "STATE"
+id = "your-state-namespace-id"
+
+# Queue Bindings
+[[queues]]
+binding = "ACTIONS"
+queue = "adaptive-actions"
+
+# Environment variables
+[vars]
+ENVIRONMENT = "development"
+CREW_SIZE = "11"
+
+# Dev settings
+[dev]
+port = 8787
+local_protocol = "http"

@@ -1,0 +1,33 @@
+name = "alpha-orchestrator"
+main = "src/index.ts"
+compatibility_date = "2024-04-15"
+compatibility_flags = ["nodejs_compat"]
+
+# Durable Object binding
+[[durable_objects.bindings]]
+name = "ORCHESTRATION_BRAIN"
+class_name = "OrchestrationBrain"
+
+# DO migrations
+[[migrations]]
+tag = "v1"
+new_classes = ["OrchestrationBrain"]
+
+# KV for metrics
+[[kv_namespaces]]
+binding = "METRICS"
+id = "your-metrics-namespace-id"
+
+# Environment
+[vars]
+ENVIRONMENT = "development"
+CREW_SIZE = "11"
+
+# Observability
+[observability]
+enabled = true
+
+# Dev settings
+[dev]
+port = 8788
+local_protocol = "http"

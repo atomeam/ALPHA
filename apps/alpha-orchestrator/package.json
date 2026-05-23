@@ -1,15 +1,16 @@
 {
-  "name": "@alpha/core",
+  "name": "@alpha/orchestrator",
   "version": "0.1.0",
-  "description": "ALPHA OrchestrationBrain Durable Object",
+  "description": "ALPHA Orchestrator Worker - HTTP interface to OrchestrationBrain DO",
   "main": "src/index.ts",
   "type": "module",
   "scripts": {
     "dev": "wrangler dev",
-    "deploy": "wrangler deploy",
-    "test": "vitest run"
+    "deploy": "wrangler deploy"
   },
-  "dependencies": {},
+  "dependencies": {
+    "@alpha/core": "workspace:*"
+  },
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20240620.0",
     "typescript": "^5.4.5",

@@ -1,0 +1,18 @@
+name = "alpha-core"
+main = "src/index.ts"
+compatibility_date = "2024-04-15"
+compatibility_flags = ["nodejs_compat"]
+
+[observability]
+enabled = true
+
+# Durable Object migrations
+# NOTE: Migrations use new_tag and new_classes format
+[[migrations]]
+tag = "v1"
+new_classes = ["OrchestrationBrain"]
+
+# KV binding for metrics
+[[kv_namespaces]]
+binding = "METRICS"
+id = "your-metrics-namespace-id"
