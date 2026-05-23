@@ -1,0 +1,90 @@
+# =============================================================================
+# Alpha — Cloudflare Workers Configuration
+# =============================================================================
+# Worker name: self-adaptive-app
+# KV Namespace: f3171ead95434d0a9be7a3a2526700b8 (self-adaptive-metrics)
+# Queue: adaptive-actions (21ba5f44bfe34956b44f14ce10aa2b7b)
+# DO Namespace: 7c03bd81d8ea4435829ab42ee2ce2ddc
+# Access: self-adaptive-app.atomicmoonbeam88.workers.dev
+# =============================================================================
+
+#:schema node_modules/wrangler/config-schema.json
+
+name = "self-adaptive-app"
+main = "dist/worker.js"
+compatibility_date = "2026-04-21"
+compatibility_flags = ["nodejs_compat"]
+usage_model = "standard"
+
+workers_dev = true
+
+[observability]
+enabled = true
+# Logpush can be enabled via:
+# wrangler logpush enable --environment production
+
+# ── Production Bindings ──────────────────────────────
+
+[[kv_namespaces]]
+binding = "METRICS"
+id = "f3171ead95434d0a9be7a3a2526700b8"
+
+[[queues.producers]]
+queue = "adaptive-actions"
+binding = "ACTIONS"
+
+[[queues.consumers]]
+queue = "adaptive-actions"
+max_batch_size = 10
+max_batch_timeout = 30
+
+[[durable_objects.bindings]]
+name = "ASSESSMENT_BRAIN"
+class_name = "AssessmentBrain"
+script_name = "self-adaptive-app"
+
+# ── Preview Environment ──────────────────────────────
+
+[env.preview]
+workers_dev = true
+
+[[env.preview.kv_namespaces]]
+binding = "METRICS"
+id = "f3171ead95434d0a9be7a3a2526700b8"
+
+[[env.preview.queues.producers]]
+queue = "adaptive-actions"
+binding = "ACTIONS"
+
+[[env.preview.queues.consumers]]
+queue = "adaptive-actions"
+max_batch_size = 10
+max_batch_timeout = 30
+
+[[env.preview.durable_objects.bindings]]
+name = "ASSESSMENT_BRAIN"
+class_name = "AssessmentBrain"
+script_name = "self-adaptive-app"
+
+# ── Production Environment ───────────────────────────
+
+[env.production]
+workers_dev = false
+
+[[env.production.kv_namespaces]]
+binding = "METRICS"
+id = "f3171ead95434d0a9be7a3a2526700b8"
+
+[[env.production.queues.producers]]
+queue = "adaptive-actions"
+binding = "ACTIONS"
+
+[[env.production.queues.consumers]]
+queue = "adaptive-actions"
+max_batch_size = 10
+max_batch_timeout = 30
+
+[[env.production.durable_objects.bindings]]
+name = "ASSESSMENT_BRAIN"
+class_name = "AssessmentBrain"
+script_name = "self-adaptive-app"

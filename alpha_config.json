@@ -1,0 +1,48 @@
+{
+  "cadence": {
+    "min_hours": 6,
+    "max_hours": 24,
+    "default_hours": 6,
+    "slow_down_on_no_improvement": true,
+    "speed_up_on_big_wins": true
+  },
+  "thresholds": {
+    "error_rate": 0.10,
+    "latency_p95_ms": 200,
+    "diff_size_kb": 500,
+    "min_success_rate": 0.90
+  },
+  "paths": {
+    "allowed": [
+      "apps/backend/src/**",
+      "apps/frontend/src/**",
+      "packages/alpha-core/**",
+      "packages/nexus-core/**",
+      "packages/logger/**",
+      "packages/ui/**",
+      "scripts/**",
+      "docs/SELF-IMPROVE.md",
+      "docs/ALPHA.md"
+    ],
+    "blocked": [
+      "packages/permissions/src/grant-types.ts",
+      "apps/bridge/**",
+      "**/auth/**",
+      "**/billing/**",
+      "**/secrets**",
+      "wrangler.toml"
+    ]
+  },
+  "auto_merge_conditions": {
+    "tests_pass": true,
+    "smoke_tests_pass": true,
+    "metrics_ok": true,
+    "paths_validated": true,
+    "diff_under_limit": true
+  },
+  "rollback": {
+    "auto_rollback_on_error_rate_spike": true,
+    "error_rate_spike_threshold": 0.05,
+    "check_interval_seconds": 60
+  }
+}
