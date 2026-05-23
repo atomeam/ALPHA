@@ -14,6 +14,23 @@ Your Cloudflare resources are already configured:
 
 Worker URL: `self-adaptive-app.atomicmoonbeam88.workers.dev`
 
+### Current Worker Endpoints (already deployed)
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/` | GET | Worker info and bindings |
+| `/health` | GET | Health check: `{"status":"alive","id":"global"}` |
+| `/state` | GET | Full state: metrics, thresholds, assessment, action history |
+| `/metrics` | POST | Report metrics (JSON body) |
+| `/assess` | GET | Force assessment check |
+| `/thresholds` | POST | Update thresholds (JSON body) |
+
+The Worker runs the AssessmentBrain Durable Object. Metrics from PR #20 (`/api/metrics`) will be added when that PR is merged and deployed.
+
+### Current R2 Bucket
+
+- **Bucket**: `aether-logs` exists and is ready as Logpush destination
+
 ## Step 1: Create API Token (if not already)
 
 If you don't have an API token yet:

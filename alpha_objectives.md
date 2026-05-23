@@ -23,10 +23,32 @@ The following areas are locked from OpenHands modification without explicit oper
 
 OpenHands reads telemetry from:
 ```
-GET /api/metrics
+GET https://self-adaptive-app.atomicmoonbeam88.workers.dev/state
 ```
 
-Returns:
+Current state format:
+```json
+{
+  "id": "global",
+  "metrics": {},
+  "thresholds": {
+    "error_rate": 0.05,
+    "latency_p99": 2000,
+    "memory_usage": 0.85,
+    "queue_depth": 1000,
+    "cpu_time": 50
+  },
+  "assessment": {
+    "overall": "healthy",
+    "findings": [],
+    "actions": [],
+    "timestamp": 1779503063163
+  },
+  "actionHistory": []
+}
+```
+
+Post-metrics from `/api/metrics` (after PR #20 deploy):
 ```json
 {
   "latency_p95_ms": 150,
