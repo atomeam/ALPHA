@@ -12,6 +12,7 @@ import { fileURLToPath } from 'node:url';
 
 import { PROMPTS, isPromptName } from './prompts';
 import { createStackSnapshot } from './stack';
+import { requireApiKey, getSecretFromEnv } from './middleware/auth';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const logger = createLogger('alpha-backend');
@@ -142,7 +143,7 @@ app.get('/api/integrations/:provider/status', (req, res) => {
   return res.json(runtime);
 });
 
-app.post('/api/trust/check', (req, res) => {
+app.post('/api/trust/check', requireApiKey(getSecretFromEnv), (req, res) => {
   const decision = checkTrust(req.body, registry);
   logger.event('trust-decision', {
     outcome: decision.outcome,

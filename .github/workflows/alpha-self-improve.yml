@@ -29,6 +29,7 @@ env:
     docs/ALPHA.md
   BLOCKED_PATHS: |
     packages/permissions/src/grant-types.ts
+    packages/permissions/src/index.ts  # Trust kernel - requires human review
     apps/bridge/**
     **/auth/**
     **/billing/**
@@ -248,16 +249,31 @@ jobs:
           fi
 
   # Phase 5: Auto-merge or close
+  # NOTE: Auto-merge is DISABLED by default. Set ALLOW_AUTO_MERGE=true
+  # in repo secrets to enable after reviewing 2-3 cycles.
   auto-merge:
     needs: [improve, validate-pr, ci-tests, check-metrics]
     name: Auto-merge decision
     runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_dispatch' || vars.ALLOW_AUTO_MERGE == 'true'
     environment:
       name: alpha-improve
     timeout-minutes: 30
 
     steps:
+      - name: Check if auto-merge is enabled
+        id: check_enabled
+        run: |
+          if [ "${{ vars.ALLOW_AUTO_MERGE }}" != "true" ]; then
+            echo "Auto-merge disabled. Run workflow with ALLOW_AUTO_MERGE=true to enable."
+            echo "Skipping auto-merge. You can manually merge the PR."
+            echo "auto_merge=disabled" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+          echo "auto_merge=enabled" >> $GITHUB_OUTPUT
+
       - name: Decision summary
+        if: steps.check_enabled.outputs.auto_merge == 'enabled'
         run: |
           echo "=== Auto-merge Decision ==="
           echo "PR created: ${{ needs.improve.outputs.pr_created }}"
@@ -278,7 +294,7 @@ jobs:
           fi
 
       - name: Auto-merge PR
-        if: needs.improve.outputs.pr_created == 'true' && needs.validate-pr.outputs.validation_passed == 'true' && needs.ci-tests.outputs.smoke_test_passed == 'true' && needs.check-metrics.outputs.metrics_ok == 'true'
+        if: steps.check_enabled.outputs.auto_merge == 'enabled' && needs.improve.outputs.pr_created == 'true' && needs.validate-pr.outputs.validation_passed == 'true' && needs.ci-tests.outputs.smoke_test_passed == 'true' && needs.check-metrics.outputs.metrics_ok == 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
@@ -294,7 +310,7 @@ jobs:
           echo "" >> alpha_history.md
 
       - name: Close PR with explanation
-        if: needs.improve.outputs.pr_created == 'true' && (needs.validate-pr.outputs.validation_passed != 'true' || needs.ci-tests.outputs.smoke_test_passed != 'true' || needs.check-metrics.outputs.metrics_ok != 'true')
+        if: steps.check_enabled.outputs.auto_merge == 'enabled' && needs.improve.outputs.pr_created == 'true' && (needs.validate-pr.outputs.validation_passed != 'true' || needs.ci-tests.outputs.smoke_test_passed != 'true' || needs.check-metrics.outputs.metrics_ok != 'true')
         run: |
           PR_NUMBER=${{ needs.improve.outputs.pr_number }}
           REASON=""

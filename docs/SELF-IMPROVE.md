@@ -275,3 +275,50 @@ Modify the `auto-merge-improve` job in `.github/workflows/deploy.yml` to change 
 - [Cloudflare Workers Documentation](https://developers.cloudflare.com/workers/)
 - [Alpha Trust Architecture](TRUST.md)
 - [Integration Scopes](INTEGRATIONS.md)
+
+---
+
+## Security & Trust Boundary
+
+### API Authentication
+
+Write endpoints are protected by Bearer token authentication. Set the secret:
+
+```bash
+# Via wrangler:
+wrangler secret put ASSESSMENT_API_KEY
+
+# Or in Cloudflare dashboard:
+# Workers → self-adaptive-app → Settings → Variables → Secret text
+```
+
+Protected endpoints:
+- `POST /api/trust/check` — Trust kernel decisions
+- `POST /metrics` — Metrics ingestion
+- `POST /thresholds` — Threshold updates
+- `POST /ingest` — Action ingestion
+
+### Trust Kernel Guardrails
+
+The `packages/permissions/src/index.ts` file contains `bootstrapGrantRegistry()` — the trust kernel. **This file is blocked from automatic modification by the self-improvement pipeline.**
+
+| File | Auto-modify Allowed |
+|------|---------------------|
+| `packages/permissions/src/index.ts` | ❌ Blocked — requires human review |
+| `packages/permissions/src/grant-types.ts` | ❌ Blocked — core grant models |
+| `apps/bridge/**` | ❌ Blocked — requires manual review |
+| `**/auth/**` | ❌ Blocked — security-sensitive |
+| `**/billing/**` | ❌ Blocked — financial data |
+| `wrangler.toml` | ❌ Blocked — infrastructure config |
+
+### Auto-Merge Controls
+
+Auto-merge is **disabled by default**. To enable after reviewing 2-3 cycles:
+
+1. Set repo variable `ALLOW_AUTO_MERGE=true` in GitHub repo settings
+2. Or run workflow with auto-merge enabled
+
+Before enabling auto-merge:
+- Review that OpenHands made reasonable changes
+- CI passed all checks
+- Metrics improved or stayed stable
