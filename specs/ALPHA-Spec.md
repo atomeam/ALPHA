@@ -1,22 +1,30 @@
-# ALPHA Self-Improvement Loop Spec v0.3 — 2026-05-24
+# ALPHA Self-Improvement Loop Spec v0.4 — 2026-05-24
 
 **Owner:** atomeam  
 **Status:** Living contract — update each pass  
-**Source of truth:** This document (Notion-backed)
+**Source of truth:** Notion (backend for specs + Council Todo tasks)
 
 ---
 
 ## What changed this pass
 
-- CI deploy pipeline added (`.github/workflows/deploy.yml`)
-- PowerShell deploy scripts created (`scripts/deploy-aether-bridge.ps1`, `scripts/smoke-test-aether-bridge.ps1`)
-- Bridge renamed from `alpha-orchestrator` → `aether-bridge`
-- D1 table renamed from `proposal_artifacts` → `artifacts`
-- Secrets separated: `CLOUDFLARE_API_TOKEN` (deploy) vs `BRIDGE_API_TOKEN` (runtime)
+- **CI is Canonical:** Locked GitHub Actions (`deploy.yml`) as sole authorized deployment mechanism for Cloudflare workers; local terminal deploys are strictly deprecated.
+- **Environment Gating:** Default-deny deployment posture; `production` requires explicit manual human approval in GitHub UI.
+- **Governance Rule:** "No deploy guidance outside CI runbook" is now an active constraint for all AI agents.
+- **Workspace Rebranding:** Enforced global terminology shift from "Atomind" to "Loxa" and "Aether" across all specs and agent contexts.
+- **Notion as Source of Truth:** Notion serves as definitive backend for system specs and Council Todo task list.
 
 ---
 
 ## Changelog (latest first)
+
+### v0.4 — 2026-05-24
+
+- CI is canonical (GitHub Actions as sole authorized deploy mechanism)
+- Environment gating with default-deny posture (production requires approval)
+- Governance rule: no deploy guidance outside CI runbook
+- Workspace rebranding: Atomind → Loxa/Aether
+- Notion as source of truth for specs and Council Todo
 
 ### v0.3 — 2026-05-24
 
@@ -25,6 +33,8 @@
 - Renamed worker to `aether-bridge`
 - Fixed `--local` → `--remote` for D1 migrations
 - Added `CLOUDFLARE_ACCOUNT_ID` to deploy job
+- Added canonical file paths to decisions table
+- Added Next Pass Focus with DoD definitions
 
 ### v0.2 — 2026-05-24
 
@@ -42,33 +52,38 @@
 
 ## Current Decisions (locked)
 
-| Decision                  | Value                                   | Rationale                                   |
-| ------------------------- | --------------------------------------- | ------------------------------------------- |
-| Worker name               | `aether-bridge`                         | Matches Cloudflare deployment target        |
-| Deploy path               | `apps/alpha-orchestrator/`              | Single app directory                        |
-| Canonical wrangler config | `apps/alpha-orchestrator/wrangler.toml` | Eliminates wrong-config failures            |
-| Canonical workflow file   | `.github/workflows/deploy.yml`          | Eliminates wrong-folder failures            |
-| CI is canonical           | Yes                                     | GitHub Actions workflow with approval gates |
-| Local fallback            | PowerShell script                       | `scripts/deploy-aether-bridge.ps1`          |
-| D1 table                  | `artifacts`                             | Standardized naming                         |
-| Auth: deploy              | `CLOUDFLARE_API_TOKEN`                  | Wrangler authentication                     |
-| Auth: runtime             | `BRIDGE_API_TOKEN`                      | Bridge API authentication                   |
+| Decision                      | Value                                              | Rationale                                 |
+| ----------------------------- | -------------------------------------------------- | ----------------------------------------- |
+| **Workspace**                 | Loxa / Aether                                      | Rebranding from Atomind                   |
+| **Source of Truth**           | Notion                                             | Backend for specs + Council Todo          |
+| **CI is Canonical**           | Yes (GitHub Actions)                               | Sole authorized deploy mechanism          |
+| **Deploy Pipeline**           | GitHub Actions → wrangler → Manual Production Gate | Default-deny posture                      |
+| **Worker name**               | `aether-bridge`                                    | Cloudflare deployment target              |
+| **Deploy path**               | `apps/alpha-orchestrator/`                         | Single app directory                      |
+| **Canonical wrangler config** | `apps/alpha-orchestrator/wrangler.toml`            | Eliminates wrong-config failures          |
+| **Canonical workflow file**   | `.github/workflows/deploy.yml`                     | Eliminates wrong-folder failures          |
+| **Local deploy**              | **DEPRECATED**                                     | Use CI only                               |
+| **Local fallback**            | PowerShell script (emergency only)                 | `scripts/deploy-aether-bridge.ps1`        |
+| **D1 table**                  | `artifacts`                                        | Standardized naming                       |
+| **Auth: deploy**              | `CLOUDFLARE_API_TOKEN`                             | Wrangler authentication                   |
+| **Auth: runtime**             | `BRIDGE_API_TOKEN`                                 | Bridge API authentication                 |
+| **Infrastructure model**      | Additive bindings only                             | No mutating existing `council-routing-db` |
 
 ---
 
 ## Next Pass Focus (max 3)
 
-### 1. Notion lessons sink
+### 1. Execute and validate staging CI run
 
-**Done when:** A successful proposal writes a Lesson record to Notion (id + correlationId + decision + artifacts) asynchronously.
+**Done when:** First manual `staging` CI run completes in GitHub UI with all jobs passing (validate → deploy → smoke-test → notify).
 
-### 2. Slack lifecycle notifications
+### 2. Cloudflare node verify API bindings post-deployment
 
-**Done when:** On proposal approved/applied/failed, post to a single channel/thread with correlationId + links.
+**Done when:** Cloudflare node confirms API bindings (`BRIDGE_DB`, `METRICS`, `ACTIONS`) are correctly attached to `aether-bridge` worker.
 
-### 3. Error tracking (Sentry)
+### 3. Hook up Notion backend via API secrets
 
-**Done when:** Uncaught errors emit to Sentry with correlationId and environment tag; no secrets in payload.
+**Done when:** Council Todo app (generated in AI Studio) connects to Notion API using stored secrets; task list syncs bidirectionally.
 
 ---
 
