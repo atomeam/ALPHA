@@ -1,4 +1,4 @@
-name = "alpha-orchestrator"
+name = "aether-bridge"
 main = "src/index.ts"
 compatibility_date = "2024-04-15"
 compatibility_flags = ["nodejs_compat"]
@@ -13,15 +13,33 @@ class_name = "OrchestrationBrain"
 tag = "v1"
 new_classes = ["OrchestrationBrain"]
 
-# KV for metrics
+# KV for metrics — TODO: Replace with real namespace ID from Cloudflare
+# Run: wrangler kv:namespace list | grep bridge-metrics
 [[kv_namespaces]]
 binding = "METRICS"
-id = "your-metrics-namespace-id"
+id = "REPLACE_WITH_METRICS_NAMESPACE_ID"
+
+# D1 Database for bridge-specific data — TODO: Replace with real database ID
+# Run: wrangler d1 list | grep aether-bridge-db
+[[d1_databases]]
+binding = "BRIDGE_DB"
+database_name = "aether-bridge-db"
+database_id = "REPLACE_WITH_D1_DATABASE_ID"
+
+# Queue for async actions
+[[queues.bindings]]
+name = "ACTIONS"
+queue = "bridge-actions"
+
+# Cron triggers
+[triggers]
+crons = ["*/15 * * * *", "0 * * * *"]
 
 # Environment
 [vars]
 ENVIRONMENT = "development"
 CREW_SIZE = "11"
+BRIDGE_VERSION = "0.1"
 
 # Observability
 [observability]

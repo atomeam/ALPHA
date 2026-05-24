@@ -1,0 +1,9 @@
+# Production environment - requires manual approval
+wait_timer: 0
+
+# Required reviewers - must approve before deployment proceeds
+required_reviewers:
+  - atomeam
+
+# Prevent secrets from being exposed in logs
+prevent_self_review: true
