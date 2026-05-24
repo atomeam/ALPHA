@@ -122,11 +122,17 @@ jobs:
           CREATE_RESPONSE=$(curl -fsS -X POST "$BRIDGE_URL/tasks" \
             -H "Authorization: Bearer $BRIDGE_API_TOKEN" \
             -H "Content-Type: application/json" \
-            -d '{"title":"Smoke test task","lane":"Human","priority":"P1"}')
-          echo "$CREATE_RESPONSE"
+            -D - \
+            -d '{"title":"Smoke test task","lane":"Human","priority":"P1"}' 2>&1)
+          
+          # Extract correlation ID from header
+          CORRELATION_ID=$(echo "$CREATE_RESPONSE" | grep -i "^x-correlation-id:" | sed 's/^[Xx]-[Cc]orrelation-[Ii]d: *//' | tr -d '\r')
+          echo "X-Correlation-Id: $CORRELATION_ID"
+          assert [[ -n "$CORRELATION_ID" ]] "Missing X-Correlation-Id header"
           
           # Parse task ID from tasks[0] (always array per contract)
-          TASK_ID=$(echo "$CREATE_RESPONSE" | python3 -c "import sys,json; data=json.load(sys.stdin); assert data.get('ok', True), 'API error'; print(data['tasks'][0]['id'])")
+          RESPONSE_BODY=$(echo "$CREATE_RESPONSE" | sed 's/^[^\n]*\n//')
+          TASK_ID=$(echo "$RESPONSE_BODY" | python3 -c "import sys,json; data=json.load(sys.stdin); assert data.get('correlationId',''), 'Missing correlationId in body'; print(data['tasks'][0]['id'])")
           echo "Created task ID: $TASK_ID"
           
           echo ""

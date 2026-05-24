@@ -29,6 +29,11 @@ export function createTasksRouter(db: D1Database): Hono {
   const app = new Hono();
   const database = new Database(db);
 
+  // Helper to set correlation header on response
+  function withCorrelation(c: any, correlationId: string) {
+    c.header('X-Correlation-Id', correlationId);
+  }
+
   // Auth middleware - validates BRIDGE_API_TOKEN
   app.use('/tasks/*', async (c, next) => {
     const authHeader = c.req.header('Authorization');
@@ -36,6 +41,7 @@ export function createTasksRouter(db: D1Database): Hono {
 
     if (!expectedToken) {
       const correlationId = uuidv4();
+      withCorrelation(c, correlationId);
       c.status(500);
       return c.json({
         correlationId,
@@ -46,6 +52,7 @@ export function createTasksRouter(db: D1Database): Hono {
 
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
       const correlationId = uuidv4();
+      withCorrelation(c, correlationId);
       c.status(401);
       return c.json({
         correlationId,
@@ -57,6 +64,7 @@ export function createTasksRouter(db: D1Database): Hono {
     const token = authHeader.slice(7);
     if (token !== expectedToken) {
       const correlationId = uuidv4();
+      withCorrelation(c, correlationId);
       c.status(401);
       return c.json({
         correlationId,
@@ -92,6 +100,7 @@ export function createTasksRouter(db: D1Database): Hono {
 
     if (view !== 'all' && !VIEW_VALUES.includes(view as (typeof VIEW_VALUES)[number])) {
       c.status(400);
+      withCorrelation(c, correlationId);
       return c.json({
         correlationId,
         code: 'VALIDATION_ERROR',
@@ -100,6 +109,7 @@ export function createTasksRouter(db: D1Database): Hono {
     }
 
     const tasks = await database.listTasksByView(view);
+    withCorrelation(c, correlationId);
     return c.json({
       correlationId,
       tasks: tasks.map(toResponse),
@@ -116,6 +126,7 @@ export function createTasksRouter(db: D1Database): Hono {
       // Validate required fields
       if (!body.title || typeof body.title !== 'string' || body.title.trim() === '') {
         c.status(400);
+        withCorrelation(c, correlationId);
         return c.json({
           correlationId,
           code: 'VALIDATION_ERROR',
@@ -125,6 +136,7 @@ export function createTasksRouter(db: D1Database): Hono {
 
       if (!body.lane || !LANE_VALUES.includes(body.lane as (typeof LANE_VALUES)[number])) {
         c.status(400);
+        withCorrelation(c, correlationId);
         return c.json({
           correlationId,
           code: 'VALIDATION_ERROR',
@@ -134,6 +146,7 @@ export function createTasksRouter(db: D1Database): Hono {
 
       if (!body.priority || !PRIORITY_VALUES.includes(body.priority as (typeof PRIORITY_VALUES)[number])) {
         c.status(400);
+        withCorrelation(c, correlationId);
         return c.json({
           correlationId,
           code: 'VALIDATION_ERROR',
@@ -161,12 +174,14 @@ export function createTasksRouter(db: D1Database): Hono {
       });
 
       // Return array format for consistency with GET /tasks
+      withCorrelation(c, correlationId);
       return c.json({
         correlationId,
         tasks: [toResponse(task)],
       });
     } catch (err) {
       const errorId = uuidv4();
+      withCorrelation(c, errorId);
       c.status(500);
       return c.json({
         correlationId: errorId,
@@ -187,6 +202,7 @@ export function createTasksRouter(db: D1Database): Hono {
       // Validate enum fields if provided
       if (body.lane !== undefined && !LANE_VALUES.includes(body.lane as (typeof LANE_VALUES)[number])) {
         c.status(400);
+        withCorrelation(c, correlationId);
         return c.json({
           correlationId,
           code: 'VALIDATION_ERROR',
@@ -196,6 +212,7 @@ export function createTasksRouter(db: D1Database): Hono {
 
       if (body.status !== undefined && !STATUS_VALUES.includes(body.status as (typeof STATUS_VALUES)[number])) {
         c.status(400);
+        withCorrelation(c, correlationId);
         return c.json({
           correlationId,
           code: 'VALIDATION_ERROR',
@@ -205,6 +222,7 @@ export function createTasksRouter(db: D1Database): Hono {
 
       if (body.priority !== undefined && !PRIORITY_VALUES.includes(body.priority as (typeof PRIORITY_VALUES)[number])) {
         c.status(400);
+        withCorrelation(c, correlationId);
         return c.json({
           correlationId,
           code: 'VALIDATION_ERROR',
@@ -226,6 +244,7 @@ export function createTasksRouter(db: D1Database): Hono {
 
       if (!task) {
         c.status(404);
+        withCorrelation(c, correlationId);
         return c.json({
           correlationId,
           code: 'NOT_FOUND',
@@ -236,12 +255,14 @@ export function createTasksRouter(db: D1Database): Hono {
       // Write audit event
       await database.writeAuditEvent(correlationId, 'UPDATE', 'task', id, patch);
 
+      withCorrelation(c, correlationId);
       return c.json({
         correlationId,
         tasks: [toResponse(task)],
       });
     } catch (err) {
       const errorId = uuidv4();
+      withCorrelation(c, errorId);
       c.status(500);
       return c.json({
         correlationId: errorId,
@@ -261,6 +282,7 @@ export function createTasksRouter(db: D1Database): Hono {
 
       if (!task) {
         c.status(404);
+        withCorrelation(c, correlationId);
         return c.json({
           correlationId,
           code: 'NOT_FOUND',
@@ -273,12 +295,14 @@ export function createTasksRouter(db: D1Database): Hono {
         status: 'Done',
       });
 
+      withCorrelation(c, correlationId);
       return c.json({
         correlationId,
         tasks: [toResponse(task)],
       });
     } catch (err) {
       const errorId = uuidv4();
+      withCorrelation(c, errorId);
       c.status(500);
       return c.json({
         correlationId: errorId,
