@@ -58,6 +58,7 @@
 | **Source of Truth**           | Notion                                             | Backend for specs + Council Todo          |
 | **CI is Canonical**           | Yes (GitHub Actions)                               | Sole authorized deploy mechanism          |
 | **Deploy Pipeline**           | GitHub Actions → wrangler → Manual Production Gate | Default-deny posture                      |
+| **Notion Integration**        | GitHub CI → Notion (Option B)                      | CI updates Notion directly                |
 | **Worker name**               | `aether-bridge`                                    | Cloudflare deployment target              |
 | **Deploy path**               | `apps/alpha-orchestrator/`                         | Single app directory                      |
 | **Canonical wrangler config** | `apps/alpha-orchestrator/wrangler.toml`            | Eliminates wrong-config failures          |
@@ -68,6 +69,38 @@
 | **Auth: deploy**              | `CLOUDFLARE_API_TOKEN`                             | Wrangler authentication                   |
 | **Auth: runtime**             | `BRIDGE_API_TOKEN`                                 | Bridge API authentication                 |
 | **Infrastructure model**      | Additive bindings only                             | No mutating existing `council-routing-db` |
+
+---
+
+## Notion Integration (One-Time Human Setup)
+
+### Why this step is required
+
+Notion's permission model requires a human trust handshake:
+
+1. Create a Notion Integration (generates token)
+2. Share the target database with that integration
+
+No Cloudflare-side approval substitutes for this.
+
+### Architecture: Option B (GitHub CI → Notion)
+
+```
+CI Deploy → notify job → Notion API (updates task status)
+```
+
+CI updates Notion directly after deploy succeeds/fails.
+
+### One-time checklist (Human)
+
+| Step | Action                                         | Where                                                                |
+| ---- | ---------------------------------------------- | -------------------------------------------------------------------- |
+| 1    | Create Notion Integration                      | [notion.so/my-integrations](https://www.notion.so/my-integrations)   |
+| 2    | Copy integration token                         | Shown after creation                                                 |
+| 3    | Share Todo database with integration           | Notion → Database → Share → Add integration                          |
+| 4    | Add `NOTION_API_TOKEN` to GitHub env secrets   | Settings → Environments → [staging/production] → Environment secrets |
+| 5    | Add `NOTION_DATABASE_ID` to GitHub env secrets | Settings → Environments → [staging/production] → Environment secrets |
+| 6    | Uncomment Notion API calls in deploy.yml       | `.github/workflows/deploy.yml` notify job                            |
 
 ---
 
