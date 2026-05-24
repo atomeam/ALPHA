@@ -81,9 +81,36 @@
 
 **Done when:** Cloudflare node confirms API bindings (`BRIDGE_DB`, `METRICS`, `ACTIONS`) are correctly attached to `aether-bridge` worker.
 
-### 3. Hook up Notion backend via API secrets
+### 3. Enable Notion + Slack automation
 
-**Done when:** Council Todo app (generated in AI Studio) connects to Notion API using stored secrets; task list syncs bidirectionally.
+**Done when:** Add secrets to staging/production environments:
+
+- `NOTION_API_TOKEN` — updates task status in Notion
+- `NOTION_DATABASE_ID` — target database for status updates
+- `SLACK_WEBHOOK_URL` — alerts on deployment failure
+
+Then uncomment the Notion API calls in `.github/workflows/deploy.yml` notify job.
+
+---
+
+## Automation Architecture (Zero-Touch)
+
+| Flow             | Current             | Target                                   |
+| ---------------- | ------------------- | ---------------------------------------- |
+| **Spec Sync**    | Manual              | Notion webhook → GitHub Action           |
+| **Coding**       | Prompting OpenHands | Triggered by spec change                 |
+| **Deploy**       | Manual button       | CI Pipeline (GitHub Actions)             |
+| **Verification** | Curl script         | CI Smoke Test → Notion API status update |
+| **Alerts**       | None                | Slack webhook on failure                 |
+
+### CI Notify Job (Status → Notion → Slack)
+
+```
+After smoke-test completes:
+1. Determine final status (Deployed/Failed)
+2. POST to Notion API: Update task Status property
+3. If Failed: POST to Slack webhook with run URL
+```
 
 ---
 
