@@ -2,13 +2,23 @@ name: Tasks Hub - Smoke Test
 
 on:
   workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Deploy environment (staging/production)'
+        required: true
+        default: 'staging'
+        type: choice
+        options:
+          - staging
+          - production
   schedule:
     # Run smoke test every hour
     - cron: '0 * * * *'
 
 jobs:
-  smoke-test:
-    name: Tasks Hub smoke test
+  # CI unit tests (runs on every PR)
+  ci-test:
+    name: Unit tests
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -39,3 +49,88 @@ jobs:
       - name: Build
         run: pnpm build
         working-directory: apps/bridge
+
+  # Deploy + smoke test (runs after merge, or manually)
+  deploy-and-smoke:
+    name: Deploy + Smoke Test
+    runs-on: ubuntu-latest
+    needs: ci-test
+    if: github.event_name == 'workflow_dispatch' || github.event_name == 'schedule'
+    environment: ${{ github.event.inputs.environment || 'staging' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.1
+
+      - name: Use Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+        working-directory: apps/bridge
+
+      # Step 1: Apply D1 migration against REMOTE (no --local flag)
+      - name: Apply D1 migration
+        run: npx wrangler d1 migrations apply aether-bridge-db
+        working-directory: apps/bridge
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+
+      # Step 2: Deploy worker
+      - name: Deploy to ${{ github.event.inputs.environment || 'staging' }}
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: deploy --env ${{ github.event.inputs.environment || 'staging' }}
+
+      # Step 3: Smoke test - create → list now → mark done → list done
+      - name: Smoke test /tasks endpoints
+        run: |
+          set -e
+          
+          BRIDGE_API_TOKEN="${{ secrets.BRIDGE_API_TOKEN }}"
+          BRIDGE_URL="${{ vars.BRIDGE_WORKER_URL }}"
+          
+          echo "=== Creating task ==="
+          CREATE_RESPONSE=$(curl -s -X POST "$BRIDGE_URL/tasks" \
+            -H "Authorization: Bearer $BRIDGE_API_TOKEN" \
+            -H "Content-Type: application/json" \
+            -d '{"title":"Smoke test task","lane":"Human","priority":"P1"}')
+          echo "$CREATE_RESPONSE"
+          
+          TASK_ID=$(echo "$CREATE_RESPONSE" | python3 -c "import sys,json; print(json.load(sys.stdin)['task']['id'])")
+          echo "Created task ID: $TASK_ID"
+          
+          echo ""
+          echo "=== Listing Now view ==="
+          LIST_NOW=$(curl -s -X GET "$BRIDGE_URL/tasks?view=now" \
+            -H "Authorization: Bearer $BRIDGE_API_TOKEN")
+          echo "$LIST_NOW"
+          
+          # Verify task appears in Now view
+          echo "$LIST_NOW" | python3 -c "import sys,json; tasks=json.load(sys.stdin)['tasks']; assert any(t['id']=='$TASK_ID' for t in tasks), 'Task not found in Now view'; print('✓ Task in Now view')"
+          
+          echo ""
+          echo "=== Marking task Done ==="
+          DONE_RESPONSE=$(curl -s -X POST "$BRIDGE_URL/tasks/$TASK_ID/done" \
+            -H "Authorization: Bearer $BRIDGE_API_TOKEN")
+          echo "$DONE_RESPONSE"
+          
+          echo ""
+          echo "=== Listing Done view ==="
+          LIST_DONE=$(curl -s -X GET "$BRIDGE_URL/tasks?view=done" \
+            -H "Authorization: Bearer $BRIDGE_API_TOKEN")
+          echo "$LIST_DONE"
+          
+          # Verify task appears in Done view
+          echo "$LIST_DONE" | python3 -c "import sys,json; tasks=json.load(sys.stdin)['tasks']; assert any(t['id']=='$TASK_ID' for t in tasks), 'Task not found in Done view'; print('✓ Task in Done view')"
+          
+          echo ""
+          echo "=== Smoke test PASSED ==="
