@@ -1,5 +1,5 @@
 {
-  "name": "@alpha/core",
+  "name": "@alpha/alpha-core",
   "version": "0.1.0",
   "description": "ALPHA OrchestrationBrain Durable Object",
   "main": "src/index.ts",
@@ -13,6 +13,7 @@
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20240620.0",
     "typescript": "^5.4.5",
+    "vitest": "^2.1.9",
     "wrangler": "^3.114.0"
   }
 }
