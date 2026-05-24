@@ -233,3 +233,81 @@ jobs:
           else
             echo "Smoke test: ⚠ SKIPPED OR FAILED"
           fi
+
+      - name: Determine final status
+        id: status
+        run: |
+          if [[ "${{ needs.deploy.result }}" == "success" ]] && [[ "${{ needs.smoke-test.result }}" == "success" ]]; then
+            echo "final_status=Deployed" >> $GITHUB_OUTPUT
+            echo "emoji=✅" >> $GITHUB_OUTPUT
+          else
+            echo "final_status=Failed" >> $GITHUB_OUTPUT
+            echo "emoji=❌" >> $GITHUB_OUTPUT
+          fi
+          echo "run_url=https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}" >> $GITHUB_OUTPUT
+          echo "actor=${{ github.actor }}" >> $GITHUB_OUTPUT
+          echo "environment=${{ inputs.environment }}" >> $GITHUB_OUTPUT
+
+      - name: Update Notion task status
+        if: env.NOTION_API_TOKEN != ''
+        env:
+          NOTION_API_TOKEN: ${{ secrets.NOTION_API_TOKEN }}
+          NOTION_DATABASE_ID: ${{ secrets.NOTION_DATABASE_ID }}
+        run: |
+          echo "=== Updating Notion ==="
+
+          NOTION_STATUS="${{ steps.status.outputs.final_status }}"
+          NOTION_RUN_URL="${{ steps.status.outputs.run_url }}"
+
+          echo "Would update Notion page:"
+          echo "  Status: $NOTION_STATUS"
+          echo "  Run URL: $NOTION_RUN_URL"
+          echo ""
+          echo "To enable Notion updates, add to secrets:"
+          echo "  - NOTION_API_TOKEN"
+          echo "  - NOTION_DATABASE_ID"
+
+          # Actual Notion API call (uncomment when ready):
+          # PAGE_ID=$(curl -sS "https://api.notion.com/v1/databases/$NOTION_DATABASE_ID/query" \
+          #   -H "Authorization: Bearer $NOTION_API_TOKEN" \
+          #   -H "Notion-Version: 2022-06-28" \
+          #   -H "Content-Type: application/json" \
+          #   -d '{"filter": {"property": "Status", "select": {"equals": "In Progress"}}}' \
+          #   | jq -r '.results[0].id')
+          # 
+          # curl -sS -X PATCH "https://api.notion.com/v1/pages/$PAGE_ID" \
+          #   -H "Authorization: Bearer $NOTION_API_TOKEN" \
+          #   -H "Notion-Version: 2022-06-28" \
+          #   -H "Content-Type: application/json" \
+          #   -d '{
+          #     "properties": {
+          #       "Status": { "select": { "name": "'"$NOTION_STATUS"'" } },
+          #       "Deploy URL": { "url": "'"$NOTION_RUN_URL"'" }
+          #     }
+          #   }'
+
+      - name: Post to Slack on failure
+        if: needs.deploy.result != 'success' || needs.smoke-test.result != 'success'
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+        run: |
+          echo "=== Alerting Slack (if configured) ==="
+          if [[ -n "$SLACK_WEBHOOK_URL" ]]; then
+            curl -sS -X POST "$SLACK_WEBHOOK_URL" \
+              -H "Content-Type: application/json" \
+              -d '{
+                "text": "❌ Deployment Failed: aether-bridge",
+                "blocks": [
+                  {
+                    "type": "section",
+                    "text": {
+                      "type": "mrkdwn",
+                      "text": "*Deployment Failed*\nEnvironment: ${{ inputs.environment }}\nActor: ${{ github.actor }}\nRun: <https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}|View Logs>"
+                    }
+                  }
+                ]
+              }'
+            echo "Slack alert sent"
+          else
+            echo "SLACK_WEBHOOK_URL not configured, skipping Slack alert"
+          fi
