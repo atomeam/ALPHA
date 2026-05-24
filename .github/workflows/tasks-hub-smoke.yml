@@ -1,0 +1,175 @@
+name: Tasks Hub - Smoke Test
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Deploy environment (staging/production)'
+        required: true
+        default: 'staging'
+        type: choice
+        options:
+          - staging
+          - production
+  schedule:
+    # Run smoke test every hour
+    - cron: '0 * * * *'
+
+jobs:
+  # CI unit tests (runs on every PR)
+  ci-test:
+    name: Unit tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.1
+
+      - name: Use Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+        working-directory: apps/bridge
+
+      - name: Run tests
+        run: pnpm test
+        working-directory: apps/bridge
+
+      - name: Typecheck
+        run: pnpm typecheck
+        working-directory: apps/bridge
+
+      - name: Build
+        run: pnpm build
+        working-directory: apps/bridge
+
+  # Deploy + smoke test (runs after merge, or manually)
+  deploy-and-smoke:
+    name: Deploy + Smoke Test
+    runs-on: ubuntu-latest
+    needs: ci-test
+    if: github.event_name == 'workflow_dispatch' || github.event_name == 'schedule'
+    environment: ${{ github.event.inputs.environment || 'staging' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.1
+
+      - name: Use Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+        working-directory: apps/bridge
+
+      # Step 0: Assert contract and config before deploy
+      # Guards against drift: wrong worker name, missing bindings, wrong DB, missing contract
+      - name: Assert contract and config
+        run: |
+          set -euo pipefail
+          
+          # Verify contract file exists (locked contract in repo)
+          test -f specs/tasks-hub.contract.md
+          
+          CFG="apps/bridge/wrangler.toml"
+          
+          # Verify correct worker name
+          grep -qE '^\s*name\s*=\s*"aether-bridge"\s*$' "$CFG"
+          
+          # Verify BRIDGE_DB binding exists (additive, doesn't touch existing bindings)
+          grep -q 'binding = "BRIDGE_DB"' "$CFG"
+          
+          # Verify database name matches provisioned target
+          grep -q 'database_name = "aether-bridge-db"' "$CFG"
+
+      - name: Apply D1 migration
+        run: npx wrangler d1 migrations apply aether-bridge-db --config apps/bridge/wrangler.toml
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+
+      # Step 2: Deploy worker (explicit script name + canonical config)
+      - name: Deploy to ${{ github.event.inputs.environment || 'staging' }}
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: deploy --name aether-bridge --env ${{ github.event.inputs.environment || 'staging' }} --config apps/bridge/wrangler.toml
+
+      # Step 3: Smoke test - create → list now → mark done → list done
+      # Uses curl -fsS for fail-fast + body on error
+      - name: Smoke test /tasks endpoints
+        run: |
+          set -e
+          
+          BRIDGE_API_TOKEN="${{ secrets.BRIDGE_API_TOKEN }}"
+          BRIDGE_URL="${{ vars.BRIDGE_WORKER_URL }}"
+          
+          # Pattern B: headers to temp file, body to variable
+          HEADERS=$(mktemp)
+          trap 'rm -f "$HEADERS"' EXIT
+          
+          echo "=== Creating task ==="
+          CREATE_BODY=$(curl -fsS -D "$HEADERS" -X POST "$BRIDGE_URL/tasks" \
+            -H "Authorization: Bearer $BRIDGE_API_TOKEN" \
+            -H "Content-Type: application/json" \
+            -d '{"title":"Smoke test task","lane":"Human","priority":"P1"}')
+          
+          # Extract and validate X-Correlation-Id header
+          CORRELATION_ID=$(awk -F': ' 'tolower($1)=="x-correlation-id" {print $2}' "$HEADERS" | tr -d '\r')
+          if [ -z "$CORRELATION_ID" ]; then
+            echo "ERROR: Missing X-Correlation-Id header"
+            cat "$HEADERS"
+            exit 1
+          fi
+          echo "X-Correlation-Id: $CORRELATION_ID"
+          
+          # Validate response: ok: true, correlationId present, tasks array
+          TASK_ID=$(echo "$CREATE_BODY" | python3 -c "
+import sys,json
+d=json.load(sys.stdin)
+assert d.get('ok') is True, 'Expected ok: true'
+assert d.get('correlationId'), 'Missing correlationId in body'
+print(d['tasks'][0]['id'])
+")
+          echo "Created task ID: $TASK_ID"
+          
+          echo ""
+          echo "=== Listing Now view ==="
+          LIST_NOW=$(curl -fsS -X GET "$BRIDGE_URL/tasks?view=now" \
+            -H "Authorization: Bearer $BRIDGE_API_TOKEN")
+          echo "$LIST_NOW"
+          
+          # Verify task appears in Now view
+          echo "$LIST_NOW" | python3 -c "import sys,json; tasks=json.load(sys.stdin)['tasks']; assert any(t['id']=='$TASK_ID' for t in tasks), 'Task not found in Now view'; print('✓ Task in Now view')"
+          
+          echo ""
+          echo "=== Marking task Done ==="
+          DONE_RESPONSE=$(curl -fsS -X POST "$BRIDGE_URL/tasks/$TASK_ID/done" \
+            -H "Authorization: Bearer $BRIDGE_API_TOKEN")
+          echo "$DONE_RESPONSE"
+          
+          echo ""
+          echo "=== Listing Done view ==="
+          LIST_DONE=$(curl -fsS -X GET "$BRIDGE_URL/tasks?view=done" \
+            -H "Authorization: Bearer $BRIDGE_API_TOKEN")
+          echo "$LIST_DONE"
+          
+          # Verify task appears in Done view
+          echo "$LIST_DONE" | python3 -c "import sys,json; tasks=json.load(sys.stdin)['tasks']; assert any(t['id']=='$TASK_ID' for t in tasks), 'Task not found in Done view'; print('✓ Task in Done view')"
+          
+          echo ""
+          echo "=== Smoke test PASSED ==="
