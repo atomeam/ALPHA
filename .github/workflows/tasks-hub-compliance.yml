@@ -1,0 +1,23 @@
+name: Tasks Hub Compliance
+
+on:
+  pull_request:
+    paths:
+      - 'specs/tasks-hub.contract.md'
+      - 'ALPHA-Spec.md'
+      - 'apps/**/wrangler.toml'
+      - 'src/**/tasks*'
+      - 'apps/**/routes/tasks*'
+      - 'apps/**/lib/db*.ts'
+      - 'scripts/check-tasks-hub-compliance.mjs'
+      - '.github/workflows/tasks-hub-compliance.yml'
+
+jobs:
+  compliance:
+    name: Tasks Hub Compliance Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run compliance check
+        run: node scripts/check-tasks-hub-compliance.mjs

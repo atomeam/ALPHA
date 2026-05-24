@@ -37,6 +37,7 @@ D1-backed task management API for "The Place" inside Cloudflare `aether-bridge`.
 
 ```json
 {
+  "ok": true,
   "correlationId": "uuid",
   "tasks": [
     {
@@ -122,5 +123,7 @@ INSERT INTO audit_events (id, correlation_id, action, entity_type, entity_id, pa
 - [x] Views: Now / Human / AI / Blocked / Done
 - [x] No secrets in logs
 - [x] Additive-only bindings (don't touch existing DB/STATE/etc.)
-- [x] CorrelationId on every response
-- [x] Audit_events row for every write
+- [x] `ok: true` on all success responses
+- [x] `X-Correlation-Id` header on every response
+- [x] `correlationId` in body of every response
+- [x] Audit_events row for every write operation
