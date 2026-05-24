@@ -1,0 +1,82 @@
+ALL-IN-ONE ROUND PROMPT (Replit + Copilot + DeepSeek) — PUSH UNBLOCK + BROKE SKELETON VERIFY
+
+GOAL:
+Get the committed BROKE skeleton pushed to GitHub, verify it’s live, and generate the paste-ready broadcast for success/failure.
+
+============================================================
+SECTION 1 — REPLIT (do these steps in order)
+============================================================
+
+A) DIAGNOSTICS (shell)
+Run and paste output verbatim:
+1) git remote -v
+2) git branch --show-current
+3) git log -1 --oneline
+4) git status
+
+B) PUSH ATTEMPT (shell)
+Run:
+5) git push origin HEAD
+
+If the push HANGS or TIMES OUT again:
+- STOP shell attempts.
+- Use Replit Git UI instead:
+  1) Open Git sidebar (branch icon)
+  2) Sign in / authorize GitHub (OAuth)
+  3) Push (commit already exists)
+
+If Git UI cannot authenticate OR push still fails:
+- Use token method:
+  1) Create GitHub PAT with `repo` scope
+  2) In Replit Secrets, add GH_TOKEN
+  3) In shell run:
+     git remote set-url origin https://$GH_TOKEN@github.com/<OWNER>/<REPO>.git
+     git push origin HEAD
+
+C) POST-PUSH VERIFY (shell)
+Run and paste output verbatim:
+6) git log -1 --oneline
+7) git status
+8) find . -maxdepth 2 -type f
+
+STOP CONDITION:
+If `git remote -v` points to the wrong repo (example: atomeam/Crypto-Cryptids) and that is NOT the intended BROKE repo, STOP and confirm the correct <OWNER>/<REPO> before pushing.
+
+============================================================
+SECTION 2 — COPILOT (paste-ready messages)
+============================================================
+
+COPILOT TASK:
+Write two paste-ready messages (≤8 lines each):
+
+1) IF PUSH SUCCEEDS:
+- Confirm repo skeleton is live
+- List expected tree (core/, assets/, data/, tests/, docs/, main.py)
+
+2) IF PUSH FAILS:
+- STOP message
+- Request exactly:
+  (a) full error output
+  (b) correct repo URL + branch
+  (c) chosen auth method (Git UI vs PAT) + whether it has write permission
+
+Reply format:
+ROLE: Copilot
+STATUS: DONE
+OUTPUT: <two messages>
+
+============================================================
+SECTION 3 — DEEPSEEK (fastest auth recommendation)
+============================================================
+
+DEEPSEEK TASK:
+Given the Replit outputs in Section 1A/1B, recommend the single fastest unblock path:
+- Git UI OAuth OR PAT secret method
+- Include exact commands (minimal) and any safety checks
+
+Reply format:
+ROLE: DeepSeek
+STATUS: DONE
+OUTPUT: <recommended path + exact steps>
+
+END.

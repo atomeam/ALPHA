@@ -1,0 +1,136 @@
+body {
+  font-family: 'SF Mono', 'Fira Code', monospace;
+  margin: 0;
+  padding: 20px;
+  background: #0a0a0f;
+  color: #e0e0e0;
+}
+
+.app {
+  max-width: 700px;
+  margin: 0 auto;
+}
+
+header {
+  text-align: center;
+  margin-bottom: 24px;
+  border-bottom: 1px solid #222;
+  padding-bottom: 16px;
+}
+
+h1 {
+  margin: 0;
+  font-size: 1.5rem;
+  color: #4a90d9;
+}
+
+.control-panel {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 20px;
+}
+
+input {
+  flex: 1;
+  padding: 14px 16px;
+  font-size: 14px;
+  font-family: inherit;
+  border: 1px solid #333;
+  border-radius: 4px;
+  background: #111;
+  color: #fff;
+}
+
+input:focus {
+  outline: none;
+  border-color: #4a90d9;
+}
+
+button {
+  padding: 14px 24px;
+  font-size: 14px;
+  font-family: inherit;
+  background: #2d5a3d;
+  color: #4f8;
+  border: 1px solid #2d5a3d;
+  border-radius: 4px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+button:hover:not(:disabled) {
+  background: #3d6a4d;
+}
+
+button:disabled {
+  background: #333;
+  color: #666;
+  cursor: not-allowed;
+}
+
+.status-panel {
+  background: #0d0d12;
+  border: 1px solid #222;
+  border-radius: 6px;
+  padding: 16px;
+  margin-bottom: 16px;
+}
+
+.status-panel h3 {
+  margin: 0 0 12px 0;
+  font-size: 12px;
+  color: #888;
+  text-transform: uppercase;
+}
+
+.status-header {
+  display: flex;
+  justify-content: space-between;
+  font-size: 12px;
+  color: #666;
+  margin-bottom: 12px;
+}
+
+.steps-log {
+  font-size: 12px;
+}
+
+.step {
+  display: flex;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: 3px;
+  margin-bottom: 4px;
+}
+
+.step-num {
+  color: #555;
+  min-width: 30px;
+}
+
+.step-name {
+  flex: 1;
+  color: #aaa;
+}
+
+.step-status {
+  color: #666;
+}
+
+.step.completed .step-status { color: #4f8; }
+.step.running .step-status { color: #f80; }
+.step.error .step-status { color: #f44; }
+
+.result-panel {
+  background: #0d0d12;
+  border: 1px solid #222;
+  border-radius: 6px;
+  padding: 16px;
+}
+
+.result-panel pre {
+  margin: 0;
+  font-size: 11px;
+  color: #888;
+  white-space: pre-wrap;
+}

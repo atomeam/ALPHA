@@ -1,0 +1,27 @@
+{
+  "name": "aether",
+  "version": "1.0.0",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "turbo run dev --parallel",
+    "dev:backend": "npm run dev -w @aether/backend",
+    "dev:frontend": "npm run dev -w @aether/frontend",
+    "dev:bridge": "npm run dev -w @aether/bridge",
+    "build": "turbo run build",
+    "typecheck": "turbo run typecheck",
+    "test": "turbo run test",
+    "start": "npm run start -w @aether/backend",
+    "clean": "turbo run clean"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "devDependencies": {
+    "turbo": "^2.9.14"
+  },
+  "packageManager": "npm@10.9.8"
+}
