@@ -120,6 +120,7 @@ jobs:
           
           # Pattern B: headers to temp file, body to variable
           HEADERS=$(mktemp)
+          trap 'rm -f "$HEADERS"' EXIT
           
           echo "=== Creating task ==="
           CREATE_BODY=$(curl -fsS -D "$HEADERS" -X POST "$BRIDGE_URL/tasks" \
@@ -136,8 +137,14 @@ jobs:
           fi
           echo "X-Correlation-Id: $CORRELATION_ID"
           
-          # Validate body has correlationId and tasks array
-          TASK_ID=$(echo "$CREATE_BODY" | python3 -c "import sys,json; d=json.load(sys.stdin); assert d.get('correlationId'), 'Missing correlationId in body'; print(d['tasks'][0]['id'])")
+          # Validate response: ok: true, correlationId present, tasks array
+          TASK_ID=$(echo "$CREATE_BODY" | python3 -c "
+import sys,json
+d=json.load(sys.stdin)
+assert d.get('ok') is True, 'Expected ok: true'
+assert d.get('correlationId'), 'Missing correlationId in body'
+print(d['tasks'][0]['id'])
+")
           echo "Created task ID: $TASK_ID"
           
           echo ""

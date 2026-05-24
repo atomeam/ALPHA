@@ -111,6 +111,7 @@ export function createTasksRouter(db: D1Database): Hono {
     const tasks = await database.listTasksByView(view);
     withCorrelation(c, correlationId);
     return c.json({
+      ok: true,
       correlationId,
       tasks: tasks.map(toResponse),
     });
@@ -176,6 +177,7 @@ export function createTasksRouter(db: D1Database): Hono {
       // Return array format for consistency with GET /tasks
       withCorrelation(c, correlationId);
       return c.json({
+        ok: true,
         correlationId,
         tasks: [toResponse(task)],
       });
@@ -257,6 +259,7 @@ export function createTasksRouter(db: D1Database): Hono {
 
       withCorrelation(c, correlationId);
       return c.json({
+        ok: true,
         correlationId,
         tasks: [toResponse(task)],
       });
@@ -297,6 +300,7 @@ export function createTasksRouter(db: D1Database): Hono {
 
       withCorrelation(c, correlationId);
       return c.json({
+        ok: true,
         correlationId,
         tasks: [toResponse(task)],
       });
