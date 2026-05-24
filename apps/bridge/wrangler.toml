@@ -1,0 +1,32 @@
+name = "alpha-bridge"
+main = "src/index.ts"
+compatibility_date = "2024-04-15"
+compatibility_flags = ["nodejs_compat"]
+
+# D1 database for tasks + audit events
+[[d1_databases]]
+binding = "BRIDGE_DB"
+database_name = "alpha-bridge-db"
+database_id = "your-database-id"
+
+# Environment
+[vars]
+ENVIRONMENT = "development"
+
+# CORS
+[[headers]]
+name = "Access-Control-Allow-Origin"
+value = "*"
+
+[[headers]]
+name = "Access-Control-Allow-Methods"
+value = "GET, POST, PATCH, OPTIONS"
+
+[[headers]]
+name = "Access-Control-Allow-Headers"
+value = "Authorization, Content-Type"
+
+# Dev settings
+[dev]
+port = 8090
+local_protocol = "http"

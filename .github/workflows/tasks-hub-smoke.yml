@@ -1,0 +1,41 @@
+name: Tasks Hub - Smoke Test
+
+on:
+  workflow_dispatch:
+  schedule:
+    # Run smoke test every hour
+    - cron: '0 * * * *'
+
+jobs:
+  smoke-test:
+    name: Tasks Hub smoke test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.1
+
+      - name: Use Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+        working-directory: apps/bridge
+
+      - name: Run tests
+        run: pnpm test
+        working-directory: apps/bridge
+
+      - name: Typecheck
+        run: pnpm typecheck
+        working-directory: apps/bridge
+
+      - name: Build
+        run: pnpm build
+        working-directory: apps/bridge
