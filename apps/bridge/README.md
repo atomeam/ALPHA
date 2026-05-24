@@ -8,19 +8,19 @@ D1-backed task management API for tracking work across Human and AI lanes.
 
 ### Setup
 
-1. Create D1 database:
+1. Create D1 database (if not already provisioned):
 ```bash
 cd apps/bridge
-npx wrangler d1 create alpha-bridge-db
+npx wrangler d1 create aether-bridge-db
 ```
 
-2. Update `wrangler.toml` with the database ID from step 1
+2. Update `wrangler.toml` with the actual database ID from step 1 (or from Cloudflare dashboard)
 
-3. Apply migration:
+3. Apply migration via CI deploy (canonical path):
 ```bash
-npx wrangler d1 migrations apply alpha-bridge-db --local
-# Or for production:
-npx wrangler d1 migrations apply alpha-bridge-db
+# CI will automatically apply migrations on deploy
+# Manual local testing only:
+npx wrangler d1 migrations apply aether-bridge-db --local
 ```
 
 ### API Reference

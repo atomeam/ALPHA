@@ -105,11 +105,13 @@ export class Database {
     switch (view) {
       case 'now':
         // status != Done AND priority IN (P0, P1), sorted P0→P1 then due_date then updated_at desc
+        // Note: SQLite doesn't support NULLS LAST, use CASE for null ordering
         query = `SELECT * FROM tasks
                  WHERE status != 'Done' AND priority IN ('P0', 'P1')
                  ORDER BY
                    CASE priority WHEN 'P0' THEN 0 WHEN 'P1' THEN 1 END,
-                   due_date ASC NULLS LAST,
+                   CASE WHEN due_date IS NULL THEN 1 ELSE 0 END,
+                   due_date ASC,
                    updated_at DESC`;
         break;
 
