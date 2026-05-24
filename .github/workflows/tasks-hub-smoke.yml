@@ -75,11 +75,15 @@ jobs:
         run: pnpm install --frozen-lockfile
         working-directory: apps/bridge
 
-      # Step 1: Assert config before deploy
-      # Guards against drift: wrong worker name, missing bindings, wrong DB
-      - name: Assert required bindings exist
+      # Step 0: Assert contract and config before deploy
+      # Guards against drift: wrong worker name, missing bindings, wrong DB, missing contract
+      - name: Assert contract and config
         run: |
           set -euo pipefail
+          
+          # Verify contract file exists (locked contract in repo)
+          test -f specs/tasks-hub.contract.md
+          
           CFG="apps/bridge/wrangler.toml"
           
           # Verify correct worker name
