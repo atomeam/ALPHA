@@ -16,12 +16,28 @@ new_classes = ["OrchestrationBrain"]
 # KV for metrics
 [[kv_namespaces]]
 binding = "METRICS"
-id = "your-metrics-namespace-id"
+id = "bridge-metrics-kv-id"
+
+# D1 Database for bridge-specific data
+[[d1_databases]]
+binding = "BRIDGE_DB"
+database_name = "aether-bridge-db"
+database_id = "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+
+# Queue for async actions
+[[queues.bindings]]
+name = "ACTIONS"
+queue = "bridge-actions"
+
+# Cron triggers
+[triggers]
+crons = ["*/15 * * * *", "0 * * * *"]
 
 # Environment
 [vars]
 ENVIRONMENT = "development"
 CREW_SIZE = "11"
+BRIDGE_VERSION = "0.1"
 
 # Observability
 [observability]
