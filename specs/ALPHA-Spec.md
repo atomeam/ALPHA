@@ -42,16 +42,33 @@
 
 ## Current Decisions (locked)
 
-| Decision        | Value                                   | Rationale                                   |
-| --------------- | --------------------------------------- | ------------------------------------------- |
-| Worker name     | `aether-bridge`                         | Matches Cloudflare deployment target        |
-| Deploy path     | `apps/alpha-orchestrator/`              | Single app directory                        |
-| wrangler.toml   | `apps/alpha-orchestrator/wrangler.toml` | Explicit config path                        |
-| CI is canonical | Yes                                     | GitHub Actions workflow with approval gates |
-| Local fallback  | PowerShell script                       | `scripts/deploy-aether-bridge.ps1`          |
-| D1 table        | `artifacts`                             | Standardized naming                         |
-| Auth: deploy    | `CLOUDFLARE_API_TOKEN`                  | Wrangler authentication                     |
-| Auth: runtime   | `BRIDGE_API_TOKEN`                      | Bridge API authentication                   |
+| Decision                  | Value                                   | Rationale                                   |
+| ------------------------- | --------------------------------------- | ------------------------------------------- |
+| Worker name               | `aether-bridge`                         | Matches Cloudflare deployment target        |
+| Deploy path               | `apps/alpha-orchestrator/`              | Single app directory                        |
+| Canonical wrangler config | `apps/alpha-orchestrator/wrangler.toml` | Eliminates wrong-config failures            |
+| Canonical workflow file   | `.github/workflows/deploy.yml`          | Eliminates wrong-folder failures            |
+| CI is canonical           | Yes                                     | GitHub Actions workflow with approval gates |
+| Local fallback            | PowerShell script                       | `scripts/deploy-aether-bridge.ps1`          |
+| D1 table                  | `artifacts`                             | Standardized naming                         |
+| Auth: deploy              | `CLOUDFLARE_API_TOKEN`                  | Wrangler authentication                     |
+| Auth: runtime             | `BRIDGE_API_TOKEN`                      | Bridge API authentication                   |
+
+---
+
+## Next Pass Focus (max 3)
+
+### 1. Notion lessons sink
+
+**Done when:** A successful proposal writes a Lesson record to Notion (id + correlationId + decision + artifacts) asynchronously.
+
+### 2. Slack lifecycle notifications
+
+**Done when:** On proposal approved/applied/failed, post to a single channel/thread with correlationId + links.
+
+### 3. Error tracking (Sentry)
+
+**Done when:** Uncaught errors emit to Sentry with correlationId and environment tag; no secrets in payload.
 
 ---
 
