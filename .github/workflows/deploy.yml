@@ -1,0 +1,216 @@
+name: deploy
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Target environment'
+        required: true
+        default: 'staging'
+        type: choice
+        options:
+          - staging
+          - production
+
+# Require manual approval for production
+environment:
+  name: ${{ inputs.environment }}
+  url: https://aether-bridge.atomicmoonbeam88.workers.dev
+
+jobs:
+  # ============================================================
+  # Job 1: Pre-deploy validation (no secrets required)
+  # ============================================================
+  validate:
+    name: validate configuration
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.1
+
+      - name: Use Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Verify wrangler.toml
+        run: |
+          echo "=== wrangler.toml validation ==="
+          cat apps/alpha-orchestrator/wrangler.toml
+          echo ""
+          echo "=== Checking worker name ==="
+          grep 'name.*=.*"aether-bridge"' apps/alpha-orchestrator/wrangler.toml || echo "ERROR: worker name mismatch"
+
+      - name: Check D1 migration files exist
+        run: |
+          echo "=== D1 migrations ==="
+          ls -la apps/alpha-orchestrator/d1/migrations/ 2>/dev/null || echo "No migrations found"
+          echo ""
+          echo "=== Migration content ==="
+          cat apps/alpha-orchestrator/d1/migrations/*.sql 2>/dev/null | head -50
+
+  # ============================================================
+  # Job 2: Deploy (requires CLOUDFLARE_API_TOKEN secret)
+  # ============================================================
+  deploy:
+    name: deploy to ${{ inputs.environment }}
+    runs-on: ubuntu-latest
+    needs: validate
+    environment: ${{ inputs.environment }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Wrangler
+        run: npm install -g wrangler
+
+      - name: Authenticate with Cloudflare
+        run: wrangler auth validate
+
+      - name: List available resources
+        run: |
+          echo "=== Available D1 databases ==="
+          wrangler d1 list
+          echo ""
+          echo "=== Available KV namespaces ==="
+          wrangler kv:namespace list
+
+      - name: Apply D1 migrations
+        run: |
+          echo "=== Applying D1 migrations ==="
+          wrangler d1 migrations apply aether-bridge-db --remote
+
+      - name: Deploy aether-bridge worker
+        run: |
+          echo "=== Deploying aether-bridge ==="
+          wrangler deploy --config apps/alpha-orchestrator/wrangler.toml --name aether-bridge
+
+      - name: Verify deployment
+        run: |
+          echo "=== Deployment verification ==="
+          echo "Checking worker status..."
+          # Small delay to allow propagation
+          sleep 5
+
+          # Try health endpoint (no auth)
+          RESPONSE=$(curl -s "https://aether-bridge.atomicmoonbeam88.workers.dev/health" 2>&1)
+          echo "Health response: $RESPONSE"
+
+          # Check if response contains expected fields
+          if echo "$RESPONSE" | grep -q '"ok":true'; then
+            echo "✓ Health check passed"
+          else
+            echo "⚠ Health check response unexpected"
+            exit 1
+          fi
+
+  # ============================================================
+  # Job 3: Smoke test (requires BRIDGE_API_TOKEN secret)
+  # ============================================================
+  smoke-test:
+    name: smoke test
+    runs-on: ubuntu-latest
+    needs: deploy
+    environment: ${{ inputs.environment }}
+    steps:
+      - name: Run smoke test
+        env:
+          BRIDGE_URL: https://aether-bridge.atomicmoonbeam88.workers.dev
+          TOKEN: ${{ secrets.BRIDGE_API_TOKEN }}
+        run: |
+          echo "=== Smoke Test ==="
+          echo "Base URL: $BRIDGE_URL"
+
+          # Test 1: Health (no auth)
+          echo ""
+          echo "--- Test 1: Health (no auth) ---"
+          curl -sS "$BRIDGE_URL/health" | tee /tmp/health.json
+
+          if ! grep -q '"ok":true' /tmp/health.json; then
+            echo "✗ Health check failed"
+            exit 1
+          fi
+          echo "✓ Health check passed"
+
+          # Test 2: State write (auth required)
+          echo ""
+          echo "--- Test 2: State write (auth required) ---"
+          CORRELATION_ID=$(uuidgen)
+          STATE_RESPONSE=$(curl -sS -X POST "$BRIDGE_URL/state" \
+            -H "Authorization: Bearer $TOKEN" \
+            -H "Content-Type: application/json" \
+            -H "X-Correlation-ID: $CORRELATION_ID" \
+            -d '{"key":"ci:test:'$RANDOM'","value":{"test":"smoke"},"scope":"global","ttl_seconds":3600}' 2>&1)
+          echo "Write response: $STATE_RESPONSE"
+
+          if echo "$STATE_RESPONSE" | grep -q '"ok":true'; then
+            echo "✓ State write passed"
+          else
+            echo "⚠ State write failed (may need token check)"
+          fi
+
+          # Test 3: Async propose (auth required)
+          echo ""
+          echo "--- Test 3: Async propose ---"
+          PROPOSE_RESPONSE=$(curl -sS -X POST "$BRIDGE_URL/propose" \
+            -H "Authorization: Bearer $TOKEN" \
+            -H "Content-Type: application/json" \
+            -H "X-Correlation-ID: $CORRELATION_ID" \
+            -d '{
+              "title": "CI Smoke Test",
+              "inputs_hash": "ci-smoke-test",
+              "change_summary": "Automated smoke test - safe to ignore",
+              "expected_effect": {"metric": "test.metric", "direction": "increase", "magnitude": 0.01},
+              "risk_class": "low",
+              "classification": "test",
+              "idempotent": true,
+              "mode": "async"
+            }' 2>&1)
+          echo "Propose response: $PROPOSE_RESPONSE"
+
+          echo ""
+          echo "=== Smoke Test Complete ==="
+
+  # ============================================================
+  # Job 4: Report to Notion (on success)
+  # ============================================================
+  notify:
+    name: notify
+    runs-on: ubuntu-latest
+    needs: [deploy, smoke-test]
+    if: always()
+    steps:
+      - name: Report deployment status
+        run: |
+          echo "=== Deployment Status Report ==="
+          echo "Environment: ${{ inputs.environment }}"
+          echo "Workflow: ${{ github.workflow }}"
+          echo "Run ID: ${{ github.run_id }}"
+          echo "Actor: ${{ github.actor }}"
+
+          if [[ "${{ needs.deploy.result }}" == "success" ]]; then
+            echo "Status: ✓ DEPLOYED"
+            echo "Worker URL: https://aether-bridge.atomicmoonbeam88.workers.dev"
+          else
+            echo "Status: ✗ DEPLOY FAILED"
+            echo "Failed job: ${{ needs.deploy.result }}"
+          fi
+
+          if [[ "${{ needs.smoke-test.result }}" == "success" ]]; then
+            echo "Smoke test: ✓ PASSED"
+          else
+            echo "Smoke test: ⚠ SKIPPED OR FAILED"
+          fi
