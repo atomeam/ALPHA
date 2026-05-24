@@ -1,4 +1,4 @@
-# Post-deploy Smoke Test v0.1
+# Post-deploy Smoke Test v0.2
 
 **Worker:** aether-bridge
 **Date:** 2026-05-24
@@ -6,16 +6,18 @@
 
 ## Prerequisites
 
-1. Worker deployed to Cloudflare
-2. `BRIDGE_API_TOKEN` secret set
-3. D1 database `aether-bridge-db` created and migrated
+1. Worker deployed: `wrangler deploy` (from `apps/alpha-orchestrator/`)
+2. `BRIDGE_API_TOKEN` secret set: `wrangler secret put BRIDGE_API_TOKEN`
+3. D1 migrated: `wrangler d1 migrations apply aether-bridge-db --remote`
+4. KV/Queue created (via Cloudflare API — not in this scope)
 
 ## Configuration
 
 ```bash
 # Set these before running
-BRIDGE_URL="https://aether-bridge.atomeam.workers.dev"
-API_TOKEN="your-bridge-api-token"
+BRIDGE_URL="https://aether-bridge.<your-subdomain>.workers.dev"
+API_TOKEN="${BRIDGE_API_TOKEN}"  # Use env var, never hardcode
+CORRELATION_ID=$(uuidgen 2>/dev/null || cat /proc/sys/kernel/random/uuid)
 ```
 
 ## Smoke Test Script
@@ -159,7 +161,9 @@ echo "  SELECT * FROM audit_events WHERE correlation_id LIKE '%${CORRELATION_ID:
 echo ""
 echo "Or check Cloudflare Dashboard > D1 > aether-bridge-db > Query"
 echo "If audit_events table exists and has rows, audit logging is working."
-echo "✓ Audit verification (manual step if no direct API)"
+echo ""
+echo "Also verify artifacts table exists:"
+echo "  SELECT * FROM artifacts LIMIT 1;"
 
 echo ""
 

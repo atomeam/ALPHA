@@ -1,10 +1,10 @@
-# Bindings Map v0.1
+# Bindings Map v0.2
 
-**Worker:** aether-bridge (alpha-orchestrator)
+**Worker:** aether-bridge (deployed from `apps/alpha-orchestrator/`)
 **Date:** 2026-05-24
-**Status:** Draft
+**Status:** Ready for deploy
 
-## Current Bindings
+## Resource IDs (from Cloudflare API)
 
 ### Durable Objects
 
@@ -78,7 +78,7 @@ CREATE TABLE IF NOT EXISTS idempotency_keys (
 );
 
 -- Proposal artifacts
-CREATE TABLE IF NOT EXISTS proposal_artifacts (
+CREATE TABLE IF NOT EXISTS artifacts (
   id TEXT PRIMARY KEY,
   proposal_id TEXT NOT NULL,
   artifact_type TEXT NOT NULL,

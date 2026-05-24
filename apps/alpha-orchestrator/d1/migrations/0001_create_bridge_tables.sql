@@ -1,5 +1,5 @@
 -- D1 Migration: Create bridge-specific tables
--- Run: wrangler d1 migrations apply aether-bridge-db --local
+-- Run: wrangler d1 migrations apply aether-bridge-db --remote
 
 -- Audit trail for all API calls
 CREATE TABLE IF NOT EXISTS audit_events (
@@ -23,7 +23,7 @@ CREATE TABLE IF NOT EXISTS idempotency_keys (
 );
 
 -- Proposal artifacts
-CREATE TABLE IF NOT EXISTS proposal_artifacts (
+CREATE TABLE IF NOT EXISTS artifacts (
   id TEXT PRIMARY KEY,
   proposal_id TEXT NOT NULL,
   artifact_type TEXT NOT NULL,
@@ -36,4 +36,4 @@ CREATE TABLE IF NOT EXISTS proposal_artifacts (
 CREATE INDEX IF NOT EXISTS idx_audit_correlation ON audit_events(correlation_id);
 CREATE INDEX IF NOT EXISTS idx_audit_created ON audit_events(created_at);
 CREATE INDEX IF NOT EXISTS idx_idempotency_expires ON idempotency_keys(expires_at);
-CREATE INDEX IF NOT EXISTS idx_artifacts_proposal ON proposal_artifacts(proposal_id);
+CREATE INDEX IF NOT EXISTS idx_artifacts_proposal ON artifacts(proposal_id);
