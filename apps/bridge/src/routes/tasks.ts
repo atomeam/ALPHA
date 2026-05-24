@@ -160,9 +160,10 @@ export function createTasksRouter(db: D1Database): Hono {
         priority: task.priority,
       });
 
+      // Return array format for consistency with GET /tasks
       return c.json({
         correlationId,
-        task: toResponse(task),
+        tasks: [toResponse(task)],
       });
     } catch (err) {
       const errorId = uuidv4();
@@ -237,7 +238,7 @@ export function createTasksRouter(db: D1Database): Hono {
 
       return c.json({
         correlationId,
-        task: toResponse(task),
+        tasks: [toResponse(task)],
       });
     } catch (err) {
       const errorId = uuidv4();
@@ -274,7 +275,7 @@ export function createTasksRouter(db: D1Database): Hono {
 
       return c.json({
         correlationId,
-        task: toResponse(task),
+        tasks: [toResponse(task)],
       });
     } catch (err) {
       const errorId = uuidv4();

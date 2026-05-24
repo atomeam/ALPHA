@@ -69,34 +69,23 @@ npx wrangler d1 migrations apply aether-bridge-db --local
 }
 ```
 
-**POST /tasks**
+**POST /tasks** (returns same structure as GET)
 ```json
 {
-  "title": "string (required)",
-  "lane": "Human|Council (required)",
-  "priority": "P0|P1|P2|P3 (required)",
-  "dueDate": "ISO8601 (optional)",
-  "tags": ["string"] (optional),
-  "blockedBy": "uuid (optional)",
-  "blocking": 0|1 (optional)"
+  "correlationId": "uuid",
+  "tasks": [{ /* single task object */ }]
 }
 ```
 
-**PATCH /tasks/:id**
+**PATCH /tasks/:id** (returns same structure)
 ```json
 {
-  "title": "string (optional)",
-  "lane": "Human|Council (optional)",
-  "status": "Not started|In progress|Done (optional)",
-  "priority": "P0|P1|P2|P3 (optional)",
-  "dueDate": "ISO8601 (optional)",
-  "tags": ["string"] (optional)",
-  "blockedBy": "uuid (optional)",
-  "blocking": 0|1 (optional)"
+  "correlationId": "uuid",
+  "tasks": [{ /* updated task object */ }]
 }
 ```
 
-**POST /tasks/:id/done** - Mark task as Done (shortcut)
+**POST /tasks/:id/done** (returns same structure)
 
 #### Error Codes
 

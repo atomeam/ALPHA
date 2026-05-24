@@ -73,14 +73,15 @@ export interface TaskResponse {
   updatedAt: string;
 }
 
+// All API responses return tasks array for consistency
 export interface TasksListResponse {
   correlationId: string;
   tasks: TaskResponse[];
 }
 
-export interface TaskResponseWrapper {
+export interface TaskMutationResponse {
   correlationId: string;
-  task: TaskResponse;
+  tasks: TaskResponse[]; // Always array, single item for single-resource ops
 }
 
 export interface ErrorResponse {

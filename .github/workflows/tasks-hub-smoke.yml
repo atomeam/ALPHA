@@ -76,21 +76,23 @@ jobs:
         working-directory: apps/bridge
 
       # Step 1: Apply D1 migration against REMOTE (no --local flag)
+      # Uses explicit --config so cwd coupling isn't required
       - name: Apply D1 migration
-        run: npx wrangler d1 migrations apply aether-bridge-db
-        working-directory: apps/bridge
+        run: npx wrangler d1 migrations apply aether-bridge-db --config apps/bridge/wrangler.toml
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
 
-      # Step 2: Deploy worker
+      # Step 2: Deploy worker (explicit script name + config)
       - name: Deploy to ${{ github.event.inputs.environment || 'staging' }}
         uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          command: deploy --env ${{ github.event.inputs.environment || 'staging' }}
+          command: deploy --name alpha-bridge --env ${{ github.event.inputs.environment || 'staging' }} --config apps/bridge/wrangler.toml
 
       # Step 3: Smoke test - create → list now → mark done → list done
+      # Uses curl -fsS for fail-fast + body on error
       - name: Smoke test /tasks endpoints
         run: |
           set -e
@@ -99,18 +101,19 @@ jobs:
           BRIDGE_URL="${{ vars.BRIDGE_WORKER_URL }}"
           
           echo "=== Creating task ==="
-          CREATE_RESPONSE=$(curl -s -X POST "$BRIDGE_URL/tasks" \
+          CREATE_RESPONSE=$(curl -fsS -X POST "$BRIDGE_URL/tasks" \
             -H "Authorization: Bearer $BRIDGE_API_TOKEN" \
             -H "Content-Type: application/json" \
             -d '{"title":"Smoke test task","lane":"Human","priority":"P1"}')
           echo "$CREATE_RESPONSE"
           
-          TASK_ID=$(echo "$CREATE_RESPONSE" | python3 -c "import sys,json; print(json.load(sys.stdin)['task']['id'])")
+          # Parse task ID from tasks[0] (always array per contract)
+          TASK_ID=$(echo "$CREATE_RESPONSE" | python3 -c "import sys,json; data=json.load(sys.stdin); assert data.get('ok', True), 'API error'; print(data['tasks'][0]['id'])")
           echo "Created task ID: $TASK_ID"
           
           echo ""
           echo "=== Listing Now view ==="
-          LIST_NOW=$(curl -s -X GET "$BRIDGE_URL/tasks?view=now" \
+          LIST_NOW=$(curl -fsS -X GET "$BRIDGE_URL/tasks?view=now" \
             -H "Authorization: Bearer $BRIDGE_API_TOKEN")
           echo "$LIST_NOW"
           
@@ -119,13 +122,13 @@ jobs:
           
           echo ""
           echo "=== Marking task Done ==="
-          DONE_RESPONSE=$(curl -s -X POST "$BRIDGE_URL/tasks/$TASK_ID/done" \
+          DONE_RESPONSE=$(curl -fsS -X POST "$BRIDGE_URL/tasks/$TASK_ID/done" \
             -H "Authorization: Bearer $BRIDGE_API_TOKEN")
           echo "$DONE_RESPONSE"
           
           echo ""
           echo "=== Listing Done view ==="
-          LIST_DONE=$(curl -s -X GET "$BRIDGE_URL/tasks?view=done" \
+          LIST_DONE=$(curl -fsS -X GET "$BRIDGE_URL/tasks?view=done" \
             -H "Authorization: Bearer $BRIDGE_API_TOKEN")
           echo "$LIST_DONE"
           

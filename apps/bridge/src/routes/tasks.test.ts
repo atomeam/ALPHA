@@ -192,8 +192,8 @@ describe('Tasks Hub API', () => {
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.correlationId).toBeDefined();
-    expect(body.task).toBeDefined();
-    expect(body.task.title).toBe('Test Task'); // Returns mock data
+    expect(body.tasks).toBeDefined();
+    expect(body.tasks[0].title).toBe('Test Task'); // Returns mock data
   });
 
   it('should update task status', async () => {
@@ -217,7 +217,7 @@ describe('Tasks Hub API', () => {
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.correlationId).toBeDefined();
-    expect(body.task).toBeDefined();
+    expect(body.tasks).toBeDefined();
   });
 
   it('should mark task done via shortcut endpoint', async () => {
@@ -237,6 +237,6 @@ describe('Tasks Hub API', () => {
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.correlationId).toBeDefined();
-    expect(body.task).toBeDefined();
+    expect(body.tasks).toBeDefined();
   });
 });
