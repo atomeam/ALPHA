@@ -52,6 +52,25 @@ NOTES: <1–3 bullets or short sentence>
 
 ---
 
+## Canonical Webhook Path
+
+All Notion webhooks must use the canonical path:
+
+| Path | Status |
+|------|--------|
+| `/webhooks/notion` | ✅ **Canonical** (use this) |
+| `/webhook/notion` | 🔄 Legacy — redirects 301 to canonical |
+
+### Implementation
+
+The bridge server (`apps/bridge/src/server.ts`) implements:
+- `POST /webhooks/notion` — canonical endpoint (processes webhook)
+- `GET/POST /webhook/notion` — legacy redirect (301 → canonical)
+
+This ensures backward compatibility while normalizing to a single path.
+
+---
+
 ## ID Formats
 
 | Source | Format | Example |
