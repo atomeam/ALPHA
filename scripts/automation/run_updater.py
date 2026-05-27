@@ -199,15 +199,24 @@ def update_notion_task_status(notion_token: str, page_id: str, status: str, run_
     
     # 2. Add evidence as page comment (canonical v0)
     if run_data:
+        # Build Slack permalink for debugging
+        slack_ts = run_data.get("_slack_ts", "")
+        slack_channel = run_data.get("_slack_channel", "")
+        slack_permalink = f"https://slack.com/archives/{slack_channel}/p{slack_ts.replace('.', '')}" if slack_ts and slack_channel else "N/A"
+        
         evidence_lines = [
             f"🏁 RUN Completed — Evidence",
             "",
             f"Run ID: {run_data.get('run_id', 'unknown')}",
             f"Result: {run_data.get('result', 'unknown')}",
-            f"Duration: {run_data.get('duration', 'N/A')}",
-            f"Commit/PR: {run_data.get('commit_pr', 'N/A')}",
-            f"Artifacts: {run_data.get('artifacts', 'N/A')}",
-            f"Notes: {run_data.get('notes', 'N/A')}",
+            f"Duration: {run_data.get('duration', '—')}",
+            f"Commit/PR: {run_data.get('commit_pr', '—')}",
+            f"Artifacts: {run_data.get('artifacts', '—')}",
+            f"Logs: {run_data.get('logs', '—')}",
+            f"Notes: {run_data.get('notes', '—')}",
+            "",
+            f"Slack: {slack_permalink}",
+            f"Thread: {slack_ts or 'N/A'} | Event ID: {run_data.get('_event_id', 'N/A')}",
             "",
             f"Posted by: {run_data.get('owner', 'Unknown')} (ALPHA Council)",
             f"Timestamp: {datetime.now(timezone.utc).isoformat()}",
