@@ -145,18 +145,14 @@ async function isDuplicateEvent(env: Env, eventId: string): Promise<boolean> {
   if (!eventId) return false;
   
   try {
-    // Try to insert — if it fails, it's a duplicate
-    await env.BRIDGE_DB.prepare(`
+    // INSERT OR IGNORE — check changes to detect if it's new or duplicate
+    const res = await env.BRIDGE_DB.prepare(`
       INSERT OR IGNORE INTO processed_slack_events (event_id, processed_at)
       VALUES (?, datetime('now'))
     `).bind(eventId).run();
     
-    // If row count is 0, it was already present (duplicate)
-    const count = await env.BRIDGE_DB.prepare(`
-      SELECT 1 FROM processed_slack_events WHERE event_id = ?
-    `).bind(eventId).first();
-    
-    return count === null;
+    // 0 changes = duplicate, 1 change = new event
+    return (res.meta?.changes ?? 0) === 0;
   } catch (e) {
     console.error('Dedupe check failed:', e);
     return false;
@@ -178,11 +174,11 @@ async function upsertAuditEvent(env: Env, runData: Record<string, string>): Prom
   
   try {
     await env.BRIDGE_DB.prepare(`
-      INSERT INTO audit_events (run_id, task_id, run_type, env, owner, result, start_time, end_time, duration, commit_pr, artifacts, logs, notes, slack_ts, slack_channel, updated_at)
+      INSERT INTO audit_events (run_id, task, type, env, owner, result, started_at, ended_at, duration, commit_pr, artifacts, logs, notes, slack_ts, slack_channel, updated_at)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
       ON CONFLICT(run_id) DO UPDATE SET
         result = excluded.result,
-        end_time = COALESCE(excluded.end_time, audit_events.end_time),
+        ended_at = COALESCE(excluded.ended_at, audit_events.ended_at),
         duration = COALESCE(excluded.duration, audit_events.duration),
         commit_pr = COALESCE(excluded.commit_pr, audit_events.commit_pr),
         artifacts = COALESCE(excluded.artifacts, audit_events.artifacts),

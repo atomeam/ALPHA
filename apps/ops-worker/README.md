@@ -32,24 +32,24 @@ ops-worker
 
 ```sql
 CREATE TABLE audit_events (
-    id          INTEGER PRIMARY KEY AUTOINCREMENT,
-    run_id      TEXT NOT NULL UNIQUE,
-    task        TEXT,
-    type        TEXT NOT NULL,
-    env         TEXT NOT NULL,
-    owner       TEXT NOT NULL,
-    result      TEXT NOT NULL DEFAULT 'unknown',
-    started_at  TEXT,
-    ended_at    TEXT,
-    duration    TEXT,
-    commit_pr   TEXT,
-    artifacts   TEXT,
-    logs        TEXT,
-    notes       TEXT,
-    slack_ts    TEXT,
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    run_id        TEXT NOT NULL UNIQUE,
+    task          TEXT,
+    type          TEXT NOT NULL,
+    env           TEXT NOT NULL,
+    owner         TEXT NOT NULL,
+    result        TEXT NOT NULL DEFAULT 'unknown',
+    started_at    TEXT,
+    ended_at      TEXT,
+    duration      TEXT,
+    commit_pr     TEXT,
+    artifacts     TEXT,
+    logs          TEXT,
+    notes         TEXT,
+    slack_ts      TEXT,
     slack_channel TEXT,
-    created_at  TEXT DEFAULT (datetime('now')),
-    updated_at  TEXT DEFAULT (datetime('now'))
+    created_at    TEXT DEFAULT (datetime('now')),
+    updated_at    TEXT DEFAULT (datetime('now'))
 );
 
 CREATE UNIQUE INDEX idx_audit_events_run_id ON audit_events(run_id);
