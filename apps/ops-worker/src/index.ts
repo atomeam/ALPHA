@@ -141,16 +141,48 @@ async function closeNotionTask(taskUrl: string, runData: Record<string, string>)
 // D1 Operations
 // ============================================================================
 
+async function isDuplicateEvent(env: Env, eventId: string): Promise<boolean> {
+  if (!eventId) return false;
+  
+  try {
+    // Try to insert — if it fails, it's a duplicate
+    await env.BRIDGE_DB.prepare(`
+      INSERT OR IGNORE INTO processed_slack_events (event_id, processed_at)
+      VALUES (?, datetime('now'))
+    `).bind(eventId).run();
+    
+    // If row count is 0, it was already present (duplicate)
+    const count = await env.BRIDGE_DB.prepare(`
+      SELECT 1 FROM processed_slack_events WHERE event_id = ?
+    `).bind(eventId).first();
+    
+    return count === null;
+  } catch (e) {
+    console.error('Dedupe check failed:', e);
+    return false;
+  }
+}
+
+async function cleanOldEvents(env: Env): Promise<void> {
+  try {
+    await env.BRIDGE_DB.prepare(`
+      DELETE FROM processed_slack_events WHERE processed_at < datetime('now', '-24 hours')
+    `).run();
+  } catch (e) {
+    console.error('Cleanup failed:', e);
+  }
+}
+
 async function upsertAuditEvent(env: Env, runData: Record<string, string>): Promise<boolean> {
   const { run_id, task, type, envName, owner, result, startedAt, endedAt, duration, commit_pr, artifacts, logs, notes, _slack_ts, _slack_channel } = runData;
   
   try {
     await env.BRIDGE_DB.prepare(`
-      INSERT INTO audit_events (run_id, task, type, env, owner, result, started_at, ended_at, duration, commit_pr, artifacts, logs, notes, slack_ts, slack_channel, updated_at)
+      INSERT INTO audit_events (run_id, task_id, run_type, env, owner, result, start_time, end_time, duration, commit_pr, artifacts, logs, notes, slack_ts, slack_channel, updated_at)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
       ON CONFLICT(run_id) DO UPDATE SET
         result = excluded.result,
-        ended_at = COALESCE(excluded.ended_at, audit_events.ended_at),
+        end_time = COALESCE(excluded.end_time, audit_events.end_time),
         duration = COALESCE(excluded.duration, audit_events.duration),
         commit_pr = COALESCE(excluded.commit_pr, audit_events.commit_pr),
         artifacts = COALESCE(excluded.artifacts, audit_events.artifacts),
@@ -235,6 +267,12 @@ export default {
       
       const threadTs = ev.thread_ts || ev.ts;
       const eventId = payload.event_id || '';
+      
+      // Dedupe check
+      if (eventId && await isDuplicateEvent(env, eventId)) {
+        console.log('Duplicate event, skipping:', eventId);
+        return new Response('ok');
+      }
       
       // Load thread to get root message
       const repliesResponse = await fetch('https://slack.com/api/conversations.replies', {
