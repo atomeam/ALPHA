@@ -198,6 +198,44 @@ NOTES: Webhook path normalized to /webhooks/notion
 
 ---
 
+## Notion Update Behavior (v0 Canonical)
+
+**Rule:** Run updater sets `Status` and appends evidence as a **page comment**.
+
+No new properties required — works with existing Todo List schema.
+
+**Why comments over property:**
+- No schema change needed
+- Audit trail is visible to all page viewers
+- Maintains idempotency (updater doesn't need to track what it wrote)
+
+**Update payload:**
+```json
+{
+  "properties": {
+    "Status": {"select": {"name": "Done"}}
+  },
+  "children": []  // Empty - comments are separate API call
+}
+```
+
+**Evidence comment format:**
+```
+🏁 RUN Completed — Evidence
+
+Run ID: gha:1234567890
+Result: success
+Duration: 15m
+Commit/PR: https://github.com/atomeam/ALPHA/pull/24
+Artifacts: https://github.com/atomeam/ALPHA/pull/24
+Notes: Webhook path normalized to /webhooks/notion
+
+Posted by: OpenHands (ALPHA Council)
+Timestamp: 2026-05-27T22:15:00Z
+```
+
+---
+
 ## OpenHands Automation Configuration
 
 ### Intake Agent (Cron)
@@ -228,8 +266,54 @@ curl -X POST "${OPENHANDS_HOST}/api/automation/v1/preset/prompt" \
 
 ---
 
+## Acceptance Test (End-to-End Proof)
+
+Once secrets are set, run this sequence to validate the full loop:
+
+### 1. Intake posts to #ops-control
+```bash
+python3 scripts/automation/intake_agent.py --dry-run
+```
+
+### 2. Agent posts RUN header to #ops-runs
+```bash
+python3 scripts/slack/slack_run_reporter.py \
+  --type build --env staging --owner OpenHands \
+  --task-id "https://www.notion.so/..." \
+  --result unknown --start-time 2026-05-27T22:00:00Z
+```
+
+### 3. Agent posts RESULT in same thread
+```bash
+python3 scripts/slack/slack_run_reporter.py \
+  --type build --env staging --owner OpenHands \
+  --task-id "https://www.notion.so/..." \
+  --result success --start-time 2026-05-27T22:00:00Z \
+  --end-time 2026-05-27T22:15:00Z \
+  --artifacts "https://github.com/atomeam/ALPHA/pull/24" \
+  --notes "Webhook path normalized" \
+  --thread-ts <from_step_2_ts>
+```
+
+### 4. Verify D1 row exists (UPSERT)
+```sql
+SELECT run_id, result, duration, artifacts
+FROM audit_events
+WHERE run_id = 'gha:<run_number>';
+```
+
+Expected: Single row (idempotent — no duplicates on retry)
+
+### 5. Verify Notion task updated
+- Status → Done
+- Comment added with evidence block
+
+---
+
 ## Version History
 
 | Version | Date | Changes |
 |---------|------|---------|
 | 0.1 | 2026-05-27 | Initial design |
+| 0.2 | 2026-05-27 | Channel separation + dedup guardrails |
+| 0.3 | 2026-05-27 | Notion behavior: comments over properties (Option A) |

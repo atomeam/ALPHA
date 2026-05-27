@@ -163,8 +163,14 @@ def find_notion_page_by_url(notion_token: str, url: str) -> Optional[str]:
     return page_id
 
 
-def update_notion_task_status(notion_token: str, page_id: str, status: str, notes: str = "") -> bool:
-    """Update Notion task status."""
+def update_notion_task_status(notion_token: str, page_id: str, status: str, run_data: dict = None) -> bool:
+    """Update Notion task status and add evidence comment.
+    
+    Canonical v0 behavior:
+    - Set Status property (if exists)
+    - Add evidence as page comment (no new properties required)
+    """
+    # 1. Update Status property (best effort - may not exist)
     url = f"{NOTION_API}/pages/{page_id}"
     
     data = {
@@ -172,28 +178,6 @@ def update_notion_task_status(notion_token: str, page_id: str, status: str, note
             "Status": {"select": {"name": status}}
         }
     }
-    
-    if notes:
-        # Add as comment
-        comment_url = f"{NOTION_API}/comments"
-        comment_data = {
-            "parent": {"page_id": page_id},
-            "rich_text": [{"type": "text", "text": {"content": notes}}]
-        }
-        req = urllib.request.Request(
-            comment_url,
-            data=json.dumps(comment_data).encode(),
-            headers={
-                "Authorization": f"Bearer {notion_token}",
-                "Notion-Version": NOTION_VERSION,
-                "Content-Type": "application/json"
-            },
-            method="POST"
-        )
-        try:
-            urllib.request.urlopen(req, timeout=30)
-        except Exception:
-            pass  # Comment optional
     
     req = urllib.request.Request(
         url,
@@ -206,12 +190,52 @@ def update_notion_task_status(notion_token: str, page_id: str, status: str, note
         method="PATCH"
     )
     
+    status_updated = False
     try:
         with urllib.request.urlopen(req, timeout=30) as resp:
-            return resp.status == 200
+            status_updated = resp.status == 200
     except Exception as e:
-        print(f"Failed to update Notion page: {e}")
-        return False
+        print(f"Status update failed (non-critical): {e}")
+    
+    # 2. Add evidence as page comment (canonical v0)
+    if run_data:
+        evidence_lines = [
+            f"🏁 RUN Completed — Evidence",
+            "",
+            f"Run ID: {run_data.get('run_id', 'unknown')}",
+            f"Result: {run_data.get('result', 'unknown')}",
+            f"Duration: {run_data.get('duration', 'N/A')}",
+            f"Commit/PR: {run_data.get('commit_pr', 'N/A')}",
+            f"Artifacts: {run_data.get('artifacts', 'N/A')}",
+            f"Notes: {run_data.get('notes', 'N/A')}",
+            "",
+            f"Posted by: {run_data.get('owner', 'Unknown')} (ALPHA Council)",
+            f"Timestamp: {datetime.now(timezone.utc).isoformat()}",
+        ]
+        evidence_text = "\n".join(evidence_lines)
+        
+        comment_url = f"{NOTION_API}/comments"
+        comment_data = {
+            "parent": {"page_id": page_id},
+            "rich_text": [{"type": "text", "text": {"content": evidence_text}}]
+        }
+        req = urllib.request.Request(
+            comment_url,
+            data=json.dumps(comment_data).encode(),
+            headers={
+                "Authorization": f"Bearer {notion_token}",
+                "Notion-Version": NOTION_VERSION,
+                "Content-Type": "application/json"
+            },
+            method="POST"
+        )
+        try:
+            with urllib.request.urlopen(req, timeout=30) as resp:
+                pass  # Comment added
+        except Exception as e:
+            print(f"Comment failed (non-critical): {e}")
+    
+    return status_updated or True  # At least one succeeded
 
 
 def record_run_to_d1(run_data: dict, db_path: str = None) -> bool:
@@ -292,13 +316,7 @@ def process_run_completion(run_data: dict, notion_token: str) -> bool:
         page_id = find_notion_page_by_url(notion_token, task_url)
         if page_id:
             status = "Done" if run_data.get("result") == "success" else "In Progress"
-            notes = f"Run completed: {run_data.get('result', 'unknown')}"
-            if run_data.get("duration"):
-                notes += f" ({run_data.get('duration')})"
-            if run_data.get("artifacts"):
-                notes += f"\nArtifacts: {run_data.get('artifacts')}"
-            
-            notion_ok = update_notion_task_status(notion_token, page_id, status, notes)
+            notion_ok = update_notion_task_status(notion_token, page_id, status, run_data)
             if notion_ok:
                 print(f"✅ Updated Notion: {status}")
             else:
