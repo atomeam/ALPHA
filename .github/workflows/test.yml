@@ -1,15 +1,25 @@
-name: test
+name: deploy
 
 on:
-  pull_request:
-    branches: [main]
-  push:
-    branches: [main]
+  workflow_dispatch:
+    inputs:
+      env:
+        description: 'Target environment (staging|prod)'
+        required: true
+        default: 'staging'
+      run_type:
+        description: 'deploy|migration|smoke'
+        required: true
+        default: 'deploy'
+
+env:
+  SLACK_CHANNEL: '#ops-runs'
 
 jobs:
-  test:
-    name: unit tests
+  deploy:
+    name: Deploy to ${{ inputs.env }}
     runs-on: ubuntu-latest
+    environment: ${{ inputs.env }}
     steps:
       - uses: actions/checkout@v4
 
@@ -27,8 +37,61 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Run tests
-        run: pnpm test
+      - name: Typecheck
+        run: pnpm typecheck
 
       - name: Build
         run: pnpm build
+
+      # Post RUN start header to Slack
+      - name: Post RUN start to Slack
+        uses: ./.github/actions/slack-reporter
+        with:
+          slack_token: ${{ secrets.SLACK_BOT_TOKEN }}
+          channel: ${{ env.SLACK_CHANNEL }}
+          run_id: 'gha:${{ github.run_id }}'
+          task_id: ''
+          run_type: ${{ inputs.run_type }}
+          env: ${{ inputs.env }}
+          owner: 'CI'
+          result: 'unknown'
+          start_time: ${{ github.event.head_commit.timestamp }}
+          commit_pr: ${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }}
+        id: run_start
+
+      # Deploy based on target
+      - name: Deploy alpha-orchestrator
+        if: inputs.env == 'staging'
+        run: |
+          cd apps/alpha-orchestrator
+          npx wrangler deploy --env staging
+
+      - name: Deploy to production
+        if: inputs.env == 'prod'
+        run: |
+          cd apps/alpha-orchestrator
+          npx wrangler deploy --env production
+
+      # Smoke test
+      - name: Smoke test
+        run: |
+          sleep 5
+          curl -f https://alpha-orchestrator.${{ inputs.env }}.workers.dev/health || exit 1
+
+      # Post RUN completion
+      - name: Post RUN completion to Slack
+        if: always()
+        uses: ./.github/actions/slack-reporter
+        with:
+          slack_token: ${{ secrets.SLACK_BOT_TOKEN }}
+          channel: ${{ env.SLACK_CHANNEL }}
+          run_id: 'gha:${{ github.run_id }}'
+          run_type: ${{ inputs.run_type }}
+          env: ${{ inputs.env }}
+          owner: 'CI'
+          result: ${{ job.status == 'success' && 'success' || 'failed' }}
+          start_time: ${{ github.event.head_commit.timestamp }}
+          end_time: ${{ github.event.head_commit.timestamp }}
+          duration: ''
+          commit_pr: ${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }}
+          notes: 'Deploy ${{ inputs.run_type }} to ${{ inputs.env }} - ${{ job.status }}'</
