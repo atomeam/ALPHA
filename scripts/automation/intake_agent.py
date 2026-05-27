@@ -1,25 +1,24 @@
 #!/usr/bin/env python3
 """
-Notion Task Intake Agent v0.1
+Notion Task Intake Agent v0.2
 
 Recurring automation that:
 1. Queries Notion Todo List for P0/P1 Council tasks
 2. Generates work instructions with deliverable format
-3. Posts to Slack control channel (#ops-runs)
+3. Posts to Slack #ops-control (work queue channel)
 
-Run via: python3 intake_agent.py --dry-run (for testing)
-         OpenHands automation (cron) for production
+NOT to #ops-runs — that channel is for RUN evidence only.
+Intake messages would pollute the evidence stream.
 
 Environment:
-  NOTION_TOKEN     - Notion integration token
-  SLACK_BOT_TOKEN  - Slack bot token
-  SLACK_CHANNEL    - Control channel (default: #ops-runs)
+  NOTION_TOKEN              - Notion integration token
+  SLACK_BOT_TOKEN           - Slack bot token
+  SLACK_OPS_CONTROL_CHANNEL - Control channel (default: #ops-control)
 """
 
 import json
 import os
 import sys
-import time
 from datetime import datetime, timezone
 from typing import Optional
 
@@ -33,6 +32,10 @@ except ImportError:
 
 NOTION_API = "https://api.notion.com/v1"
 NOTION_VERSION = "2022-06-28"
+
+# Channel separation (canonical)
+OPS_CONTROL_CHANNEL = os.environ.get("SLACK_OPS_CONTROL_CHANNEL", "#ops-control")  # Work queue
+OPS_RUNS_CHANNEL = os.environ.get("SLACK_OPS_RUNS_CHANNEL", "#ops-runs")  # Evidence only
 
 
 def get_env(key: str, default: str = "") -> str:
@@ -188,7 +191,7 @@ def post_to_slack(message: str, channel: str, token: str) -> Optional[dict]:
 def build_work_instruction(task: dict) -> str:
     """Build a work instruction message for a task."""
     lines = [
-        f"📋 *WORK INTAKE*",
+        f"📋 *WORK QUEUE* — From Notion Todo List",
         f"",
         f"*Task:* {task.get('title', 'Unknown')}",
         f"*Priority:* {task.get('priority', 'Unknown')}",
@@ -208,10 +211,12 @@ def build_work_instruction(task: dict) -> str:
         f"NOTES: <evidence summary>",
         f"```",
         f"",
+        f"*Post to:* #ops-runs (evidence stream)",
+        f"",
         f"*Definition of Done:*",
         f"• PR created with implementation",
-        f"• RUN header posted to this channel",
-        f"• Notion task status updated",
+        f"• RUN header posted to #ops-runs",
+        f"• Notion task status updated to Done",
     ]
     return "\n".join(lines)
 

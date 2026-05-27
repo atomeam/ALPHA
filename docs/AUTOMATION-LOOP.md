@@ -7,18 +7,22 @@
 
 ## Design Decisions
 
-### 1. Agent Control Plane: Slack (#ops-runs)
+### 1. Agent Control Plane: Two-Channel Model
 
-Slack is the event stream and work intake channel:
-- RUN headers posted here by CI and agents
-- Work instructions posted here by intake agent
-- All follow-ups in threads
+**Channel Separation (Canonical):**
 
-**Why Slack over Notion:**
-- CI can post directly without Notion API overhead
-- Real-time visibility for all operators
-- Thread-based conversations work well for work tracking
-- Faster velocity for operational messages
+| Channel | Purpose | Content |
+|---------|---------|---------|
+| `#ops-control` | Work queue / instruction stream | Intake agent posts work items |
+| `#ops-runs` | Evidence stream / RUN ledger | CI and agents post RUN headers |
+
+**Why separation matters:**
+- `#ops-control` is the intake queue — agents monitor for work instructions
+- `#ops-runs` is the evidence log — scan for completed runs, audit trail
+- Mixing them pollutes the evidence stream and makes scanning harder
+
+**intake_agent.py** posts to `#ops-control` (never to `#ops-runs`)  
+**run_updater.py** monitors `#ops-runs` for `RESULT:` patterns
 
 ### 2. Correlation Key: TASK: field with Notion URL
 
@@ -43,7 +47,7 @@ Every RUN header includes `TASK: <notion_url>`:
 │                                                                  │
 │  For each task:                                                 │
 │    • Generate work instruction message                         │
-│    • Post to #ops-runs                                         │
+│    • Post to #ops-control (NOT #ops-runs)                     │
 │    • Include: task link, deliverable format, DoD               │
 └─────────────────────────────────────────────────────────────────┘
                               │
@@ -52,7 +56,7 @@ Every RUN header includes `TASK: <notion_url>`:
 │                     AGENT EXECUTES                              │
 │                     OpenHands/Devin                             │
 ├─────────────────────────────────────────────────────────────────┤
-│  For each work item:                                            │
+│  For each work item (from #ops-control):                        │
 │    • Implement deliverable                                     │
 │    • Post RUN header to #ops-runs (RESULT: unknown)            │
 │    • Post artifacts/logs in thread                             │
@@ -61,18 +65,18 @@ Every RUN header includes `TASK: <notion_url>`:
                               │
                               ▼
 ┌─────────────────────────────────────────────────────────────────┐
-│                     RUN UPDATER (Trigger)                       │
-│                     On RUN completion                           │
+│                     RUN UPDATER (Webhook)                      │
+│                     On Slack message in #ops-runs              │
 ├─────────────────────────────────────────────────────────────────┤
-│  Parse RUN header:                                             │
+│  Guardrails (before processing):                               │
+│    1. Verify Slack signature                                   │
+│    2. De-dupe by event_id (stored in D1 ~24h)                  │
+│    3. Validate TASK: is Notion URL or 'none'                   │
+│                                                                  │
+│  On valid RUN completion:                                       │
 │    • Extract run_id, TASK URL, result, artifacts               │
-│                                                                  │
-│  Update D1 audit_events:                                       │
-│    • UPSERT run record (idempotent)                             │
-│                                                                  │
-│  Update Notion task:                                           │
-│    • Set Status = Done (if success)                            │
-│    • Add evidence comment with links                           │
+│    • UPSERT to D1 audit_events (idempotent)                    │
+│    • Update Notion task status + evidence comment              │
 └─────────────────────────────────────────────────────────────────┘
                               │
                               ▼
@@ -97,24 +101,47 @@ Every RUN header includes `TASK: <notion_url>`:
 
 ### Intake Agent
 ```bash
-NOTION_TOKEN=ntn_...       # Notion integration token
-SLACK_BOT_TOKEN=xoxb-...  # Slack bot token
-SLACK_CHANNEL=#ops-runs    # Control channel
+NOTION_TOKEN=ntn_...                  # Notion integration token
+SLACK_BOT_TOKEN=xoxb-...              # Slack bot token
+SLACK_OPS_CONTROL_CHANNEL=#ops-control  # Work queue channel
+SLACK_OPS_RUNS_CHANNEL=#ops-runs       # Evidence stream (config only)
 ```
 
 ### Run Updater
 ```bash
-NOTION_TOKEN=ntn_...       # Notion integration token
-AUDIT_DB=audit_events.db  # Local SQLite for testing (D1 in production)
+NOTION_TOKEN=ntn_...                  # Notion integration token
+SLACK_BOT_TOKEN=xoxb-...             # Slack bot token
+SLACK_SIGNING_SECRET=...              # Slack Events API signing secret
+SLACK_OPS_RUNS_CHANNEL_ID=...        # #ops-runs channel ID (numeric)
+AUDIT_DB=audit_events.db             # Local SQLite (D1 in production)
 ```
+
+---
+
+## Wiring Checklist
+
+The following secrets/configs must be set before the loop is always-on:
+
+| Secret/Config | Purpose |
+|--------------|---------|
+| `NOTION_TOKEN` | Query Todo List, update task status |
+| `SLACK_BOT_TOKEN` | Post to #ops-control, monitor #ops-runs |
+| `SLACK_SIGNING_SECRET` | Verify Slack Events API requests |
+| `SLACK_OPS_RUNS_CHANNEL_ID` | Filter events to #ops-runs only |
+| `SLACK_OPS_CONTROL_CHANNEL` | Intake agent target (default: #ops-control) |
+
+**Slack App Requirements:**
+- App installed to workspace
+- Events API enabled (subscribe to `message.channels`)
+- Bot scopes: `chat:write`, `channels:read`
 
 ---
 
 ## Example Message Flow
 
-### 1. Intake Agent → #ops-runs
+### 1. Intake Agent → #ops-control
 ```
-📋 WORK INTAKE
+📋 WORK QUEUE — From Notion Todo List
 
 Task: P0 — Normalize webhook path
 Priority: P0
@@ -125,16 +152,17 @@ Deliverable Format:
 RUN: <run_id>
 TASK: https://www.notion.so/...
 TYPE: build
-ENV: dev
 ...
+
+Post to: #ops-runs (evidence stream)
 
 Definition of Done:
 • PR created
-• RUN header posted
-• Notion task status updated
+• RUN header posted to #ops-runs
+• Notion task status updated to Done
 ```
 
-### 2. Agent → #ops-runs (start)
+### 2. Agent monitors #ops-control → executes → posts to #ops-runs (start)
 ```
 RUN: gha:1234567890
 TASK: https://www.notion.so/...
@@ -159,13 +187,14 @@ END: 2026-05-27 22:15 UTC
 DURATION: 15m
 COMMIT/PR: https://github.com/atomeam/ALPHA/pull/24
 ARTIFACTS: https://github.com/atomeam/ALPHA/pull/24
-LOGS: 
+LOGS:
 NOTES: Webhook path normalized to /webhooks/notion
 ```
 
-### 4. Run Updater → Notion
-- Status updated to "Done"
-- Comment added with evidence links
+### 4. Run Updater (triggered by Slack Events API)
+- Guardrails pass (signature valid, no dupe, TASK is Notion URL)
+- D1 UPSERT: idempotent run record
+- Notion: Status → Done, comment with evidence links
 
 ---
 
