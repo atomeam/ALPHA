@@ -18,40 +18,60 @@ Before running any step below, confirm:
 
 ## Step 1: Apply D1 Migrations
 
-**Target:** Staging D1 database (`aether-bridge-db` or as configured)
+**Target:** Staging D1 database (`aether-bridge-db`)
 
-### Migration Order
-
-1. `d1/migrations/0002_events_council_logs.sql` — audit_events table
-2. `d1/migrations/0003_processed_slack_events.sql` — processed_slack_events dedupe
-
-### Apply via Wrangler
+### Verify Setup
 
 ```bash
-# Login to Cloudflare
-npx wrangler login
+# Confirm auth
+npx wrangler whoami
 
-# Apply migration to staging D1
-cd /workspace/project/ALPHA
-npx wrangler d1 migrations apply aether-bridge-db --local=False
-
-# Or for specific migration
-npx wrangler d1 execute aether-bridge-db --command="$(cat d1/migrations/0002_events_council_logs.sql)" --local=False
+# Confirm DB exists
+npx wrangler d1 list
 ```
 
-### Verify Migration
+### Apply Migrations (Remote)
 
-```sql
--- Check audit_events table exists
-SELECT name FROM sqlite_master WHERE type='table' AND name='audit_events';
+Run from `apps/ops-worker/` directory:
 
--- Check processed_slack_events exists
-SELECT name FROM sqlite_master WHERE type='table' AND name='processed_slack_events';
+```bash
+# Apply 0002 (audit_events table)
+npx wrangler d1 execute aether-bridge-db --env staging --remote \
+  --file=../../d1/migrations/0002_events_council_logs.sql
 
--- Verify schema
-PRAGMA table_info(audit_events);
-PRAGMA table_info(processed_slack_events);
+# Apply 0003 (processed_slack_events dedupe)
+npx wrangler d1 execute aether-bridge-db --env staging --remote \
+  --file=../../d1/migrations/0003_processed_slack_events.sql
 ```
+
+### Verify Tables
+
+```bash
+# Confirm both tables exist
+npx wrangler d1 execute aether-bridge-db --env staging --remote \
+  --command="SELECT name FROM sqlite_master WHERE type='table' AND name IN ('audit_events','processed_slack_events') ORDER BY name;"
+
+# Verify audit_events schema
+npx wrangler d1 execute aether-bridge-db --env staging --remote \
+  --command="PRAGMA table_info(audit_events);"
+
+# Verify processed_slack_events schema
+npx wrangler d1 execute aether-bridge-db --env staging --remote \
+  --command="PRAGMA table_info(processed_slack_events);"
+
+# Verify indexes
+npx wrangler d1 execute aether-bridge-db --env staging --remote \
+  --command="SELECT name, sql FROM sqlite_master WHERE type='index' ORDER BY name;"
+```
+
+### Paste Back (for verification)
+
+After running, paste the output of:
+- `PRAGMA table_info(audit_events);`
+- `PRAGMA table_info(processed_slack_events);`
+- Index list
+
+This confirms schema matches expectations (no last-mile mismatch on `slack_channel`, dedupe index, etc.)
 
 ---
 
