@@ -31,6 +31,6 @@ CREW_SIZE = "11"
 port = 8787
 local_protocol = "http"
 
-[[routes]]
-pattern = "home.a-to-mind.com"
-custom_domain = true
+routes = [
+  { pattern = "home.a-to-mind.com", custom_domain = true }
+]
