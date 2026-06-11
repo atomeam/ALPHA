@@ -91,3 +91,138 @@ export interface NeighborhoodState {
   quarantined_until?: string;
   seen_before: boolean; // false → shadow apply required
 }
+
+// ============================================================================
+// Pipeline Interfaces (PR1)
+// ============================================================================
+
+/**
+ * Metrics snapshot from Amplitude or KV cache.
+ * Used by Observer/Evaluator to assess current state.
+ */
+export interface MetricsSnapshot {
+  metric: string;
+  value: number;
+  timestamp: string; // ISO
+}
+
+/**
+ * Result of Observing phase — raw assessment ready for proposal.
+ */
+export interface Observation {
+  id: string;
+  timestamp: string;
+  metrics: MetricsSnapshot[];
+  findings: string[];
+  severity: 'info' | 'warning' | 'critical';
+}
+
+/**
+ * Result of Evaluating phase — validated assessment ready for proposal assembly.
+ */
+export interface Evaluation {
+  id: string;
+  observation_id: string;
+  is_actionable: boolean;
+  reasoning: string;
+  suggested_metric?: string;
+  suggested_direction?: 'increase' | 'decrease' | 'hold';
+  suggested_magnitude?: number;
+  suggested_tolerance?: number;
+}
+
+/**
+ * Result of Proposing phase — full Proposal ready for Curator.
+ */
+export interface ProposalResult {
+  proposal: Proposal;
+  evaluation_id: string;
+}
+
+/**
+ * Pipeline flags for precedence control.
+ */
+export interface PipelineFlags {
+  /** Bypass KV cache, fetch from Amplitude directly */
+  forceAmplitude?: boolean;
+  /** Skip Notion writeback (for tests or when Notion is unavailable) */
+  disableNotion?: boolean;
+  /** Use in-memory fallback even if KV is available */
+  forceMemoryFallback?: boolean;
+}
+
+/**
+ * Pipeline context — all inputs needed to run one full loop cycle.
+ */
+export interface PipelineContext {
+  id: string;
+  trigger: 'cron' | 'api' | 'queue';
+  correlation_id: string;
+  input: {
+    /** Primary: injected metrics from caller (tests, API, queue) */
+    metrics?: MetricsSnapshot[];
+    /** Raw observation data if already processed */
+    observation?: Observation;
+    /** Pre-assembled proposal (skip observer/evaluator/proposer) */
+    proposal?: Proposal;
+  };
+  flags: PipelineFlags;
+  /** Timestamp for consistent cooldown/cooldown checks */
+  now: Date;
+}
+
+// ============================================================================
+// MetricsProvider (PR1)
+// ============================================================================
+
+/**
+ * Interface for retrieving metrics.
+ * Implementations: InputMetricsProvider, KVMetricsProvider, AmplitudeMetricsProvider.
+ * Precedence: first available in the chain.
+ */
+export interface MetricsProvider {
+  /** Returns available metric names in Amplitude */
+  listAvailableMetrics(): Promise<Set<string>>;
+  /** Fetches current value(s) for given metric names */
+  fetchMetrics(metricNames: string[]): Promise<MetricsSnapshot[]>;
+  /** Returns true if this provider has data (avoids null-provider fallback loops) */
+  isAvailable(): boolean;
+}
+
+// ============================================================================
+// LessonSink (PR1)
+// ============================================================================
+
+/**
+ * Interface for writing Lesson records.
+ * Implementations: KVLessonSink, NotionLessonSink, MemoryLessonSink.
+ * Precedence: first available in the chain.
+ */
+export interface LessonSink {
+  /** Append a lesson record */
+  write(lesson: Lesson): Promise<void>;
+  /** List lessons (for Curator do-not-repeat lookup) */
+  list(): Promise<Lesson[]>;
+  /** Returns true if this sink has storage available */
+  isAvailable(): boolean;
+}
+
+// ============================================================================
+// Pipeline Result (PR1)
+// ============================================================================
+
+/**
+ * Outcome of a full pipeline run.
+ */
+export interface PipelineResult {
+  pipeline_id: string;
+  status: 'completed' | 'denied' | 'halted' | 'reverted' | 'shadowed' | 'error';
+  observation?: Observation;
+  evaluation?: Evaluation;
+  proposal?: Proposal;
+  curator_decision?: CuratorDecision;
+  applier_result?: ApplierResult;
+  lessons_written: number;
+  message?: string;
+  error?: string;
+}
