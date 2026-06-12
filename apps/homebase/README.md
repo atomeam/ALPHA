@@ -5,9 +5,10 @@ The operational dashboard for the AI empire. A single Cloudflare Worker serving 
 ## Purpose
 
 Homebase provides a unified view of:
+
 - **Crew Panel** — Live status of all 11 empire members
 - **Mission Panel** — Current objectives, backlog, now playing
-- **System Panel** — Worker health, DO class, queue depth readouts  
+- **System Panel** — Worker health, DO class, queue depth readouts
 - **Event Stream** — Heartbeat feed of all actions
 - **Orchestration Panel** — Multi-agent workflow status
 
@@ -19,7 +20,7 @@ Homebase provides a unified view of:
 Homebase Worker ──[Service Binding]──→ self-adaptive-app
                     │
                     ├── Fetches /api/health
-                    ├── Fetches /api/state  
+                    ├── Fetches /api/state
                     └── Fetches /api/metrics
                               │
                               ├── AssessmentBrain (Durable Object)
@@ -37,11 +38,11 @@ Homebase Worker ──[Service Binding]──→ self-adaptive-app
 
 ## Bindings
 
-| Binding | Type | Purpose |
-|---------|------|---------|
+| Binding    | Type    | Purpose                  |
+| ---------- | ------- | ------------------------ |
 | `ADAPTIVE` | Service | self-adaptive-app Worker |
-| `STATE` | KV | Persist crew state |
-| `ACTIONS` | Queue | Action processing |
+| `STATE`    | KV      | Persist crew state       |
+| `ACTIONS`  | Queue   | Action processing        |
 
 ## Crew (11 Members)
 

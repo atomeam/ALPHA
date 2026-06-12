@@ -1,13 +1,18 @@
 {
-  "name": "homebase",
+  "name": "@alpha/homebase",
   "version": "0.1.0",
   "private": true,
+  "type": "module",
   "scripts": {
     "dev": "wrangler dev",
     "deploy": "wrangler deploy",
-    "build": "wrangler deploy --dry-run"
+    "build": "wrangler deploy --dry-run",
+    "lint": "eslint src",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "devDependencies": {
+    "@cloudflare/workers-types": "^4.20240620.0",
+    "typescript": "^5.4.5",
     "wrangler": "^3.114.17"
   }
 }

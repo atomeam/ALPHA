@@ -16,14 +16,14 @@ Agent → alpha-orchestrator → OrchestrationBrain (DO)
 
 ## API Endpoints
 
-| Endpoint | Method | Purpose |
-|----------|--------|---------|
-| `/health` | GET | Health check with brain status |
-| `/transition` | POST | Submit agent state transition (OCC verified) |
-| `/agents` | GET | List all agent states |
-| `/agents?id=<id>` | GET | Get specific agent state |
-| `/lock?action=status&id=<id>` | GET | Check lock status |
-| `/lock?action=release&id=<id>` | POST | Release a lock |
+| Endpoint                       | Method | Purpose                                      |
+| ------------------------------ | ------ | -------------------------------------------- |
+| `/health`                      | GET    | Health check with brain status               |
+| `/transition`                  | POST   | Submit agent state transition (OCC verified) |
+| `/agents`                      | GET    | List all agent states                        |
+| `/agents?id=<id>`              | GET    | Get specific agent state                     |
+| `/lock?action=status&id=<id>`  | GET    | Check lock status                            |
+| `/lock?action=release&id=<id>` | POST   | Release a lock                               |
 
 ## Transition Event Format
 
@@ -51,14 +51,14 @@ Agent → alpha-orchestrator → OrchestrationBrain (DO)
 
 ## Response Codes
 
-| Code | Meaning |
-|------|---------|
-| 200 | Success |
-| 400 | Invalid payload |
-| 404 | Agent not found |
-| 409 | Lock conflict |
-| 412 | Stale state revision (OCC violation) |
-| 500 | Internal error |
+| Code | Meaning                              |
+| ---- | ------------------------------------ |
+| 200  | Success                              |
+| 400  | Invalid payload                      |
+| 404  | Agent not found                      |
+| 409  | Lock conflict                        |
+| 412  | Stale state revision (OCC violation) |
+| 500  | Internal error                       |
 
 ## Development
 

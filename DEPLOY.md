@@ -31,6 +31,7 @@ curl -i https://alpha-orchestrator.<your-subdomain>.workers.dev/health
 ```
 
 Expected output:
+
 ```
 HTTP/2 200
 {"status":"healthy","version":1,...}
@@ -38,11 +39,11 @@ HTTP/2 200
 
 ## Current Status
 
-| Item | Status |
-|------|--------|
-| Code | ✅ Committed (e076c64) |
-| Auth | ❌ Needs `wrangler login` |
-| Deploy | ⏳ Pending |
+| Item   | Status                    |
+| ------ | ------------------------- |
+| Code   | ✅ Committed (e076c64)    |
+| Auth   | ❌ Needs `wrangler login` |
+| Deploy | ⏳ Pending                |
 
 ## Files Ready
 
@@ -54,13 +55,13 @@ HTTP/2 200
 
 Once live, the following endpoints are available:
 
-| Endpoint | Method | Purpose |
-|----------|--------|---------|
-| `/health` | GET | System status |
-| `/state` | GET | Current state snapshot |
-| `/transition` | POST | Apply FSM-validated transition |
-| `/transition/idempotent` | POST | Idempotent transition |
-| `/agents` | GET | List agent states |
-| `/lock` | GET/POST | Lock management with TTL |
-| `/events` | GET | Event log |
-| `/snapshot` | GET | Full state + events |
+| Endpoint                 | Method   | Purpose                        |
+| ------------------------ | -------- | ------------------------------ |
+| `/health`                | GET      | System status                  |
+| `/state`                 | GET      | Current state snapshot         |
+| `/transition`            | POST     | Apply FSM-validated transition |
+| `/transition/idempotent` | POST     | Idempotent transition          |
+| `/agents`                | GET      | List agent states              |
+| `/lock`                  | GET/POST | Lock management with TTL       |
+| `/events`                | GET      | Event log                      |
+| `/snapshot`              | GET      | Full state + events            |

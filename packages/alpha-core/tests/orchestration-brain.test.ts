@@ -3,78 +3,21 @@
  * FSM, TTL locks, idempotency, atomic transactions
  */
 
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { describe, it, expect } from 'vitest';
 
-// Mock DurableObjectStorage
-class MockDurableObjectStorage {
-  private data: Map<string, unknown> = new Map();
-  private transactions: ((txn: MockTransaction) => Promise<unknown>)[] = [];
-
-  async get<T>(key: string): Promise<T | null> {
-    return (this.data.get(key) as T) || null;
-  }
-
-  async put(key: string, value: unknown): Promise<void> {
-    this.data.set(key, value);
-  }
-
-  async delete(key: string): Promise<void> {
-    this.data.delete(key);
-  }
-
-  transaction<T>(fn: (txn: MockTransaction) => Promise<T>): Promise<T> {
-    const txn = new MockTransaction(this.data);
-    return fn(txn);
-  }
-
-  // Helper for tests
-  _clear(): void {
-    this.data.clear();
-  }
-}
-
-class MockTransaction {
-  private data: Map<string, unknown>;
-  
-  constructor(data: Map<string, unknown>) {
-    this.data = new Map(data);
-  }
-
-  async get<T>(key: string): Promise<T | null> {
-    return (this.data.get(key) as T) || null;
-  }
-
-  async put(key: string, value: unknown): Promise<void> {
-    this.data.set(key, value);
-  }
-
-  async delete(key: string): Promise<void> {
-    this.data.delete(key);
-  }
-
-  _getData(): Map<string, unknown> {
-    return this.data;
-  }
-}
-
-// Mock DurableObjectState
-class MockDurableObjectState {
-  storage: MockDurableObjectStorage;
-  
-  constructor() {
-    this.storage = new MockDurableObjectStorage();
-  }
-}
+// Mock classes reserved for future DO integration tests.
+// MockDurableObjectStorage, MockTransaction, MockDurableObjectState
+// were scaffolded here — uncomment when adding DO-level tests.
 
 // FSM Valid Transitions
 const VALID_TRANSITIONS: Record<string, string[]> = {
-  idle: ["running"],
-  running: ["completed", "failed", "blocked", "waiting"],
-  waiting: ["running", "failed"],
-  blocked: ["running", "failed"],
+  idle: ['running'],
+  running: ['completed', 'failed', 'blocked', 'waiting'],
+  waiting: ['running', 'failed'],
+  blocked: ['running', 'failed'],
   completed: [],
   failed: [],
-  escalated: ["running", "failed"]
+  escalated: ['running', 'failed'],
 };
 
 // ============================================================================
@@ -153,7 +96,7 @@ describe('OrchestrationBrain FSM', () => {
     });
 
     it('returns false for unknown state', () => {
-      expect(validateTransition('unknown' as any, 'running')).toBeFalsy();
+      expect(validateTransition('unknown' as string, 'running')).toBeFalsy();
     });
 
     it('handles edge case: empty allowed array', () => {
@@ -164,7 +107,7 @@ describe('OrchestrationBrain FSM', () => {
 
 describe('OrchestrationBrain Lock TTL', () => {
   const DEFAULT_LOCK_TTL_MS = 5 * 60 * 1000; // 5 minutes
-  const STALE_LOCK_THRESHOLD_MS = 30 * 60 * 1000; // 30 minutes
+  const _STALE_LOCK_THRESHOLD_MS = 30 * 60 * 1000; // 30 minutes
 
   interface LockEntry {
     heldBy: string;
@@ -177,7 +120,7 @@ describe('OrchestrationBrain Lock TTL', () => {
     heldBy,
     acquiredAt: Date.now(),
     expiresAt: Date.now() + ttlMs,
-    correlationId: `lock-${Math.random().toString(36).slice(2)}`
+    correlationId: `lock-${Math.random().toString(36).slice(2)}`,
   });
 
   const isLockExpired = (lock: LockEntry): boolean => Date.now() > lock.expiresAt;
@@ -205,7 +148,7 @@ describe('OrchestrationBrain Lock TTL', () => {
       heldBy: 'test',
       acquiredAt: Date.now() - 600000,
       expiresAt: Date.now() - 300000, // Expired 5 minutes ago
-      correlationId: 'test-lock'
+      correlationId: 'test-lock',
     };
     expect(isLockExpired(expiredLock)).toBe(true);
   });
@@ -222,8 +165,8 @@ describe('OrchestrationBrain Lock TTL', () => {
         heldBy: 'agent2',
         acquiredAt: Date.now() - 600000,
         expiresAt: Date.now() - 300000,
-        correlationId: 'expired'
-      }
+        correlationId: 'expired',
+      },
     };
     const cleaned = cleanExpiredLocks(locks);
     expect(cleaned['valid-lock']).toBeDefined();
@@ -232,8 +175,8 @@ describe('OrchestrationBrain Lock TTL', () => {
 
   it('handles all locks expired', () => {
     const allExpired: Record<string, LockEntry> = {
-      'lock1': { heldBy: 'a', acquiredAt: 0, expiresAt: 0, correlationId: '1' },
-      'lock2': { heldBy: 'b', acquiredAt: 0, expiresAt: 0, correlationId: '2' }
+      lock1: { heldBy: 'a', acquiredAt: 0, expiresAt: 0, correlationId: '1' },
+      lock2: { heldBy: 'b', acquiredAt: 0, expiresAt: 0, correlationId: '2' },
     };
     const cleaned = cleanExpiredLocks(allExpired);
     expect(Object.keys(cleaned)).toHaveLength(0);
@@ -247,7 +190,7 @@ describe('OrchestrationBrain Idempotency', () => {
   }
 
   const isEventProcessed = (eventLog: EventLogEntry[], eventId: string): boolean => {
-    return eventLog.some(e => e.eventId === eventId);
+    return eventLog.some((e) => e.eventId === eventId);
   };
 
   it('detects first event as not processed', () => {
@@ -256,16 +199,12 @@ describe('OrchestrationBrain Idempotency', () => {
   });
 
   it('detects processed event', () => {
-    const eventLog: EventLogEntry[] = [
-      { eventId: 'evt-001', timestamp: Date.now() }
-    ];
+    const eventLog: EventLogEntry[] = [{ eventId: 'evt-001', timestamp: Date.now() }];
     expect(isEventProcessed(eventLog, 'evt-001')).toBe(true);
   });
 
   it('allows different event IDs', () => {
-    const eventLog: EventLogEntry[] = [
-      { eventId: 'evt-001', timestamp: Date.now() }
-    ];
+    const eventLog: EventLogEntry[] = [{ eventId: 'evt-001', timestamp: Date.now() }];
     expect(isEventProcessed(eventLog, 'evt-002')).toBe(false);
   });
 
@@ -276,7 +215,7 @@ describe('OrchestrationBrain Idempotency', () => {
   it('handles duplicate event IDs in log', () => {
     const eventLog: EventLogEntry[] = [
       { eventId: 'evt-001', timestamp: Date.now() },
-      { eventId: 'evt-001', timestamp: Date.now() }
+      { eventId: 'evt-001', timestamp: Date.now() },
     ];
     expect(isEventProcessed(eventLog, 'evt-001')).toBe(true);
   });
@@ -290,12 +229,12 @@ describe('OrchestrationBrain Versioning', () => {
 
   const createInitialState = (): SystemState => ({
     version: 1,
-    status: 'healthy'
+    status: 'healthy',
   });
 
   const incrementVersion = (state: SystemState): SystemState => ({
     ...state,
-    version: state.version + 1
+    version: state.version + 1,
   });
 
   it('starts at version 1', () => {
@@ -335,7 +274,7 @@ describe('OrchestrationBrain Atomic Transactions', () => {
 
   const simulateAtomicTransaction = (
     initialState: SystemState,
-    updateFn: (state: SystemState) => SystemState
+    updateFn: (state: SystemState) => SystemState,
   ): { state: SystemState; success: boolean } => {
     try {
       const newState = updateFn(initialState);
@@ -347,9 +286,9 @@ describe('OrchestrationBrain Atomic Transactions', () => {
 
   it('applies update atomically', () => {
     const state: SystemState = { version: 1, counter: 0 };
-    const result = simulateAtomicTransaction(state, s => ({
+    const result = simulateAtomicTransaction(state, (s) => ({
       ...s,
-      counter: s.counter + 1
+      counter: s.counter + 1,
     }));
     expect(result.success).toBe(true);
     expect(result.state.counter).toBe(1);
@@ -357,7 +296,7 @@ describe('OrchestrationBrain Atomic Transactions', () => {
 
   it('rolls back on failure', () => {
     const state: SystemState = { version: 1, counter: 0 };
-    const result = simulateAtomicTransaction(state, s => {
+    const result = simulateAtomicTransaction(state, (_s) => {
       throw new Error('Simulated failure');
     });
     expect(result.success).toBe(false);
@@ -366,11 +305,11 @@ describe('OrchestrationBrain Atomic Transactions', () => {
 
   it('handles concurrent transaction simulation', () => {
     let state: SystemState = { version: 1, counter: 0 };
-    
+
     // Simulate two transactions
-    state = simulateAtomicTransaction(state, s => ({ ...s, counter: s.counter + 1 })).state;
-    state = simulateAtomicTransaction(state, s => ({ ...s, counter: s.counter + 1 })).state;
-    
+    state = simulateAtomicTransaction(state, (s) => ({ ...s, counter: s.counter + 1 })).state;
+    state = simulateAtomicTransaction(state, (s) => ({ ...s, counter: s.counter + 1 })).state;
+
     expect(state.counter).toBe(2);
     expect(state.version).toBe(1); // Note: version not incremented in this simple sim
   });

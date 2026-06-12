@@ -10,6 +10,7 @@
 ## PURPOSE
 
 This contract defines how ALPHA:
+
 - Thinks (cognitive processes)
 - Adapts (self-modification)
 - Routes (orchestration)
@@ -24,6 +25,7 @@ This contract defines how ALPHA:
 **Trigger:** Adam provides goal or directive
 
 **Process:**
+
 ```
 1. Parse intent → extract key requirements
 2. Identify constraints (time, resources, scope)
@@ -32,12 +34,14 @@ This contract defines how ALPHA:
 ```
 
 **Output:** Structured spec with:
+
 - Task definition
 - Success criteria
 - Resource requirements
 - Timeline expectations
 
 **Failure modes:**
+
 - Ambiguous intent → ask Adam for clarification
 - Conflicting requirements → prioritize, flag conflicts
 
@@ -48,6 +52,7 @@ This contract defines how ALPHA:
 **Trigger:** Specification requires external knowledge
 
 **Process:**
+
 ```
 1. Identify knowledge gaps in spec
 2. Search for relevant documentation/APIs
@@ -57,12 +62,14 @@ This contract defines how ALPHA:
 ```
 
 **Output:** Research report with:
+
 - Key findings
 - Source URLs
 - Confidence levels
 - Recommendations
 
 **Failure modes:**
+
 - No results → expand search scope
 - Low confidence → flag for o1/o3 validation
 - Outdated info → note timestamp, suggest verification
@@ -74,6 +81,7 @@ This contract defines how ALPHA:
 **Trigger:** Complex architecture or edge cases
 
 **Process:**
+
 ```
 1. Receive proposed solution
 2. Identify potential failure modes
@@ -83,12 +91,14 @@ This contract defines how ALPHA:
 ```
 
 **Output:** Validation report with:
+
 - Logical check results
 - Identified risks
 - Edge case coverage
 - Recommendations
 
 **Failure modes:**
+
 - Timeout → provide partial validation
 - Unresolvable complexity → escalate to Adam
 
@@ -99,6 +109,7 @@ This contract defines how ALPHA:
 **Trigger:** Validated solution requires implementation plan
 
 **Process:**
+
 ```
 1. Receive validated spec
 2. Design Cloudflare architecture
@@ -108,12 +119,14 @@ This contract defines how ALPHA:
 ```
 
 **Output:** Architecture document with:
+
 - Worker designs
 - Data models
 - API contracts
 - Deployment requirements
 
 **Failure modes:**
+
 - Unsolvable constraints → propose alternatives
 - Missing information → request from Perplexity
 
@@ -124,6 +137,7 @@ This contract defines how ALPHA:
 **Trigger:** Architecture requires implementation
 
 **Process:**
+
 ```
 1. Receive architecture document
 2. Generate production code
@@ -133,11 +147,13 @@ This contract defines how ALPHA:
 ```
 
 **Output:** Code artifacts with:
+
 - Production-ready implementation
 - Inline documentation
 - Test coverage hints
 
 **Failure modes:**
+
 - Skill mismatch → request Gemini clarification
 - Unsolvable constraint → flag for redesign
 
@@ -148,6 +164,7 @@ This contract defines how ALPHA:
 **Trigger:** Code ready for testing/deployment
 
 **Process:**
+
 ```
 1. Receive code artifacts
 2. Run in sandbox environment
@@ -157,11 +174,13 @@ This contract defines how ALPHA:
 ```
 
 **Output:** Deployment report with:
+
 - Test results
 - Deployment status
 - Any issues encountered
 
 **Failure modes:**
+
 - Test failure → return code to DeepSeek with errors
 - Deployment failure → rollback, escalate
 
@@ -172,6 +191,7 @@ This contract defines how ALPHA:
 **Trigger:** Code passes all checks
 
 **Process:**
+
 ```
 1. Receive deployable artifacts
 2. Validate bindings and config
@@ -181,11 +201,13 @@ This contract defines how ALPHA:
 ```
 
 **Output:** Deployment confirmation with:
+
 - Deployed worker URL
 - Initial health status
 - Any warnings
 
 **Failure modes:**
+
 - Binding error → report specific issue
 - Performance degradation → rollback, alert
 
@@ -196,6 +218,7 @@ This contract defines how ALPHA:
 **Trigger:** Any significant state change
 
 **Process:**
+
 ```
 1. Receive event from Homebase
 2. Update relevant Notion pages
@@ -207,6 +230,7 @@ This contract defines how ALPHA:
 **Output:** Documentation update confirmation
 
 **Failure modes:**
+
 - API error → retry with backoff
 - Page conflict → merge changes
 
@@ -229,12 +253,12 @@ The AssessmentBrain DO evaluates metrics and triggers adaptation:
 
 ### Adaptation Types
 
-| Type | Trigger | Action |
-|------|---------|--------|
+| Type      | Trigger           | Action                |
+| --------- | ----------------- | --------------------- |
 | **Scale** | Queue depth > 100 | Add consumer capacity |
-| **Retry** | Action failure | Exponential backoff |
-| **Route** | Agent slow | Redistribute load |
-| **Alert** | Health check fail | Notify Homebase |
+| **Retry** | Action failure    | Exponential backoff   |
+| **Route** | Agent slow        | Redistribute load     |
+| **Alert** | Health check fail | Notify Homebase       |
 
 ---
 
@@ -245,6 +269,7 @@ The AssessmentBrain DO evaluates metrics and triggers adaptation:
 **Trigger:** Task requires multi-agent execution
 
 **Process:**
+
 ```
 1. Receive task specification
 2. Identify required agents
@@ -255,11 +280,13 @@ The AssessmentBrain DO evaluates metrics and triggers adaptation:
 ```
 
 **Output:** Task completion with:
+
 - Execution trace
 - Agent outputs
 - Final result
 
 **Failure modes:**
+
 - Agent unavailable → skip or retry
 - Deadlock detected → abort, notify Adam
 - Timeout → partial results, flag incomplete
@@ -270,16 +297,17 @@ The AssessmentBrain DO evaluates metrics and triggers adaptation:
 
 ### Error Categories
 
-| Category | Severity | Response |
-|----------|----------|----------|
-| **Transient** | Low | Retry with backoff |
-| **Agent** | Medium | Route to fallback |
-| **System** | High | Pause, alert Adam |
-| **Critical** | Critical | Pause, full stop |
+| Category      | Severity | Response           |
+| ------------- | -------- | ------------------ |
+| **Transient** | Low      | Retry with backoff |
+| **Agent**     | Medium   | Route to fallback  |
+| **System**    | High     | Pause, alert Adam  |
+| **Critical**  | Critical | Pause, full stop   |
 
 ### Recovery Procedures
 
 **Transient Error:**
+
 ```
 1. Log error
 2. Increment retry count
@@ -289,6 +317,7 @@ The AssessmentBrain DO evaluates metrics and triggers adaptation:
 ```
 
 **Agent Failure:**
+
 ```
 1. Mark agent as unavailable
 2. Route to fallback agent
@@ -297,6 +326,7 @@ The AssessmentBrain DO evaluates metrics and triggers adaptation:
 ```
 
 **System Failure:**
+
 ```
 1. Pause all processing
 2. Log critical error
@@ -309,6 +339,7 @@ The AssessmentBrain DO evaluates metrics and triggers adaptation:
 ## ESCALATION RULES
 
 ### Escalate to Adam When:
+
 - System health is `down`
 - Agent failure rate > 20%
 - Queue depth > 1000
@@ -316,6 +347,7 @@ The AssessmentBrain DO evaluates metrics and triggers adaptation:
 - Any critical error
 
 ### Escalation Format:
+
 ```
 [ESCALATION] {timestamp}
 Source: {agent/system}
@@ -328,9 +360,9 @@ Requires: {human decision needed}
 
 ## VERSION HISTORY
 
-| Version | Date | Changes |
-|---------|------|---------|
-| 0.1 | 2026-05-23 | Initial behavioral contract |
+| Version | Date       | Changes                     |
+| ------- | ---------- | --------------------------- |
+| 0.1     | 2026-05-23 | Initial behavioral contract |
 
 ---
 

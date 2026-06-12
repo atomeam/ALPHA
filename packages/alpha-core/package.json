@@ -1,18 +1,26 @@
 {
   "name": "@alpha/core",
   "version": "0.1.0",
-  "description": "ALPHA OrchestrationBrain Durable Object",
-  "main": "src/index.ts",
+  "description": "Shared types, Curator, Applier, and OrchestrationBrain definitions",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
   "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
   "scripts": {
-    "dev": "wrangler dev",
-    "deploy": "wrangler deploy",
+    "build": "tsc -p tsconfig.build.json",
+    "lint": "eslint src",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run"
   },
   "dependencies": {},
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20240620.0",
     "typescript": "^5.4.5",
-    "wrangler": "^3.114.0"
+    "vitest": "^2.1.9"
   }
 }
