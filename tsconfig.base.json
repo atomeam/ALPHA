@@ -6,7 +6,7 @@
     "moduleResolution": "bundler",
     "baseUrl": ".",
     "paths": {
-      "@alpha/alpha-core": ["packages/alpha-core/src/index.ts"],
+      "@alpha/core": ["packages/alpha-core/src/index.ts"],
       "@alpha/logger": ["packages/logger/src/index.ts"],
       "@alpha/mcp-core": ["packages/mcp-core/src/index.ts"],
       "@alpha/nexus-core": ["packages/nexus-core/src/index.ts"],

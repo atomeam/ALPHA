@@ -1,14 +1,14 @@
 /**
  * ALPHA OrchestrationBrain v0.1
- * 
+ *
  * Durable Object for orchestrating agent state transitions,
  * enforcing OCC invariants, and managing distributed agent states.
- * 
+ *
  * Part of: ALPHA Identity Model v0.1
  * Spec: /workspace/project/ALPHA/docs/ALPHA.md
  */
 
-import { DurableObject } from "cloudflare:workers";
+import { DurableObject } from 'cloudflare:workers';
 
 // ============================================================================
 // Type Definitions
@@ -33,7 +33,7 @@ export interface AgentTransitionEvent {
 
 export interface SystemStateSnapshot {
   version: number;
-  status: "healthy" | "degraded" | "faulted";
+  status: 'healthy' | 'degraded' | 'faulted';
   lastReconciliation: number;
   activeLocks: Record<string, { heldBy: string; acquiredAt: number }>;
   agentStates: Record<string, AgentState>;
@@ -63,15 +63,20 @@ export interface LockInfo {
 // Constants
 // ============================================================================
 
-const STORAGE_KEY = "alpha_mesh_state";
+const STORAGE_KEY = 'alpha_mesh_state';
 const MAX_LOCK_AGE_MS = 30 * 60 * 1000; // 30 minutes max lock lifetime
 
 const VALID_STATES = [
-  "idle", "running", "waiting", "completed", 
-  "failed", "blocked", "escalated"
+  'idle',
+  'running',
+  'waiting',
+  'completed',
+  'failed',
+  'blocked',
+  'escalated',
 ] as const;
 
-type ValidState = typeof VALID_STATES[number];
+type ValidState = (typeof VALID_STATES)[number];
 
 // ============================================================================
 // OrchestrationBrain Durable Object
@@ -83,7 +88,7 @@ export class OrchestrationBrain extends DurableObject {
 
   constructor(ctx: DurableObjectState, env: Env) {
     super(ctx, env);
-    
+
     // Block concurrency during initialization
     this.initializationPromise = this.initialize();
     this.ctx.blockConcurrencyWhile(async () => {
@@ -93,13 +98,13 @@ export class OrchestrationBrain extends DurableObject {
 
   private async initialize(): Promise<void> {
     const stored = await this.ctx.storage.get<SystemStateSnapshot>(STORAGE_KEY);
-    
+
     this.state = stored || {
       version: 1,
-      status: "healthy",
+      status: 'healthy',
       lastReconciliation: Date.now(),
       activeLocks: {},
-      agentStates: {}
+      agentStates: {},
     };
 
     // Clean up stale locks on startup
@@ -111,7 +116,7 @@ export class OrchestrationBrain extends DurableObject {
    */
   async fetch(request: Request): Promise<Response> {
     if (!this.state) {
-      return this.errorResponse("NotInitialized", 500);
+      return this.errorResponse('NotInitialized', 500);
     }
 
     const url = new URL(request.url);
@@ -119,30 +124,30 @@ export class OrchestrationBrain extends DurableObject {
 
     try {
       switch (pathname) {
-        case "/state":
+        case '/state':
           return this.handleGetState(request);
-        
-        case "/transition":
+
+        case '/transition':
           return this.handleTransition(request);
-        
-        case "/lock":
+
+        case '/lock':
           return this.handleLock(request);
-        
-        case "/agents":
+
+        case '/agents':
           return this.handleAgents(request);
-        
-        case "/health":
+
+        case '/health':
           return this.handleHealth();
-        
-        case "/reconcile":
+
+        case '/reconcile':
           return this.handleReconcile(request);
-        
+
         default:
-          return this.errorResponse("NotFound", 404);
+          return this.errorResponse('NotFound', 404);
       }
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : "Unknown error";
-      return this.errorResponse("InternalError", 500, message);
+      const message = err instanceof Error ? err.message : 'Unknown error';
+      return this.errorResponse('InternalError', 500, message);
     }
   }
 
@@ -152,47 +157,50 @@ export class OrchestrationBrain extends DurableObject {
 
   private handleGetState(_request: Request): Response {
     return new Response(JSON.stringify(this.state), {
-      headers: { "Content-Type": "application/json" }
+      headers: { 'Content-Type': 'application/json' },
     });
   }
 
   private handleHealth(): Response {
     const now = Date.now();
     const staleThreshold = 5 * 60 * 1000; // 5 minutes
-    
+
     // Check for stale agents
     const staleAgents = Object.entries(this.state!.agentStates)
       .filter(([_, state]) => now - state.lastSeen > staleThreshold)
       .map(([name]) => name);
 
-    return new Response(JSON.stringify({
-      status: this.state!.status,
-      version: this.state!.version,
-      activeAgents: Object.keys(this.state!.agentStates).length,
-      activeLocks: Object.keys(this.state!.activeLocks).length,
-      staleAgents: staleAgents.length > 0 ? staleAgents : undefined,
-      lastReconciliation: this.state!.lastReconciliation
-    }), {
-      headers: { "Content-Type": "application/json" }
-    });
+    return new Response(
+      JSON.stringify({
+        status: this.state!.status,
+        version: this.state!.version,
+        activeAgents: Object.keys(this.state!.agentStates).length,
+        activeLocks: Object.keys(this.state!.activeLocks).length,
+        staleAgents: staleAgents.length > 0 ? staleAgents : undefined,
+        lastReconciliation: this.state!.lastReconciliation,
+      }),
+      {
+        headers: { 'Content-Type': 'application/json' },
+      },
+    );
   }
 
   private handleAgents(request: Request): Response {
     const url = new URL(request.url);
-    const agentId = url.searchParams.get("id");
+    const agentId = url.searchParams.get('id');
 
     if (agentId) {
       const agentState = this.state!.agentStates[agentId];
       if (!agentState) {
-        return this.errorResponse("AgentNotFound", 404);
+        return this.errorResponse('AgentNotFound', 404);
       }
       return new Response(JSON.stringify({ [agentId]: agentState }), {
-        headers: { "Content-Type": "application/json" }
+        headers: { 'Content-Type': 'application/json' },
       });
     }
 
     return new Response(JSON.stringify(this.state!.agentStates), {
-      headers: { "Content-Type": "application/json" }
+      headers: { 'Content-Type': 'application/json' },
     });
   }
 
@@ -202,17 +210,17 @@ export class OrchestrationBrain extends DurableObject {
 
   private async handleTransition(request: Request): Promise<Response> {
     // Parse event
-    const event = await request.json() as AgentTransitionEvent;
-    
+    const event = (await request.json()) as AgentTransitionEvent;
+
     // Get headers
-    const agentIdentity = request.headers.get("X-Agent-Identity") || event.sourceAgent;
+    const agentIdentity = request.headers.get('X-Agent-Identity') || event.sourceAgent;
     const clientExpectedVersion = this.parseExpectedVersion(request);
-    
+
     // OCC Check (Invariant I1)
     if (clientExpectedVersion !== this.state!.version) {
       return this.conflictResponse(
-        "StaleStateRevision",
-        `Expected version ${clientExpectedVersion}, current ${this.state!.version}`
+        'StaleStateRevision',
+        `Expected version ${clientExpectedVersion}, current ${this.state!.version}`,
       );
     }
 
@@ -224,15 +232,15 @@ export class OrchestrationBrain extends DurableObject {
 
     // Process state transition
     const result = await this.processTransition(event, agentIdentity);
-    
+
     return new Response(JSON.stringify(result), {
-      headers: { "Content-Type": "application/json" }
+      headers: { 'Content-Type': 'application/json' },
     });
   }
 
   private async processTransition(
-    event: AgentTransitionEvent, 
-    agentIdentity: string
+    event: AgentTransitionEvent,
+    agentIdentity: string,
   ): Promise<TransitionResult> {
     const lockKey = event.correlationId;
 
@@ -242,8 +250,8 @@ export class OrchestrationBrain extends DurableObject {
       return {
         success: false,
         newVersion: this.state!.version,
-        error: "LockConflict",
-        details: { heldBy: existingLock.heldBy, acquiredAt: existingLock.acquiredAt }
+        error: 'LockConflict',
+        details: { heldBy: existingLock.heldBy, acquiredAt: existingLock.acquiredAt },
       };
     }
 
@@ -259,7 +267,7 @@ export class OrchestrationBrain extends DurableObject {
       // Acquire or refresh lock
       this.state!.activeLocks[lockKey] = {
         heldBy: agentIdentity,
-        acquiredAt: existingLock?.acquiredAt || Date.now()
+        acquiredAt: existingLock?.acquiredAt || Date.now(),
       };
     }
 
@@ -268,7 +276,7 @@ export class OrchestrationBrain extends DurableObject {
       status: event.transition.toState,
       currentTask: event.correlationId,
       lastSeen: Date.now(),
-      metadata: event.payload
+      metadata: event.payload,
     };
 
     // Persist state
@@ -279,7 +287,7 @@ export class OrchestrationBrain extends DurableObject {
 
     return {
       success: true,
-      newVersion: this.state!.version
+      newVersion: this.state!.version,
     };
   }
 
@@ -289,45 +297,48 @@ export class OrchestrationBrain extends DurableObject {
 
   private async handleLock(request: Request): Promise<Response> {
     const url = new URL(request.url);
-    const action = url.searchParams.get("action") || "status";
-    const correlationId = url.searchParams.get("id");
+    const action = url.searchParams.get('action') || 'status';
+    const correlationId = url.searchParams.get('id');
 
-    if (action === "status" && correlationId) {
+    if (action === 'status' && correlationId) {
       const lock = this.state!.activeLocks[correlationId];
-      return new Response(JSON.stringify({
-        locked: !!lock,
-        lock: lock || null
-      }), { headers: { "Content-Type": "application/json" } });
+      return new Response(
+        JSON.stringify({
+          locked: !!lock,
+          lock: lock || null,
+        }),
+        { headers: { 'Content-Type': 'application/json' } },
+      );
     }
 
-    if (action === "release" && correlationId) {
-      const agentIdentity = request.headers.get("X-Agent-Identity") || "unknown";
+    if (action === 'release' && correlationId) {
+      const agentIdentity = request.headers.get('X-Agent-Identity') || 'unknown';
       const lock = this.state!.activeLocks[correlationId];
 
       if (!lock) {
-        return new Response(JSON.stringify({ released: false, reason: "NoLock" }), {
-          headers: { "Content-Type": "application/json" }
+        return new Response(JSON.stringify({ released: false, reason: 'NoLock' }), {
+          headers: { 'Content-Type': 'application/json' },
         });
       }
 
       if (lock.heldBy !== agentIdentity) {
-        return this.conflictResponse(
-          "LockOwnership",
-          `Lock held by ${lock.heldBy}`
-        );
+        return this.conflictResponse('LockOwnership', `Lock held by ${lock.heldBy}`);
       }
 
       delete this.state!.activeLocks[correlationId];
       await this.ctx.storage.put(STORAGE_KEY, this.state!);
 
       return new Response(JSON.stringify({ released: true }), {
-        headers: { "Content-Type": "application/json" }
+        headers: { 'Content-Type': 'application/json' },
       });
     }
 
-    return new Response(JSON.stringify({
-      activeLocks: this.state!.activeLocks
-    }), { headers: { "Content-Type": "application/json" } });
+    return new Response(
+      JSON.stringify({
+        activeLocks: this.state!.activeLocks,
+      }),
+      { headers: { 'Content-Type': 'application/json' } },
+    );
   }
 
   // ============================================================================
@@ -336,24 +347,27 @@ export class OrchestrationBrain extends DurableObject {
 
   private async handleReconcile(_request: Request): Promise<Response> {
     await this.cleanupStaleLocks();
-    
+
     // Update status based on lock health
     const lockCount = Object.keys(this.state!.activeLocks).length;
     if (lockCount > 50) {
-      this.state!.status = "degraded";
+      this.state!.status = 'degraded';
     } else if (lockCount === 0) {
-      this.state!.status = "healthy";
+      this.state!.status = 'healthy';
     }
 
     this.state!.lastReconciliation = Date.now();
     await this.ctx.storage.put(STORAGE_KEY, this.state!);
 
-    return new Response(JSON.stringify({
-      reconciled: true,
-      status: this.state!.status,
-      activeLocks: lockCount,
-      version: this.state!.version
-    }), { headers: { "Content-Type": "application/json" } });
+    return new Response(
+      JSON.stringify({
+        reconciled: true,
+        status: this.state!.status,
+        activeLocks: lockCount,
+        version: this.state!.version,
+      }),
+      { headers: { 'Content-Type': 'application/json' } },
+    );
   }
 
   // ============================================================================
@@ -361,36 +375,42 @@ export class OrchestrationBrain extends DurableObject {
   // ============================================================================
 
   private parseExpectedVersion(request: Request): number {
-    const header = request.headers.get("X-Expected-Version");
+    const header = request.headers.get('X-Expected-Version');
     return header ? parseInt(header, 10) : 0;
   }
 
-  private validateTransition(event: AgentTransitionEvent): { valid: boolean; error?: string; message?: string } {
+  private validateTransition(event: AgentTransitionEvent): {
+    valid: boolean;
+    error?: string;
+    message?: string;
+  } {
     // Check required fields
     if (!event.eventId || !event.correlationId || !event.sourceAgent) {
-      return { valid: false, error: "InvalidPayload", message: "Missing required fields" };
+      return { valid: false, error: 'InvalidPayload', message: 'Missing required fields' };
     }
 
     // Validate states
-    if (!VALID_STATES.includes(event.transition.fromState as ValidState) ||
-        !VALID_STATES.includes(event.transition.toState as ValidState)) {
-      return { 
-        valid: false, 
-        error: "InvalidState", 
-        message: `Invalid state: ${event.transition.fromState} -> ${event.transition.toState}` 
+    if (
+      !VALID_STATES.includes(event.transition.fromState as ValidState) ||
+      !VALID_STATES.includes(event.transition.toState as ValidState)
+    ) {
+      return {
+        valid: false,
+        error: 'InvalidState',
+        message: `Invalid state: ${event.transition.fromState} -> ${event.transition.toState}`,
       };
     }
 
     // Validate timestamp
     if (!event.timestamp || event.timestamp < 0) {
-      return { valid: false, error: "InvalidTimestamp", message: "Invalid timestamp" };
+      return { valid: false, error: 'InvalidTimestamp', message: 'Invalid timestamp' };
     }
 
     return { valid: true };
   }
 
   private isTerminalState(state: string): boolean {
-    return state === "completed" || state === "failed";
+    return state === 'completed' || state === 'failed';
   }
 
   private async cleanupStaleLocks(): Promise<void> {
@@ -408,21 +428,23 @@ export class OrchestrationBrain extends DurableObject {
 
   private queueTelemetry(event: AgentTransitionEvent): void {
     // Placeholder for telemetry queue - can be enhanced with KV or Queue
-    console.log(`[Telemetry] ${event.sourceAgent}: ${event.transition.fromState} -> ${event.transition.toState}`);
+    console.log(
+      `[Telemetry] ${event.sourceAgent}: ${event.transition.fromState} -> ${event.transition.toState}`,
+    );
   }
 
   private errorResponse(error: string, status: number, message?: string): Response {
-    return new Response(
-      JSON.stringify({ error, ...(message && { details: message }) }), 
-      { status, headers: { "Content-Type": "application/json" } }
-    );
+    return new Response(JSON.stringify({ error, ...(message && { details: message }) }), {
+      status,
+      headers: { 'Content-Type': 'application/json' },
+    });
   }
 
   private conflictResponse(error: string, message: string): Response {
-    return new Response(
-      JSON.stringify({ error, message, currentVersion: this.state!.version }), 
-      { status: 412, headers: { "Content-Type": "application/json" } }
-    );
+    return new Response(JSON.stringify({ error, message, currentVersion: this.state!.version }), {
+      status: 412,
+      headers: { 'Content-Type': 'application/json' },
+    });
   }
 }
 

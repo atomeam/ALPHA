@@ -170,13 +170,13 @@ SELF-ADAPTIVE-APP
 
 ## SERVICE BINDINGS
 
-| From | To | Purpose |
-|------|---|---------|
-| Homebase | self-adaptive-app | Fetch metrics, health, state |
-| self-adaptive-app | AssessmentBrain (DO) | Stateful computation |
-| self-adaptive-app | adaptive-actions (Queue) | Async action processing |
-| self-adaptive-app | f3171ead... (KV) | Metrics persistence |
-| Council agents | Homebase | Report status, receive directives |
+| From              | To                       | Purpose                           |
+| ----------------- | ------------------------ | --------------------------------- |
+| Homebase          | self-adaptive-app        | Fetch metrics, health, state      |
+| self-adaptive-app | AssessmentBrain (DO)     | Stateful computation              |
+| self-adaptive-app | adaptive-actions (Queue) | Async action processing           |
+| self-adaptive-app | f3171ead... (KV)         | Metrics persistence               |
+| Council agents    | Homebase                 | Report status, receive directives |
 
 ---
 
@@ -233,9 +233,9 @@ Cloudflare Edge Network
 
 ## VERSION HISTORY
 
-| Version | Date | Changes |
-|---------|------|---------|
-| 0.1 | 2026-05-23 | Initial system diagram |
+| Version | Date       | Changes                |
+| ------- | ---------- | ---------------------- |
+| 0.1     | 2026-05-23 | Initial system diagram |
 
 ---
 

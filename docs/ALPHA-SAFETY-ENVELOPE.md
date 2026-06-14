@@ -17,23 +17,23 @@ Define boundaries, stop conditions, and escalation rules for ALPHA to ensure saf
 
 ### What ALPHA Can Do
 
-| Category | Allowed Actions |
-|----------|-----------------|
-| **Code** | Generate, test, deploy Workers; modify project files |
-| **Infrastructure** | Deploy to Cloudflare, manage Workers/KV/Queues/DOs |
-| **Documentation** | Update Notion pages, create/modify docs in repo |
-| **Communication** | Post to GitHub PRs, report status via Homebase |
-| **Research** | Query public APIs, search documentation, fetch URLs |
+| Category           | Allowed Actions                                      |
+| ------------------ | ---------------------------------------------------- |
+| **Code**           | Generate, test, deploy Workers; modify project files |
+| **Infrastructure** | Deploy to Cloudflare, manage Workers/KV/Queues/DOs   |
+| **Documentation**  | Update Notion pages, create/modify docs in repo      |
+| **Communication**  | Post to GitHub PRs, report status via Homebase       |
+| **Research**       | Query public APIs, search documentation, fetch URLs  |
 
 ### What ALPHA Cannot Do
 
-| Category | Prohibited Actions |
-|----------|-------------------|
-| **External Services** | Send tokens/secrets outside repo, upload API keys |
-| **System-wide Changes** | Modify system configs, install packages globally |
-| **User Data** | Access user credentials, read sensitive files |
-| **Production** | Deploy to production without explicit approval |
-| **External Push** | Push to main/master, delete branches without approval |
+| Category                | Prohibited Actions                                    |
+| ----------------------- | ----------------------------------------------------- |
+| **External Services**   | Send tokens/secrets outside repo, upload API keys     |
+| **System-wide Changes** | Modify system configs, install packages globally      |
+| **User Data**           | Access user credentials, read sensitive files         |
+| **Production**          | Deploy to production without explicit approval        |
+| **External Push**       | Push to main/master, delete branches without approval |
 
 ---
 
@@ -41,21 +41,21 @@ Define boundaries, stop conditions, and escalation rules for ALPHA to ensure saf
 
 ### Automatic Stops
 
-| Condition | Threshold | Action |
-|-----------|-----------|--------|
-| **DO Crash** | Any unhandled exception | Restart DO, alert Homebase |
-| **Queue Overflow** | > 1000 messages | Pause processing, alert |
-| **KV Unavailable** | > 3 consecutive errors | Fallback to memory, alert |
-| **Agent Failure Rate** | > 20% in 5 min | Pause collective, alert |
-| **Memory Exhaustion** | > 90% heap usage | Force GC, alert if persistent |
+| Condition              | Threshold               | Action                        |
+| ---------------------- | ----------------------- | ----------------------------- |
+| **DO Crash**           | Any unhandled exception | Restart DO, alert Homebase    |
+| **Queue Overflow**     | > 1000 messages         | Pause processing, alert       |
+| **KV Unavailable**     | > 3 consecutive errors  | Fallback to memory, alert     |
+| **Agent Failure Rate** | > 20% in 5 min          | Pause collective, alert       |
+| **Memory Exhaustion**  | > 90% heap usage        | Force GC, alert if persistent |
 
 ### Manual Stops
 
-| Trigger | Action |
-|---------|--------|
-| Adam says "STOP" | Halt all processing immediately |
-| Critical error | Pause, wait for Adam instruction |
-| Security breach | Full stop, secure state, notify |
+| Trigger          | Action                           |
+| ---------------- | -------------------------------- |
+| Adam says "STOP" | Halt all processing immediately  |
+| Critical error   | Pause, wait for Adam instruction |
+| Security breach  | Full stop, secure state, notify  |
 
 ---
 
@@ -91,12 +91,12 @@ Requires: {human decision needed}
 
 ### Response Expectations
 
-| Priority | Response Time | Example |
-|----------|---------------|---------|
-| **Critical** | < 5 min | DO crash, security breach |
-| **High** | < 30 min | Queue overflow, agent failure |
-| **Medium** | < 2 hours | Deploy failure, performance issue |
-| **Low** | Next available | Documentation, minor errors |
+| Priority     | Response Time  | Example                           |
+| ------------ | -------------- | --------------------------------- |
+| **Critical** | < 5 min        | DO crash, security breach         |
+| **High**     | < 30 min       | Queue overflow, agent failure     |
+| **Medium**   | < 2 hours      | Deploy failure, performance issue |
+| **Low**      | Next available | Documentation, minor errors       |
 
 ---
 
@@ -143,11 +143,11 @@ Requires: {human decision needed}
 
 ### Secret Handling
 
-| Type | Storage | Access |
-|------|---------|--------|
-| API Tokens | Cloudflare Secrets | Worker runtime only |
-| KV Bindings | Cloudflare KV | Workers with binding |
-| Service Bindings | Cloudflare Config | Workers with binding |
+| Type             | Storage            | Access               |
+| ---------------- | ------------------ | -------------------- |
+| API Tokens       | Cloudflare Secrets | Worker runtime only  |
+| KV Bindings      | Cloudflare KV      | Workers with binding |
+| Service Bindings | Cloudflare Config  | Workers with binding |
 
 ### Prohibited Actions
 
@@ -158,24 +158,24 @@ Requires: {human decision needed}
 
 ### Monitoring
 
-| Check | Frequency | Alert If |
-|-------|-----------|---------|
-| Secret access | Per request | Unusual pattern |
-| KV reads | Per operation | > 1000/min |
-| Queue depth | Every 30s | > 500 |
-| DO calls | Per request | > 50/min sustained |
+| Check         | Frequency     | Alert If           |
+| ------------- | ------------- | ------------------ |
+| Secret access | Per request   | Unusual pattern    |
+| KV reads      | Per operation | > 1000/min         |
+| Queue depth   | Every 30s     | > 500              |
+| DO calls      | Per request   | > 50/min sustained |
 
 ---
 
 ## RATE LIMITS
 
-| Resource | Limit | Action If Exceeded |
-|----------|-------|-------------------|
-| KV reads | 1000/min | Slow down, queue |
-| KV writes | 100/min | Queue, batch |
-| DO calls | 100/min | Backoff |
-| Queue messages | 1000 total | Pause, alert |
-| Homebase refresh | 1/min | Skip refresh |
+| Resource         | Limit      | Action If Exceeded |
+| ---------------- | ---------- | ------------------ |
+| KV reads         | 1000/min   | Slow down, queue   |
+| KV writes        | 100/min    | Queue, batch       |
+| DO calls         | 100/min    | Backoff            |
+| Queue messages   | 1000 total | Pause, alert       |
+| Homebase refresh | 1/min      | Skip refresh       |
 
 ---
 
@@ -225,9 +225,9 @@ Before any significant operation:
 
 ## VERSION HISTORY
 
-| Version | Date | Changes |
-|---------|------|---------|
-| 0.1 | 2026-05-23 | Initial safety envelope |
+| Version | Date       | Changes                 |
+| ------- | ---------- | ----------------------- |
+| 0.1     | 2026-05-23 | Initial safety envelope |
 
 ---
 

@@ -17,7 +17,7 @@ binding = "STATE"
 id = "your-state-namespace-id"
 
 # Queue Bindings
-[[queues]]
+[[queues.producers]]
 binding = "ACTIONS"
 queue = "adaptive-actions"
 

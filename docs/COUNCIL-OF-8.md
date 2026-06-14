@@ -9,6 +9,7 @@
 ## THE VISION
 
 A self-sustaining engine where elite AI agents work in concert:
+
 - Think deeply (deep-reasoning logic)
 - Research accurately (real-time knowledge)
 - Design intelligently (architectural planning)
@@ -20,16 +21,16 @@ A self-sustaining engine where elite AI agents work in concert:
 
 ## CURRENT ROSTER (7 / 8)
 
-| # | Agent | Core Specialization | System Role | Status |
-|---|-------|---------------------|-------------|--------|
-| 1 | **Adam** | Decision & Direction | Prime Mover / Operator | ✅ Active |
-| 2 | **Copilot** | Enterprise Integration | Workspace Companion | ✅ Active |
-| 3 | **Perplexity** | Real-Time Discovery | Research & API Vetting | ✅ Active |
-| 4 | **OpenHands** | Sandbox Execution | Active Developer / Executor | ✅ Active |
-| 5 | **DeepSeek** | Edge Inference | Builder / Patch Engineer | 🔜 Pending |
-| 6 | **Cloudflare** | Infrastructure | Spine / Execution Substrate | ✅ Active |
-| 7 | **Notion** | Knowledge Memory | Blueprint Vault | ✅ Active |
-| 8 | **Gemini** | Multimodal Synthesis | Code Architect | ✅ Active |
+| #   | Agent          | Core Specialization    | System Role                 | Status     |
+| --- | -------------- | ---------------------- | --------------------------- | ---------- |
+| 1   | **Adam**       | Decision & Direction   | Prime Mover / Operator      | ✅ Active  |
+| 2   | **Copilot**    | Enterprise Integration | Workspace Companion         | ✅ Active  |
+| 3   | **Perplexity** | Real-Time Discovery    | Research & API Vetting      | ✅ Active  |
+| 4   | **OpenHands**  | Sandbox Execution      | Active Developer / Executor | ✅ Active  |
+| 5   | **DeepSeek**   | Edge Inference         | Builder / Patch Engineer    | 🔜 Pending |
+| 6   | **Cloudflare** | Infrastructure         | Spine / Execution Substrate | ✅ Active  |
+| 7   | **Notion**     | Knowledge Memory       | Blueprint Vault             | ✅ Active  |
+| 8   | **Gemini**     | Multimodal Synthesis   | Code Architect              | ✅ Active  |
 
 ---
 
@@ -40,17 +41,20 @@ A self-sustaining engine where elite AI agents work in concert:
 **Candidate:** OpenAI o1 / o3
 
 **Why it's needed:**
+
 - Complex state machine design requires uninterrupted thinking cycles
 - Multi-agent communication protocols need logical validation
 - Database schemas need edge case analysis before execution
 - Acts as Lead Critic before passing to execution agents
 
 **What it does:**
+
 - Deep-thought chain-of-reasoning
 - Advanced math and structural synthesis
 - Architectural integrity validation
 
 **Where it fits:**
+
 ```
 Perplexity (Research) ──→ o1/o3 (Validate) ──→ DeepSeek (Build)
                                                 │
@@ -65,18 +69,21 @@ Perplexity (Research) ──→ o1/o3 (Validate) ──→ DeepSeek (Build)
 **Candidate:** LangGraph or CrewAI
 
 **Why it's needed:**
+
 - Individual agents need a dedicated conductor
 - Agent-to-agent communication requires stateful routing
 - Error recovery loops needed for resilience
 - Task handoff orchestration (Research → Build → Deploy)
 
 **What it does:**
+
 - Deterministic state management
 - Multi-turn conversation routing
 - Resilient error recovery
 - Task queue management
 
 **Where it fits:**
+
 ```
 LangGraph / CrewAI
    │
@@ -91,18 +98,18 @@ LangGraph / CrewAI
 
 ## COMPLETE COUNCIL MATRIX
 
-| Agent | Role | Input | Output | Trust Level |
-|-------|------|-------|--------|-------------|
-| **Adam** | Operator | Goals, constraints | Decisions | ⭐⭐⭐⭐⭐ |
-| **Copilot** | Interpreter | Intent from Adam | Structured specs | ⭐⭐⭐⭐ |
-| **Perplexity** | Researcher | Questions, topics | Research reports with citations | ⭐⭐⭐⭐ |
-| **o1/o3** | Logic Gate | Specs, architectures | Validated plans, edge cases | ⭐⭐⭐ |
-| **Gemini** | Architect | Validated specs | Cloudflare code, schemas | ⭐⭐⭐⭐ |
-| **DeepSeek** | Builder | Code specs | Production code, patches | ⭐⭐⭐ |
-| **OpenHands** | Executor | Code | Deployed artifacts, fixes | ⭐⭐⭐ |
-| **LangGraph** | Orchestrator | Task definitions | Routed workflows, recovery | ⭐⭐⭐ |
-| **Cloudflare** | Infrastructure | Deployable code | Live Workers | ⭐⭐⭐⭐ |
-| **Notion** | Memory | All outputs | Persisted knowledge | ⭐⭐⭐⭐ |
+| Agent          | Role           | Input                | Output                          | Trust Level |
+| -------------- | -------------- | -------------------- | ------------------------------- | ----------- |
+| **Adam**       | Operator       | Goals, constraints   | Decisions                       | ⭐⭐⭐⭐⭐  |
+| **Copilot**    | Interpreter    | Intent from Adam     | Structured specs                | ⭐⭐⭐⭐    |
+| **Perplexity** | Researcher     | Questions, topics    | Research reports with citations | ⭐⭐⭐⭐    |
+| **o1/o3**      | Logic Gate     | Specs, architectures | Validated plans, edge cases     | ⭐⭐⭐      |
+| **Gemini**     | Architect      | Validated specs      | Cloudflare code, schemas        | ⭐⭐⭐⭐    |
+| **DeepSeek**   | Builder        | Code specs           | Production code, patches        | ⭐⭐⭐      |
+| **OpenHands**  | Executor       | Code                 | Deployed artifacts, fixes       | ⭐⭐⭐      |
+| **LangGraph**  | Orchestrator   | Task definitions     | Routed workflows, recovery      | ⭐⭐⭐      |
+| **Cloudflare** | Infrastructure | Deployable code      | Live Workers                    | ⭐⭐⭐⭐    |
+| **Notion**     | Memory         | All outputs          | Persisted knowledge             | ⭐⭐⭐⭐    |
 
 ---
 
@@ -138,6 +145,7 @@ LangGraph / CrewAI
 2. **Integrate LangGraph** — Orchestration backbone
 
 Once both are in place, the Council operates autonomously:
+
 - Adam sets direction
 - Council executes, validates, deploys
 - Notion maintains memory

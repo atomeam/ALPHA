@@ -13,7 +13,7 @@
     "test": "echo 'backend: no tests yet'"
   },
   "dependencies": {
-    "@alpha/alpha-core": "workspace:*",
+    "@alpha/core": "workspace:*",
     "@alpha/logger": "workspace:*",
     "@alpha/mcp-core": "workspace:*",
     "@alpha/nexus-core": "workspace:*",

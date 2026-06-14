@@ -1,9 +1,9 @@
 /**
  * Homebase v0.7 — AI Empire Cockpit (Council of 11)
- * 
+ *
  * Service Binding: ADAPTIVE → self-adaptive-app
  * Fetches real health, state, and metrics from Durable Object + KV
- * 
+ *
  * Panels:
  * 1. Crew Panel — live status of all 11 empire members
  * 2. Mission Panel — current objectives, backlog, now playing
@@ -13,9 +13,9 @@
  */
 
 export interface Env {
-  ADAPTIVE: Service<SyntheticModule>;
+  ADAPTIVE: Fetcher;
   STATE: KVNamespace;
-  ACTIONS: Queue<any>;
+  ACTIONS: Queue;
 }
 
 export interface CrewMember {
@@ -56,36 +56,186 @@ export interface EventLog {
 // In-memory state (could be persisted to KV)
 const state = {
   crew: [
-    { id: 'adam', name: 'Adam', role: 'Founder / Operator', status: 'active', lastAction: 'Defining empire mission', readiness: 'ready', avatar: '👤' },
-    { id: 'copilot', name: 'Copilot', role: 'Interpreter / Strategist', status: 'idle', lastAction: 'Org chart v0.7 complete', readiness: 'ready', avatar: '🤖' },
-    { id: 'perplexity', name: 'Perplexity', role: 'Researcher / Analyst', status: 'active', lastAction: 'Research layer integrated', readiness: 'ready', avatar: '🔍' },
-    { id: 'gemini', name: 'Gemini', role: 'Technical Co-Pilot / Code Architect', status: 'active', lastAction: 'Architecture guidance ready', readiness: 'ready', avatar: '💎' },
-    { id: 'openhands', name: 'OpenHands', role: 'Sandbox Executor / Developer', status: 'active', lastAction: 'Sandbox execution ready', readiness: 'ready', avatar: '🛠️' },
-    { id: 'agent-8', name: 'Agent #8', role: 'Systems Consultant / Architect', status: 'active', lastAction: 'Reporting for duty', readiness: 'ready', avatar: '⚡' },
-    { id: 'deepseek', name: 'DeepSeek', role: 'Builder / Patch Engineer', status: 'offline', lastAction: 'Awaiting recruitment', readiness: 'loading', avatar: '🔧' },
-    { id: 'cloudflare', name: 'Cloudflare', role: 'Infrastructure / Spine', status: 'active', lastAction: 'Homebase Worker deployed', readiness: 'ready', avatar: '🌩️' },
-    { id: 'notion', name: 'Notion', role: 'Organiser / State Keeper', status: 'active', lastAction: 'Re-joined empire as coordination backbone', readiness: 'ready', avatar: '📋' },
-    { id: 'o1', name: 'o1/o3', role: 'Deep Reasoning / Logic Gate', status: 'offline', lastAction: 'Awaiting recruitment', readiness: 'loading', avatar: '🧠' },
-    { id: 'langgraph', name: 'LangGraph', role: 'Multi-Agent Orchestrator', status: 'offline', lastAction: 'Awaiting recruitment', readiness: 'loading', avatar: '🔄' },
+    {
+      id: 'adam',
+      name: 'Adam',
+      role: 'Founder / Operator',
+      status: 'active',
+      lastAction: 'Defining empire mission',
+      readiness: 'ready',
+      avatar: '👤',
+    },
+    {
+      id: 'copilot',
+      name: 'Copilot',
+      role: 'Interpreter / Strategist',
+      status: 'idle',
+      lastAction: 'Org chart v0.7 complete',
+      readiness: 'ready',
+      avatar: '🤖',
+    },
+    {
+      id: 'perplexity',
+      name: 'Perplexity',
+      role: 'Researcher / Analyst',
+      status: 'active',
+      lastAction: 'Research layer integrated',
+      readiness: 'ready',
+      avatar: '🔍',
+    },
+    {
+      id: 'gemini',
+      name: 'Gemini',
+      role: 'Technical Co-Pilot / Code Architect',
+      status: 'active',
+      lastAction: 'Architecture guidance ready',
+      readiness: 'ready',
+      avatar: '💎',
+    },
+    {
+      id: 'openhands',
+      name: 'OpenHands',
+      role: 'Sandbox Executor / Developer',
+      status: 'active',
+      lastAction: 'Sandbox execution ready',
+      readiness: 'ready',
+      avatar: '🛠️',
+    },
+    {
+      id: 'agent-8',
+      name: 'Agent #8',
+      role: 'Systems Consultant / Architect',
+      status: 'active',
+      lastAction: 'Reporting for duty',
+      readiness: 'ready',
+      avatar: '⚡',
+    },
+    {
+      id: 'deepseek',
+      name: 'DeepSeek',
+      role: 'Builder / Patch Engineer',
+      status: 'offline',
+      lastAction: 'Awaiting recruitment',
+      readiness: 'loading',
+      avatar: '🔧',
+    },
+    {
+      id: 'cloudflare',
+      name: 'Cloudflare',
+      role: 'Infrastructure / Spine',
+      status: 'active',
+      lastAction: 'Homebase Worker deployed',
+      readiness: 'ready',
+      avatar: '🌩️',
+    },
+    {
+      id: 'notion',
+      name: 'Notion',
+      role: 'Organiser / State Keeper',
+      status: 'active',
+      lastAction: 'Re-joined empire as coordination backbone',
+      readiness: 'ready',
+      avatar: '📋',
+    },
+    {
+      id: 'o1',
+      name: 'o1/o3',
+      role: 'Deep Reasoning / Logic Gate',
+      status: 'offline',
+      lastAction: 'Awaiting recruitment',
+      readiness: 'loading',
+      avatar: '🧠',
+    },
+    {
+      id: 'langgraph',
+      name: 'LangGraph',
+      role: 'Multi-Agent Orchestrator',
+      status: 'offline',
+      lastAction: 'Awaiting recruitment',
+      readiness: 'loading',
+      avatar: '🔄',
+    },
   ] as CrewMember[],
-  
+
   missions: [
-    { id: 'homebase-v0.1', title: 'Deploy Homebase v0.1', status: 'active', priority: 'high', assignedTo: ['adam', 'copilot', 'cloudflare'] },
-    { id: 'council-complete', title: 'Complete Council of 8', status: 'active', priority: 'high', assignedTo: ['adam', 'o1', 'langgraph'] },
-    { id: 'agent-8-onboard', title: 'Integrate Agent #8 as Systems Consultant', status: 'active', priority: 'medium', assignedTo: ['agent-8', 'copilot'] },
-    { id: 'recruit-o1', title: 'Recruit o1/o3 as Deep Reasoning Layer', status: 'pending', priority: 'high', assignedTo: ['adam'] },
-    { id: 'recruit-langgraph', title: 'Integrate LangGraph as Orchestrator', status: 'pending', priority: 'high', assignedTo: ['adam'] },
-    { id: 'recruit-deepseek', title: 'Recruit DeepSeek as Builder', status: 'pending', priority: 'medium', assignedTo: ['adam'] },
-    { id: 'migrate-workers', title: 'Migrate legacy Workers to new stack', status: 'pending', priority: 'medium', assignedTo: ['deepseek', 'cloudflare'] },
+    {
+      id: 'homebase-v0.1',
+      title: 'Deploy Homebase v0.1',
+      status: 'active',
+      priority: 'high',
+      assignedTo: ['adam', 'copilot', 'cloudflare'],
+    },
+    {
+      id: 'council-complete',
+      title: 'Complete Council of 8',
+      status: 'active',
+      priority: 'high',
+      assignedTo: ['adam', 'o1', 'langgraph'],
+    },
+    {
+      id: 'agent-8-onboard',
+      title: 'Integrate Agent #8 as Systems Consultant',
+      status: 'active',
+      priority: 'medium',
+      assignedTo: ['agent-8', 'copilot'],
+    },
+    {
+      id: 'recruit-o1',
+      title: 'Recruit o1/o3 as Deep Reasoning Layer',
+      status: 'pending',
+      priority: 'high',
+      assignedTo: ['adam'],
+    },
+    {
+      id: 'recruit-langgraph',
+      title: 'Integrate LangGraph as Orchestrator',
+      status: 'pending',
+      priority: 'high',
+      assignedTo: ['adam'],
+    },
+    {
+      id: 'recruit-deepseek',
+      title: 'Recruit DeepSeek as Builder',
+      status: 'pending',
+      priority: 'medium',
+      assignedTo: ['adam'],
+    },
+    {
+      id: 'migrate-workers',
+      title: 'Migrate legacy Workers to new stack',
+      status: 'pending',
+      priority: 'medium',
+      assignedTo: ['deepseek', 'cloudflare'],
+    },
   ] as Mission[],
-  
+
   events: [
-    { timestamp: new Date().toISOString(), source: 'agent-8', action: 'Crew joined', detail: 'Agent #8 reporting as Systems Consultant / Architect' },
-    { timestamp: new Date(Date.now() - 1000).toISOString(), source: 'copilot', action: 'Roster updated', detail: 'v0.7 crew roster with Agent #8' },
-    { timestamp: new Date(Date.now() - 2000).toISOString(), source: 'gemini', action: 'Architecture layer', detail: 'Gemini as Code Architect confirmed' },
-    { timestamp: new Date(Date.now() - 60000).toISOString(), source: 'cloudflare', action: 'Worker deployed', detail: 'Homebase v0.1 is live' },
+    {
+      timestamp: new Date().toISOString(),
+      source: 'agent-8',
+      action: 'Crew joined',
+      detail: 'Agent #8 reporting as Systems Consultant / Architect',
+    },
+    {
+      timestamp: new Date(Date.now() - 1000).toISOString(),
+      source: 'copilot',
+      action: 'Roster updated',
+      detail: 'v0.7 crew roster with Agent #8',
+    },
+    {
+      timestamp: new Date(Date.now() - 2000).toISOString(),
+      source: 'gemini',
+      action: 'Architecture layer',
+      detail: 'Gemini as Code Architect confirmed',
+    },
+    {
+      timestamp: new Date(Date.now() - 60000).toISOString(),
+      source: 'cloudflare',
+      action: 'Worker deployed',
+      detail: 'Homebase v0.1 is live',
+    },
   ] as EventLog[],
-  
+
   system: {
     worker: 'homebase',
     health: 'healthy',
@@ -747,25 +897,31 @@ const HTML_TEMPLATE = `
 export default {
   async fetch(request: Request): Promise<Response> {
     const url = new URL(request.url);
-    
+
     // API endpoint for state
     if (url.pathname === '/api/state') {
-      return new Response(JSON.stringify({
-        crew: state.crew,
-        missions: state.missions,
-        events: state.events,
-        system: state.system,
-      }, null, 2), {
-        headers: { 'Content-Type': 'application/json' },
-      });
+      return new Response(
+        JSON.stringify(
+          {
+            crew: state.crew,
+            missions: state.missions,
+            events: state.events,
+            system: state.system,
+          },
+          null,
+          2,
+        ),
+        {
+          headers: { 'Content-Type': 'application/json' },
+        },
+      );
     }
-    
-    // Serve static assets
+
+    // Serve static assets (placeholder for Phase 2)
     if (url.pathname.startsWith('/public/')) {
-      const filePath = url.pathname.replace('/public/', '');
-      // Static files would be served here
+      return new Response('Not Found', { status: 404 });
     }
-    
+
     // Default: serve the dashboard
     return new Response(HTML_TEMPLATE, {
       headers: {
