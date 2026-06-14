@@ -1,0 +1,16 @@
+{
+  "name": "atomeam-stack",
+  "version": "1.0.0",
+  "description": "Unified dashboard for atomeam",
+  "type": "module",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
+  "dependencies": {
+    "@notionhq/client": "^2.2.14",
+    "cors": "^2.8.5",
+    "dotenv": "^16.6.1",
+    "express": "^4.18.2"
+  }
+}

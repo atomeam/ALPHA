@@ -1,0 +1,6 @@
+{
+  "name": "HomeBase",
+  "description": "Operator surface for Alpha — the self-improving loop (observe → evaluate → propose → validate → apply → reflect) wrapped in Curator default-deny.",
+  "requestFramePermissions": [],
+  "majorCapabilities": []
+}
