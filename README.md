@@ -4,7 +4,7 @@ Consolidated AtoMind ecosystem. Backend on `:8080`, frontend on `:5173`, trust-f
 
 ## Status
 
-**Phase 0 — Skeleton.** Workspace structure and tooling only; no application code yet. See [docs/MIGRATION.md](docs/MIGRATION.md) for the phase roadmap.
+**Phase 1 — Backend cutover.** HomeBase server logic now lives in `apps/backend`, and Alpha Curator/Applier primitives live in `packages/alpha-core`. See [docs/MIGRATION.md](docs/MIGRATION.md) for the phase roadmap.
 
 ## Stack
 
@@ -43,7 +43,7 @@ docs/
 archive/              Pre-merge mirrors (read-only)
 ```
 
-All `apps/*`, `packages/*`, and `integrations/*` folders are placeholders this phase; they each ship a `.gitkeep` and will be filled in subsequent phases.
+`apps/backend` and `packages/alpha-core` now contain the Phase 1 backend cutover. Remaining `apps/*`, `packages/*`, and `integrations/*` folders stay as placeholders until their phases land.
 
 ## Setup
 
@@ -70,7 +70,7 @@ pnpm build           # Turbo build pipeline
 pnpm dev             # All `dev` scripts in parallel
 ```
 
-Turbo will skip any package that doesn't declare the corresponding script, so Phase 0 runs are no-ops by design — they only validate that the workspace bootstraps cleanly.
+Turbo skips packages that do not declare a given script; Phase 1 now runs real backend, logger, and alpha-core checks.
 
 ## Trust rule
 
