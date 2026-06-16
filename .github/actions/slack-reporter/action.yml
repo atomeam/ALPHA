@@ -1,0 +1,111 @@
+name: Post RUN Header to Slack
+
+description: |
+  Posts a canonical RUN header message to Slack #ops-runs channel.
+  Used by CI jobs when a run starts, completes, or needs to report status.
+
+inputs:
+  slack_token:
+    description: Slack bot token (xoxb-...)
+    required: true
+  channel:
+    description: Slack channel (default: #ops-runs)
+    required: false
+    default: '#ops-runs'
+  run_id:
+    description: |
+      Unique run identifier.
+      Format: gha:<run_id> for GitHub Actions, else YYYY-MM-DD-HHMM-type-slug
+    required: true
+  task_id:
+    description: Notion task URL or D1 task ID
+    required: false
+    default: ''
+  run_type:
+    description: 'deploy|migration|smoke|incident|build|other'
+    required: true
+  env:
+    description: 'staging|prod|dev|other'
+    required: true
+  owner:
+    description: Owner/agent name
+    required: true
+  result:
+    description: 'success|failed|aborted|unknown'
+    required: true
+  start_time:
+    description: ISO 8601 start time
+    required: false
+    default: ''
+  end_time:
+    description: ISO 8601 end time
+    required: false
+    default: ''
+  duration:
+    description: Human-readable duration (e.g. "6m12s")
+    required: false
+    default: ''
+  commit_pr:
+    description: Commit SHA or PR URL
+    required: false
+    default: ''
+  artifacts:
+    description: Comma-separated artifact links
+    required: false
+    default: ''
+  logs:
+    description: Comma-separated log links
+    required: false
+    default: ''
+  notes:
+    description: Short notes or bullet points
+    required: false
+    default: ''
+  thread_ts:
+    description: Parent message ts for threading (optional)
+    required: false
+    default: ''
+
+runs:
+  using: composite
+  steps:
+    - name: Build RUN header message
+      id: message
+      shell: bash
+      run: |
+        # Build the canonical RUN header
+        cat << 'EOF' > $RUNNER_TEMP/run_header.txt
+RUN: ${{ inputs.run_id }}
+TASK: ${{ inputs.task_id }}
+TYPE: ${{ inputs.run_type }}
+ENV: ${{ inputs.env }}
+OWNER: ${{ inputs.owner }}
+RESULT: ${{ inputs.result }}
+START: ${{ inputs.start_time }}
+END: ${{ inputs.end_time }}
+DURATION: ${{ inputs.duration }}
+COMMIT/PR: ${{ inputs.commit_pr }}
+ARTIFACTS: ${{ inputs.artifacts }}
+LOGS: ${{ inputs.logs }}
+NOTES: ${{ inputs.notes }}
+EOF
+        cat $RUNNER_TEMP/run_header.txt
+        echo "run_header=$(cat $RUNNER_TEMP/run_header.txt | tr '\n' '|' | sed 's/.$//')" >> $GITHUB_OUTPUT
+
+    - name: Post to Slack
+      uses: slackapi/slack-github-action@v1.0.2
+      with:
+        channel-id: ${{ inputs.channel }}
+        slack-token: ${{ inputs.slack_token }}
+        payload: |
+          {
+            "text": "${{ steps.message.outputs.run_header }}",
+            "unfurl_links": false
+          }
+      env:
+        SLACK_CHANNEL: ${{ inputs.channel }}
+
+outputs:
+  ts:
+    description: Slack message timestamp (for threading)
+    value: ${{ steps.message.outputs.ts }}

@@ -8,10 +8,16 @@ const PORT = Number(process.env['BRIDGE_PORT'] || 8090);
 const BACKEND_ORIGIN = process.env['BACKEND_ORIGIN'] || 'http://localhost:8080';
 const log = createLogger('bridge');
 
+// Canonical webhook path: /webhooks/notion (plural)
+// Non-canonical path: /webhook/notion (singular) — redirects for backward compatibility
+const CANONICAL_WEBHOOK_PATH = '/webhooks/notion';
+const LEGACY_WEBHOOK_PATH = '/webhook/notion';
+
 export function createApp(): Express {
   const app = express();
   app.use(express.json({ limit: '1mb' }));
 
+  // Health endpoint
   app.get('/health', (_req, res) => {
     res.json({
       status: 'ok',
@@ -19,6 +25,42 @@ export function createApp(): Express {
       upstream: BACKEND_ORIGIN,
       started_at: STARTED_AT,
     });
+  });
+
+  // Legacy path redirect (301) → canonical
+  app.all(LEGACY_WEBHOOK_PATH, (_req, res) => {
+    res.redirect(301, CANONICAL_WEBHOOK_PATH);
+  });
+
+  // Canonical webhook endpoint: POST /webhooks/notion
+  app.post(CANONICAL_WEBHOOK_PATH, async (req, res) => {
+    try {
+      log.event('notion-webhook-received', {
+        path: CANONICAL_WEBHOOK_PATH,
+        headers: req.headers,
+        bodyKeys: Object.keys(req.body || {}),
+      });
+
+      // Forward to backend for processing
+      const url = `${BACKEND_ORIGIN}/api/webhooks/notion`;
+      const upstream = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Webhook-Source': 'bridge',
+        },
+        body: JSON.stringify(req.body),
+      });
+
+      const data = await upstream.json();
+      res.status(upstream.status).json(data);
+    } catch (err) {
+      log.error('webhook-forward-failed', { error: (err as Error).message });
+      res.status(502).json({
+        error: 'webhook relay failed',
+        detail: (err as Error).message,
+      });
+    }
   });
 
   // Relay: POST /relay/prompt/:name → backend POST /api/prompt/:name
