@@ -1,0 +1,11 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=ALPHA
+Comment=Launch the ALPHA AtoMind ecosystem (backend :8080, frontend :5173)
+Exec=bash -c "SCRIPT_DIR=$(dirname $(readlink -f %k))/../scripts && bash \"$SCRIPT_DIR/alpha-launch.sh\""
+Icon=REPLACE_WITH_ABSOLUTE_PATH_TO_assets/alpha-icon-256.png
+Terminal=false
+Categories=Development;
+StartupNotify=true
+StartupWMClass=Alpha
