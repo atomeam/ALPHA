@@ -4,21 +4,27 @@
   "private": true,
   "type": "module",
   "description": "Alpha bridge — lightweight HTTP relay on :8090. Full PowerShell bridge ships in Phase 6.",
+  "main": "src/index.ts",
   "scripts": {
-    "build": "tsc -p tsconfig.json --noEmit",
-    "dev": "node --import tsx src/server.ts",
-    "start": "node --import tsx src/server.ts",
+    "build": "wrangler types && tsc -p tsconfig.json --noEmit",
+    "dev": "wrangler dev --port 8090",
+    "deploy": "wrangler deploy",
+    "start": "wrangler dev --port 8090",
     "lint": "echo 'bridge: ESLint skipped (ignored in root config until Phase 6)'",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "echo 'bridge: no tests yet'"
+    "test": "node --import tsx vitest run",
+    "dev:local": "node --import tsx src/server.ts"
   },
   "dependencies": {
     "@alpha/logger": "workspace:*",
-    "express": "^4.21.2"
+    "hono": "^4.7.0",
+    "uuid": "^11.1.0"
   },
   "devDependencies": {
-    "@types/express": "^4.17.21",
-    "@types/node": "^22.14.0",
-    "tsx": "^4.21.0"
+    "@cloudflare/workers-types": "^4.20241230.0",
+    "@types/uuid": "^10.0.0",
+    "typescript": "~5.8.2",
+    "wrangler": "^3.114.17",
+    "vitest": "^3.0.0"
   }
 }
